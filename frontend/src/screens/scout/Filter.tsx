@@ -69,6 +69,10 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 28, alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 360px", minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <Group t="F&B check" f="primaryType · types · dining attrs">
+            {(o.fnb || []).map((x) => <Row key={x.k} on={(f.fnb || []).includes(x.k)} l={x.l} n={x.n} onClick={() => toggle("fnb", x.k)} />)}
+          </Group>
+
           <Group t="Business status" f="businessStatus">
             {o.status.map((s) => <Row key={s.k} on={f.status.includes(s.k)} l={s.l} n={s.n} onClick={() => toggle("status", s.k)} />)}
           </Group>

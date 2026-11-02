@@ -33,7 +33,8 @@ def _pct(n: int | float, d: int | float) -> float:
     return round(100 * n / d, 1) if d else 0.0
 
 
-def profile(df: pd.DataFrame, run: dict) -> dict:
+def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None) -> dict:
+    """kw_calls: Places calls per keyword for the run (from the api_calls ledger), for cost per new place."""
     n = len(df)
     if n == 0:
         return {"rows": 0}
@@ -75,6 +76,8 @@ def profile(df: pd.DataFrame, run: dict) -> dict:
     cash_share = op_hex["pay"].apply(lambda s: s.isin(["cash", "none"]).mean())
     cash_n = op_hex.size()
     top_cell = density.idxmax() if len(density) else None
+    priority_pks = set(seg_priority["pk"])
+    hexes = _hex_table(df_hex, priority_pks, density)
 
     # Weekday x hour: share of places with listed hours that are open
     with_hours = op[op["has_hours"]]
@@ -139,6 +142,9 @@ def profile(df: pd.DataFrame, run: dict) -> dict:
         "type_by_area": [{"area": a["jp"], "shares": {t: _pct(a["top_types"].get(t, 0), a["places"])
                                                       for t in top_type_names}} for a in areas[:9]],
         "top_types": top_type_names,
+        "fnb": _fnb(df),
+        "keywords": _keywords(df, kw_calls or {}, run),
+        "hexes": hexes,
         "density_hex": [{"h": c, "n": int(v)} for c, v in density.items() if c],
         "top_cell": {"h": top_cell, "n": int(density.max())} if top_cell else None,
         "cash_hex": [{"h": c, "share": round(float(cash_share[c]), 3), "n": int(cash_n[c])}
@@ -175,3 +181,58 @@ def _filled(df: pd.DataFrame, col: str) -> int:
 def _hist(s: pd.Series, bins, labels) -> list[dict]:
     counts = pd.cut(s, bins=bins, labels=labels, right=False).value_counts().reindex(labels, fill_value=0)
     return [{"l": l, "v": int(v)} for l, v in counts.items()]
+
+
+def _fnb(df: pd.DataFrame) -> dict:
+    n = len(df)
+    out = {k: {"n": int((df["fnb"] == k).sum()), "pct": _pct((df["fnb"] == k).sum(), n)} for k in ("core", "related", "no")}
+    non_core = df[df["fnb"] != "core"]
+    out["non_core_types"] = [{"type": t, "n": int(c)} for t, c in non_core["type_label"].value_counts().head(8).items()]
+    out["signals"] = {k: int(v) for k, v in df["fnb_signal"].value_counts().items()}
+    return out
+
+
+def _keywords(df: pd.DataFrame, kw_calls: dict[str, int], run: dict) -> list[dict]:
+    """Yield per search term: what it found, how much is F&B, and what only it found."""
+    rows = df[["pk", "keywords", "fnb", "type_label"]].explode("keywords")
+    only = df[df["keywords"].map(len) == 1].assign(kw=lambda d: d["keywords"].str[0])["kw"].value_counts()
+    rate = run.get("cost_local", 0) / max(1, run.get("api_calls", 1))
+    out = []
+    for kw, g in rows.groupby("keywords"):
+        calls = kw_calls.get(kw)
+        unique = int(only.get(kw, 0))
+        out.append({
+            "keyword": kw, "places": len(g), "fnb_pct": _pct((g["fnb"] == "core").sum(), len(g)),
+            "only_this": unique, "only_pct": _pct(unique, len(g)),
+            "top_types": g["type_label"].value_counts().head(3).index.tolist(),
+            "calls": calls, "cost_per_unique": round(calls * rate / unique, 2) if calls and unique else None,
+        })
+    return sorted(out, key=lambda k: -k["places"])
+
+
+def _hex_table(df_hex: pd.DataFrame, priority_pks: set, density: pd.Series) -> dict:
+    """Per base-resolution hex: merchants, F&B share, type mix, cash share, priority leads."""
+    rows = []
+    for cell, g in df_hex[df_hex["cell"].notna()].groupby("cell"):
+        op = g[g["status"] == "OPERATIONAL"]
+        rows.append({
+            "h": cell, "area": g["area_jp"].mode().iloc[0], "places": len(g),
+            "fnb": int((g["fnb"] == "core").sum()),
+            "types": [{"t": t, "n": int(c)} for t, c in g["type_label"].value_counts().head(3).items()],
+            "cash_pct": _pct(op["pay"].isin(["cash", "none"]).sum(), len(op)),
+            "median_rating": _median(op["rating"]),
+            "leads": int(g["pk"].isin(priority_pks).sum()),
+        })
+    rows.sort(key=lambda r: -r["places"])
+    counts = density.sort_values(ascending=False)
+    top10 = max(1, round(len(counts) * 0.1))
+    return {
+        "cells": len(counts),
+        "median": float(counts.median()) if len(counts) else 0,
+        "p90": float(counts.quantile(0.9)) if len(counts) else 0,
+        "max": int(counts.max()) if len(counts) else 0,
+        "top10_share": _pct(counts.head(top10).sum(), counts.sum()),
+        "top10_cells": top10,
+        "rows": rows[:20],
+        "by_leads": sorted(rows, key=lambda r: -r["leads"])[:5],
+    }

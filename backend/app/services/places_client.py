@@ -86,6 +86,15 @@ NAMES = ["ほたる", "まる吉", "千鳥", "夕凪", "銀杏", "灯", "三日�
          "十六夜", "藤", "いろは", "かもめ", "よし川", "きらく", "一福", "さくら", "とら", "えびす", "天満屋"]
 CHAINS = ["鳥貴族", "串カツ田中", "スシロー", "コメダ珈琲店", "スターバックス", "一蘭", "餃子の王将", "すき家"]
 
+# Real pulls include some non-F&B hits (角打ち liquor stores, karaoke, konbini, hotels)
+NON_FNB = [
+    ("liquor_store", ["liquor_store", "store", "food", "point_of_interest", "establishment"], "酒屋", True),
+    ("karaoke", ["karaoke", "night_club", "point_of_interest", "establishment"], "カラオケ", True),
+    ("convenience_store", ["convenience_store", "food_store", "store", "point_of_interest", "establishment"], "コンビニ", False),
+    ("hotel", ["hotel", "lodging", "point_of_interest", "establishment"], "ホテル", False),
+    ("event_venue", ["event_venue", "banquet_hall", "point_of_interest", "establishment"], "宴会場", True),
+]
+
 MOCK_RES = 10       # the fake universe is generated per res-10 cell
 PEAK_PER_CELL = 5.0  # places per res-10 cell (~0.015 km²) at the heart of a hotspot, per keyword family
 
@@ -168,13 +177,18 @@ def _make_place(cell: str, family: str, i: int, lat: float, lng: float) -> dict:
                            "endPrice": {"currencyCode": "JPY", "units": str(start + r.choice([1000, 2000]))}}
     if r.random() < 0.5:
         p["priceLevel"] = r.choice(["PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE", "PRICE_LEVEL_EXPENSIVE"])
+    if r.random() < 0.05:
+        ptype, types, label, dining = r.choice(NON_FNB)
+        p.update({"types": types, "primaryType": ptype, "primaryTypeDisplayName": {"text": label, "languageCode": "ja"}})
+        p["_dining"] = dining
     if r.random() < 0.7:
         cash_only = r.random() < (0.35 if not chain else 0.02)
         p["paymentOptions"] = {"acceptsCashOnly": cash_only, "acceptsCreditCards": not cash_only and r.random() < 0.85,
                                "acceptsNfc": not cash_only and r.random() < 0.45, "acceptsDebitCards": False}
     if r.random() < 0.88:
         p["regularOpeningHours"] = _hours(r, ptype)
-    for k, prob in [("dineIn", 0.95), ("takeout", 0.3), ("delivery", 0.1), ("reservable", 0.45),
+    no_dining = not p.pop("_dining", True)
+    for k, prob in [] if no_dining else [("dineIn", 0.95), ("takeout", 0.3), ("delivery", 0.1), ("reservable", 0.45),
                     ("servesBeer", 0.8 if "cafe" not in ptype else 0.1), ("servesLunch", 0.5), ("servesDinner", 0.8)]:
         if r.random() < 0.85:
             p[k] = r.random() < prob

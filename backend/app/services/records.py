@@ -20,6 +20,33 @@ SERVICES = {"dineIn": "Dine-in", "takeout": "Takeout", "delivery": "Delivery", "
             "servesBeer": "Serves beer", "servesLunch": "Lunch", "servesDinner": "Dinner"}
 QUALITY = {"phone": "Has phone number", "web": "Has website", "photos": "5+ photos", "nochain": "Exclude chains"}
 REVIEW_STEPS = [0, 5, 10, 20, 50, 100, 200, 500, 1000]
+
+# F&B detection from Google's own fields. Google has no "is F&B" flag, but three signals together
+# are reliable: the primaryType, the full `types` list, and dining attributes (dineIn, serves*),
+# which Google only fills in for venues that serve food or drink.
+FNB_PRIMARY = {
+    "restaurant", "bar", "cafe", "coffee_shop", "bakery", "pub", "brewpub", "bistro", "steak_house", "deli",
+    "food_court", "meal_takeaway", "meal_delivery", "dessert_shop", "dessert_restaurant", "tea_house",
+    "ice_cream_shop", "juice_shop", "sandwich_shop", "bagel_shop", "donut_shop", "confectionery", "wine_bar",
+    "cocktail_bar", "snack_bar", "beer_garden", "diner", "cafeteria", "chocolate_shop", "acai_shop",
+    "bar_and_grill", "noodle_shop", "candy_store", "pastry_shop",
+}
+FNB_TYPES = {"food", "restaurant", "bar", "cafe", "meal_takeaway", "meal_delivery"}
+DINING_FIELDS = ("dineIn", "servesBeer", "servesWine", "servesCoffee", "servesBreakfast", "servesLunch",
+                 "servesDinner", "servesDessert", "servesBrunch", "servesCocktails", "servesVegetarianFood")
+FNB_LABEL = {"core": "F&B", "related": "F&B-related", "no": "Not F&B"}
+
+
+def fnb_class(p: dict) -> tuple[str, str]:
+    """('core' | 'related' | 'no', the signal that decided it)."""
+    primary = p.get("primaryType") or ""
+    if primary in FNB_PRIMARY or primary.endswith(("_restaurant", "_bar", "_cafe")):
+        return "core", "primaryType"
+    if FNB_TYPES & set(p.get("types") or []):
+        return "related", "types"
+    if any(k in p for k in DINING_FIELDS):
+        return "related", "dining attributes"
+    return "no", "none"
 DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]  # Google's day 0 is Sunday
 
 
@@ -72,7 +99,9 @@ def open_at(intervals: list[tuple[int, int]], minute_of_week: int) -> bool:
 def flatten(row: Place) -> dict:
     p = row.data
     a = regions.area(row.area) if row.area else None
+    fnb, fnb_signal = fnb_class(p)
     return {
+        "fnb": fnb, "fnb_signal": fnb_signal, "types": p.get("types") or [],
         "pk": row.id, "place_id": row.place_id,
         "name": (p.get("displayName") or {}).get("text", ""),
         "address": p.get("shortFormattedAddress") or p.get("formattedAddress", ""),
@@ -122,6 +151,7 @@ def default_filters(df: pd.DataFrame) -> dict:
         "price": list(range(6)), "pay": list(PAY), "types": [], "svc": [], "qual": [],
         # Places from border cells that fall outside every selected area start excluded
         "areas": sorted(a for a in df["area"].unique().tolist() if a != "outside") if not df.empty else [],
+        "fnb": ["core", "related", "no"],
     }
 
 
@@ -159,6 +189,7 @@ def steps(f: dict) -> list[tuple[str, callable]]:
     min_rev = REVIEW_STEPS[min(f.get("revIdx", 0), len(REVIEW_STEPS) - 1)]
     return [
         ("Business status", lambda df: df["status"].isin(f.get("status", []))),
+        ("F&B check", lambda df: df["fnb"].isin(f.get("fnb", ["core", "related", "no"]))),
         ("Area", lambda df: df["area"].isin(f.get("areas", []))),
         ("Rating", lambda df: np.where(df["rating"].isna(), bool(f.get("unrated", True)),
                                        df["rating"].fillna(0) >= f.get("minRating", 0))),

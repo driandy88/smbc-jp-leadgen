@@ -68,6 +68,10 @@ def test_mock_run_end_to_end(client, auth):
     assert v["rows"] > 0
     a = client.post(f"/api/versions/{v['id']}/analyze", headers=auth).json()
     assert len(a["summary"]["kpis"]) == 4 and a["summary"]["where"] and a["profile"]["rows"] == v["rows"]
+    prof = a["profile"]
+    assert sum(h["places"] for h in prof["hexes"]["rows"]) <= prof["rows"] and prof["hexes"]["rows"][0]["types"]
+    assert {k["keyword"] for k in prof["keywords"]} == {"居酒屋", "焼き鳥"}
+    assert prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"] + prof["fnb"]["no"]["n"] == prof["rows"]
 
     # Every Places call is in the ledger
     assert client.get("/api/billing/summary", headers=auth).status_code == 403
@@ -82,3 +86,15 @@ def test_open_at_handles_overnight():
     iv = [(5 * 1440 + 18 * 60, 6 * 1440 + 2 * 60)]
     assert records.open_at(iv, 6 * 1440 + 60)
     assert not records.open_at(iv, 6 * 1440 + 3 * 60)
+
+
+def test_fnb_class_on_real_shapes():
+    izakaya = {"primaryType": "japanese_izakaya_restaurant", "types": ["japanese_izakaya_restaurant", "restaurant", "food"]}
+    kakuuchi = {"primaryType": "liquor_store", "types": ["liquor_store", "store", "food"], "servesBeer": True}
+    karaoke = {"primaryType": "karaoke", "types": ["karaoke", "night_club"], "servesBeer": True}
+    hotel = {"primaryType": "hotel", "types": ["hotel", "lodging"]}
+    assert records.fnb_class(izakaya) == ("core", "primaryType")
+    assert records.fnb_class({"primaryType": "bar", "types": ["bar"]})[0] == "core"
+    assert records.fnb_class(kakuuchi) == ("related", "types")
+    assert records.fnb_class(karaoke) == ("related", "dining attributes")
+    assert records.fnb_class(hotel) == ("no", "none")

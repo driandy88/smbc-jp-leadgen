@@ -25,6 +25,10 @@ Rules:
 - Pitch lines must be concrete and fit the segment (e.g. cash-only izakaya → low-fee terminal + QR).
 - Don't restate definitions or describe the charts. No filler like "it is important to".
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
+- Use the hex data: name the 1-2 hexes (by ward + hex id) a rep should walk first, and say how
+  concentrated venues are (share of places in the top 10% of hexes).
+- Use keyword yield: call out terms that found few places only they could find (low value per call)
+  and terms that found many unique F&B places. Mention the F&B share if non-F&B hits are material.
 - Keep Japanese ward and place names as given. English for everything else. Short sentences."""
 
 SCHEMA = {
@@ -58,6 +62,13 @@ def _prompt_payload(p: dict) -> dict:
     out["run"] = {k: p["run"].get(k) for k in ("keywords", "base_res", "max_res", "saturated", "splits")}
     out["areas"] = [{k: v for k, v in a.items() if k != "price"} for a in p.get("areas", [])[:24]]
     out["top_leads"] = (p.get("top_leads") or [])[:10]
+    out["fnb"] = p.get("fnb")
+    out["keywords"] = p.get("keywords")
+    if p.get("hexes"):
+        h = p["hexes"]
+        out["hexes"] = {k: h[k] for k in ("cells", "median", "p90", "max", "top10_share", "top10_cells")}
+        out["hexes"]["densest"] = h["rows"][:8]
+        out["hexes"]["most_leads"] = h["by_leads"]
     return out
 
 
@@ -105,6 +116,11 @@ def rule_based(p: dict) -> dict:
     bv = p.get("best_visit")
     peak = p["open_peak"]
     lead_share = round(100 * top["priority_leads"] / max(1, seg["priority"]["n"])) if top else 0
+    hx = p.get("hexes") or {}
+    best_hex = (hx.get("by_leads") or [None])[0]
+    fnb = p.get("fnb") or {}
+    kws = p.get("keywords") or []
+    weak_kw = [k for k in kws if k["places"] >= 10 and k["only_pct"] < 10]
 
     return {
         "headline": (f"{seg['priority']['n']:,} priority leads in {top['jp']}" if top and len(areas) == 1
@@ -131,11 +147,20 @@ def rule_based(p: dict) -> dict:
         "when": {"window": f"Weekdays {bv['hour']}:00–{bv['hour'] + 1}:00" if bv else "—",
                  "why": (f"{round(bv['open_share'] * 100)}% of venues are open and past the lunch rush; "
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
-        "actions": ([f"Assign reps to {', '.join(a['jp'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
+        "actions": ([f"Walk hex {best_hex['h']} ({best_hex['area']}) first: {best_hex['leads']} priority leads among "
+                     f"{best_hex['places']} merchants."] if best_hex and best_hex["leads"] else [])
+                   + ([f"Drop or merge {', '.join(k['keyword'] for k in weak_kw[:3])}: under 10% of their places were not "
+                       "already found by other terms."] if weak_kw else [])
+                   + ([f"Assign reps to {', '.join(a['jp'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
                     if by_leads else [])
                    + ["Export the priority segment and call ahead to book visits.",
                       f"Verify payment status on the {pay['none']['n']:,} venues with no payment info during visits."],
         "caveats": [f"{pay['none']['pct']}% have no payment info on Google; confirm on site.",
+                    *([f"{round(100 - fnb['core']['pct'], 1)}% of hits are not core F&B "
+                       f"(e.g. {', '.join(t['type'] for t in fnb['non_core_types'][:3])}); use the F&B check filter."]
+                      if fnb and fnb["core"]["pct"] < 98 else []),
+                    *([f"Venues are concentrated: the top {hx['top10_cells']} hexes (10%) hold {hx['top10_share']}% of places."]
+                      if hx else []),
                     f"{q['chain_pct']}% look like chains (central purchasing, usually poor fit)."]
                    + ([f"{q['saturated_cells']} cell{'s' if q['saturated_cells'] != 1 else ''} hit the 60-result cap"
                        " even at max resolution; some venues are missing."]
