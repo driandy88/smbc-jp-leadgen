@@ -3,6 +3,7 @@ import { api, ApiError } from "../../api";
 import { HexMap, Outline } from "../../components/HexMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
+import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
 import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
 
@@ -15,6 +16,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
+  const [hover, setHover] = useState<string | null>(null);
 
   useEffect(() => {
     api<ResultData>(`/api/runs/${runId}/result`, { body: filters }).then((d) => {
@@ -75,7 +77,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
         <div className="card" style={{ flex: "1 1 420px", minWidth: 0, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Place density · res {run.base_res}</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{p.areas.length} areas</span></div>
-          <HexMap outline={outline} layers={layers} height={440} ariaLabel="Hex map of place density" highlight={p.top_cell ? { cell: p.top_cell.h, text: `${p.top_cell.n}` } : null} />
+          <HexMap outline={outline} layers={layers} height={440} ariaLabel="Hex map of place density" highlight={hover ? { cell: hover, text: `${p.hexes?.rows.find((r: { h: string }) => r.h === hover)?.places ?? ""}` } : p.top_cell ? { cell: p.top_cell.h, text: `${p.top_cell.n}` } : null} />
           <Legend title="places / cell" colors={DENSITY} labels={`0 · ${cuts.map((c) => Math.round(c)).join(" · ")}+`} />
         </div>
 
@@ -106,6 +108,12 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
             ))}
           </div>
         </div>
+      </div>
+
+      <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
+        <KeywordYield p={p} />
+        <FnbCheck p={p} />
       </div>
 
       <div className="card" style={{ position: "relative", padding: 22, display: "flex", flexWrap: "wrap", gap: "20px 32px", alignItems: "flex-end", overflow: "hidden" }}>

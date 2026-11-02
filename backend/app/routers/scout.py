@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
-from app.models import Run, RunCell, RunLog
+from app.models import ApiCall, Run, RunCell, RunLog
 from app.services import executor, keywords, pricing, records, regions
 from app.services.analysis import profile
 from app.services.collector import queue_run
@@ -194,7 +194,7 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
     kept, _ = records.apply(df, f) if not df.empty else (df, [])
     if kept.empty:
         return {"count": 0}
-    p = profile(kept, _run_out(run))
+    p = profile(kept, _run_out(run), kw_calls(db, run_id))
     city_of = {a["area"]: a["city"] for a in run.areas}
     cities = []
     for c, g in kept.groupby(kept["area"].map(lambda a: city_of.get(a, "outside"))):
@@ -202,6 +202,12 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
                        "cash_or_unknown_pct": round(100 * g["pay"].isin(["cash", "none"]).mean(), 1),
                        "median_rating": _med(g["rating"]), "median_reviews": _med(g["reviews"])})
     return {"count": len(kept), "profile": p, "cities": cities, "run": _run_out(run)}
+
+
+def kw_calls(db: Session, run_id: int) -> dict[str, int]:
+    rows = db.execute(select(ApiCall.keyword, func.count()).where(ApiCall.run_id == run_id, ApiCall.api == "places.searchText")
+                      .group_by(ApiCall.keyword)).all()
+    return {k: n for k, n in rows if k}
 
 
 def _med(s: pd.Series):
@@ -214,6 +220,7 @@ def _options(df) -> dict:
     types = df.groupby(["type", "type_label"]).size().sort_values(ascending=False)
     return {
         "status": [{"k": k, "l": l, "n": int((df["status"] == k).sum())} for k, l in records.STATUS.items()],
+        "fnb": [{"k": k, "l": l, "n": int((df["fnb"] == k).sum())} for k, l in records.FNB_LABEL.items()],
         "price": [{"k": i, "l": l, "n": int((df["price"] == i).sum())} for i, l in enumerate(records.PRICE_BANDS)],
         "pay": [{"k": k, "l": l, "n": int((df["pay"] == k).sum())} for k, l in records.PAY.items()],
         "types": [{"k": t, "l": l, "n": int(n)} for (t, l), n in types.head(16).items()],

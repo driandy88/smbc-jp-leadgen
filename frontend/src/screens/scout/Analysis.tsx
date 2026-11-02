@@ -4,6 +4,7 @@ import { HexMap, Outline } from "../../components/HexMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
+import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -115,6 +116,12 @@ function Report({ a, name, outline }: { a: Analysis; name: string; outline: Outl
             <span style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5 }}>{sg.def}</span>
           </div>
         ))}
+      </div>
+
+      <HexBreakdown p={p} res={p.run.base_res} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
+        <KeywordYield p={p} />
+        <FnbCheck p={p} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 24 }}>

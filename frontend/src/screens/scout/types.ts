@@ -30,14 +30,14 @@ export type Run = {
 
 export type Filters = {
   status: string[]; minRating: number; unrated: boolean; revIdx: number; days: number[]; from: string; to: string;
-  hasHours: boolean; price: number[]; pay: string[]; types: string[]; svc: string[]; qual: string[]; areas: string[];
+  hasHours: boolean; price: number[]; pay: string[]; types: string[]; svc: string[]; qual: string[]; areas: string[]; fnb?: string[];
 };
 
 export type Opt = { k: string; l: string; n: number; en?: string };
 export type FilterResult = {
   total: number; count: number; funnel: { l: string; n: number; d: number }[]; filters: Filters; defaults: Filters;
   options: {
-    status: Opt[]; price: (Opt & { k: number })[]; pay: Opt[]; types: Opt[]; svc: Opt[]; qual: Opt[]; areas: Opt[];
+    status: Opt[]; fnb?: Opt[]; price: (Opt & { k: number })[]; pay: Opt[]; types: Opt[]; svc: Opt[]; qual: Opt[]; areas: Opt[];
     rating_hist: number[]; review_hist: number[]; unrated: number; no_hours: number; review_steps: number[];
   };
   preview: { pk: number; name: string; area: string; type: string; rating: number | null; reviews: number | null; price: string; pay: string; pay_label: string; today: string; maps_uri: string; status: string }[];
