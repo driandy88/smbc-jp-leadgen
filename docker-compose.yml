@@ -1,0 +1,27 @@
+# Local stack: Postgres + the app image, mock mode by default.
+#   docker compose up --build   →  http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hexline
+      POSTGRES_PASSWORD: hexline
+      POSTGRES_DB: hexline
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "hexline"]
+      interval: 3s
+      retries: 20
+  app:
+    build: .
+    ports: ["8080:8080"]
+    env_file: [{ path: .env, required: false }]
+    environment:
+      DATABASE_URL: postgresql+psycopg://hexline:hexline@db:5432/hexline
+      EXECUTION_MODE: thread
+      DEFAULT_MOCK: "true"
+      LOCAL_OUTPUT_DIR: /tmp/output
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:

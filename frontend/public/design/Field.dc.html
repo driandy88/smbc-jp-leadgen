@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hexline — Field</title>
+<script src="./support.js"></script>
+<script src="./bridge.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&amp;family=Inter+Tight:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+JP:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:#C8442B}
+.m{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.jp{font-family:'Noto Sans JP',sans-serif}
+.serif{font-family:'Fraunces',Georgia,serif}
+.fb{font:inherit;cursor:pointer;border-radius:2px;transition:background .2s ease-out,border-color .2s ease-out,color .2s ease-out}
+.fb:hover{border-color:currentColor !important}
+.fbp:hover{background:#C8442B !important;border-color:#C8442B !important;color:#F3F0E8 !important}
+.li:hover{background:rgba(127,120,105,0.10)}
+input[type=range]{accent-color:#C8442B}
+@keyframes hxStroke{0%{stroke-dashoffset:1}55%{stroke-dashoffset:0}100%{stroke-dashoffset:-1}}
+@keyframes hxFade{from{opacity:0;transform:translateY(6px)}}
+@keyframes hxFadeOut{to{opacity:0;visibility:hidden}}
+@keyframes hxRing{0%,100%{box-shadow:0 0 0 0 rgba(200,68,43,.35)}50%{box-shadow:0 0 0 7px rgba(200,68,43,0)}}
+.hx-stroke{stroke-dasharray:1;animation:hxStroke 1.6s ease-in-out infinite}
+.hx-in{animation:hxFade .45s ease-out both}
+.hx-ring{animation:hxRing 1.4s ease-out infinite}
+.hx-grab{cursor:grab}
+.hx-grab:active{cursor:grabbing}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: {{c.bg}}; color: {{c.ink}}; font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif">
+
+  <nav aria-label="Primary" style="flex: 1 1 88px; min-width: 88px; border-right: 1px solid {{c.rule}}; display: flex; flex-direction: column; align-items: center; gap: 32px; padding: 16px 0 20px; box-sizing: border-box; background: {{c.bg}}">
+    <button type="button" onClick="{{nav.login}}" aria-label="Hexline — sign out" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; display: flex; padding: 6px">
+      <svg width="40" height="36" viewBox="0 0 40 36" aria-hidden="true"><path d="M26.2 24.6 Q21 27.6 16.1 30.4 Q10.9 27.4 5.7 24.4 Q5.8 18.4 5.6 12.3 Q10.8 9.3 16 6.3 Q21.2 9.4 26.3 12.4 L26.4 17.6 Q26.5 21 30 21 L34.6 21" fill="none" stroke="{{c.ink}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="36.4" cy="21" r="2.6" fill="{{c.ver}}" stroke="{{c.ink}}" stroke-width="1"></circle></svg>
+    </button>
+    <div style="position: relative; display: flex; flex-direction: column; gap: 26px; align-items: center">
+      <span aria-hidden="true" style="position: absolute; top: 30px; bottom: 40px; left: 50%; width: 1px; background: {{c.ink}}; opacity: 0.3"></span>
+      <button type="button" onClick="{{nav.scout}}" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: {{c.mute}}; min-width: 64px">
+        <span class="m" style="font-size: 10px; background: {{c.bg}}; padding: 0 4px">01</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {{c.ink}}; background: {{c.ink}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 3.6 Q13.4 5.4 16.4 7.2 Q16.6 10.6 16.3 14 Q13.3 15.8 10.1 17.4 Q7 15.7 3.9 14 Q3.7 10.5 4 7.2 Q7.1 5.3 10.2 3.6 Z M15.4 15.8 Q18 18.3 20.6 20.9" fill="none" stroke="{{c.bg}}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+        <span style="font-size: 12px; background: {{c.bg}}; padding: 0 4px">Scout</span>
+      </button>
+      <button type="button" onClick="{{nav.score}}" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: {{c.mute}}; min-width: 64px">
+        <span class="m" style="font-size: 10px; background: {{c.bg}}; padding: 0 4px">02</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {{c.ink}}; background: {{c.ink}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 3.8 Q3.3 12 3.6 20.4 Q12 20.7 20.6 20.3 M6.6 16.8 Q9.6 16 11.4 12.6 Q13.3 9.1 17.4 7.6" fill="none" stroke="{{c.bg}}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="18.6" cy="7.1" r="1.6" fill="none" stroke="{{c.bg}}" stroke-width="1.3"></circle></svg></span>
+        <span style="font-size: 12px; background: {{c.bg}}; padding: 0 4px">Score</span>
+      </button>
+      <button type="button" onClick="{{nav.field}}" aria-current="page" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: {{c.ink}}; min-width: 64px">
+        <span class="m" style="font-size: 10px; color: {{c.ver}}; background: {{c.bg}}; padding: 0 4px">03</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid {{c.ver}}; background: {{c.bg}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.6" cy="4.6" r="1.9" fill="none" stroke="{{c.ink}}" stroke-width="1.3"></circle><path d="M8.7 7.2 Q8.3 10.4 8.6 13.1 Q7.3 16.6 5.8 20.6 M8.6 13.1 Q10.4 16.3 11.8 20.4 M5.6 10.6 Q8.6 8.4 11.8 10.4 M16.6 20.6 Q16.4 15 16.5 9.4 Q18.7 9.1 20.7 10.4 Q18.5 11.6 16.5 12.6" fill="none" stroke="{{c.ink}}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="16.6" cy="20.4" r="1.2" fill="{{c.ver}}"></circle></svg></span>
+        <span style="font-size: 12px; font-weight: 600; background: {{c.bg}}; padding: 0 4px">Field</span>
+      </button>
+    </div>
+    <button onClick="{{toggleTheme}}" aria-label="Switch to {{themeNext}} mode" class="fb" style="margin-top: auto; width: 44px; height: 44px; background: transparent; border: 1px solid transparent; color: {{c.ink}}; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.6 3.4 Q8.2 4.6 8.4 10.2 Q8.8 15.4 14.6 16.4 Q11 18.6 7.4 17 Q3 14.6 3.4 9.6 Q4 4.4 9.2 3 Q11.6 2.5 13.6 3.4 Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+    </button>
+  </nav>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 12px 32px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid {{c.rule}}">
+      <div style="display: flex; align-items: baseline; gap: 10px"><span class="serif" style="font-size: 19px">Osaka FnB Pilot</span><span class="m" style="font-size: 11px; color: {{c.mute}}">PRJ-0142</span></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <span class="m" style="font-size: 11px; border: 1px solid {{c.rule2}}; padding: 4px 8px; border-radius: 2px; display: inline-flex; gap: 6px; align-items: center"><span style="width: 6px; height: 6px; background: {{c.ink}}"></span>data osaka-fnb_2026-10-30_v3</span>
+        <span class="m" style="font-size: 11px; border: 1px solid {{c.rule2}}; padding: 4px 8px; border-radius: 2px; display: inline-flex; gap: 6px; align-items: center"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{c.hi}}"></span>model prospect-lgbm v4 · prod</span>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 190px">
+          <div style="display: flex; justify-content: space-between; gap: 12px"><span style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {{c.mute}}">Maps API · Oct</span><span class="m" style="font-size: 12px">¥48,320 <span style="color: {{c.mute}}">/ ¥150,000</span></span></div>
+          <div style="height: 2px; background: {{c.rule}}"><div style="height: 2px; width: 32.2%; background: {{c.ink}}"></div></div>
+        </div>
+        <button aria-label="Account: Daniel Riandy" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid {{c.ink}}; background: {{c.panel}}; color: {{c.ink}}; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer">DR</button>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; flex: 1">
+      <section aria-label="Prospect map" style="flex: 999 1 520px; min-width: 0; position: relative; height: calc(100vh - 61px); min-height: 640px; overflow: hidden; background: {{c.land}}">
+        <svg ref="{{svgRef}}" viewBox="{{vb}}" preserveAspectRatio="xMidYMid slice" class="hx-grab" onPointerDown="{{onDown}}" onPointerMove="{{onMove}}" onPointerUp="{{onUp}}" onPointerLeave="{{onLeave}}" role="img" aria-label="Map of {{cityName}} with prospect scores" style="position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block">
+          <path d="{{base.minor}}" fill="none" stroke="{{c.minor}}" stroke-width="{{sw.minor}}"></path>
+          <path d="{{base.streets}}" fill="none" stroke="{{c.street}}" stroke-width="{{sw.street}}" stroke-linecap="round"></path>
+          <path d="{{base.shotengai}}" fill="none" stroke="{{c.street}}" stroke-width="{{sw.shop}}" stroke-dasharray="{{sw.shopDash}}"></path>
+          <path d="{{base.wide}}" fill="none" stroke="{{c.water}}" stroke-width="{{sw.wide}}" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="{{base.water}}" fill="none" stroke="{{c.water}}" stroke-width="{{sw.water}}" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="{{base.canal}}" fill="none" stroke="{{c.water}}" stroke-width="{{sw.canal}}" stroke-linecap="butt"></path>
+          <path d="{{base.moat}}" fill="none" stroke="{{c.water}}" stroke-width="{{sw.canal}}"></path>
+          <path d="{{base.bridges}}" fill="none" stroke="{{c.street}}" stroke-width="{{sw.bridge}}"></path>
+          <path d="{{base.rail}}" fill="none" stroke="{{c.rail}}" stroke-width="{{sw.rail}}" opacity="0.55"></path>
+          <path d="{{base.rail}}" fill="none" stroke="{{c.land}}" stroke-width="{{sw.railIn}}" stroke-dasharray="{{sw.railDash}}"></path>
+          <path d="{{base.subway}}" fill="none" stroke="{{c.rail}}" stroke-width="{{sw.sub}}" stroke-dasharray="{{sw.subDash}}" opacity="0.35"></path>
+
+          <path d="{{hex.0}}" fill="{{c.lo}}" fill-opacity="{{hexOp}}" stroke="{{c.land}}" stroke-width="{{sw.hex}}"></path>
+          <path d="{{hex.1}}" fill="{{c.lomid}}" fill-opacity="{{hexOp}}" stroke="{{c.land}}" stroke-width="{{sw.hex}}"></path>
+          <path d="{{hex.2}}" fill="{{c.mid}}" fill-opacity="{{hexOp}}" stroke="{{c.land}}" stroke-width="{{sw.hex}}"></path>
+          <path d="{{hex.3}}" fill="{{c.midhi}}" fill-opacity="{{hexOp}}" stroke="{{c.land}}" stroke-width="{{sw.hex}}"></path>
+          <path d="{{hex.4}}" fill="{{c.hi}}" fill-opacity="{{hexOp}}" stroke="{{c.land}}" stroke-width="{{sw.hex}}"></path>
+
+          <path d="{{dots.lo}}" fill="{{c.lo}}" fill-opacity="0.78"></path>
+          <path d="{{dots.mid}}" fill="{{c.mid}}" fill-opacity="0.9"></path>
+          <path d="{{dots.hi}}" fill="{{c.hi}}" stroke="{{c.land}}" stroke-width="{{sw.dotRing}}"></path>
+
+          <path d="{{st.dots}}" fill="{{c.land}}" stroke="{{c.ink}}" stroke-width="{{sw.station}}"></path>
+          <text x="{{st.0.x}}" y="{{st.0.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.0.t}}</text>
+          <text x="{{st.1.x}}" y="{{st.1.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.1.t}}</text>
+          <text x="{{st.2.x}}" y="{{st.2.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.2.t}}</text>
+          <text x="{{st.3.x}}" y="{{st.3.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.3.t}}</text>
+          <text x="{{st.4.x}}" y="{{st.4.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.4.t}}</text>
+          <text x="{{st.5.x}}" y="{{st.5.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.5.t}}</text>
+          <text x="{{st.6.x}}" y="{{st.6.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.6.t}}</text>
+          <text x="{{st.7.x}}" y="{{st.7.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.7.t}}</text>
+          <text x="{{st.8.x}}" y="{{st.8.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.8.t}}</text>
+          <text x="{{st.9.x}}" y="{{st.9.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.9.t}}</text>
+          <text x="{{st.10.x}}" y="{{st.10.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.10.t}}</text>
+          <text x="{{st.11.x}}" y="{{st.11.y}}" font-size="{{st.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.ink}}" opacity="0.82">{{st.11.t}}</text>
+          <text x="{{br.0.x}}" y="{{br.0.y}}" font-size="{{br.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.mute}}" text-anchor="middle">{{br.0.t}}</text>
+          <text x="{{br.1.x}}" y="{{br.1.y}}" font-size="{{br.fs}}" font-family="'Noto Sans JP', sans-serif" fill="{{c.mute}}" text-anchor="middle">{{br.1.t}}</text>
+
+          <circle cx="{{ag.x}}" cy="{{ag.y}}" r="{{ag.r}}" fill="{{c.ver}}" fill-opacity="0.06" stroke="{{c.ver}}" stroke-width="{{sw.ring}}" stroke-dasharray="{{sw.ringDash}}" opacity="{{ag.op}}"></circle>
+          <path d="{{rt.all}}" fill="none" stroke="{{c.ink}}" stroke-width="{{sw.route}}" stroke-dasharray="{{sw.routeDash}}" stroke-linejoin="round" opacity="0.45"></path>
+          <path d="{{rt.done}}" fill="none" stroke="{{c.ver}}" stroke-width="{{sw.routeOn}}" stroke-linejoin="round" stroke-linecap="round"></path>
+          <path d="{{rt.stops}}" fill="{{c.ink}}" stroke="{{c.land}}" stroke-width="{{sw.dotRing}}"></path>
+          <path d="{{rt.visited}}" fill="{{c.ver}}" stroke="{{c.land}}" stroke-width="{{sw.dotRing}}"></path>
+          <text x="{{rt.l0.x}}" y="{{rt.l0.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l0.t}}</text>
+          <text x="{{rt.l1.x}}" y="{{rt.l1.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l1.t}}</text>
+          <text x="{{rt.l2.x}}" y="{{rt.l2.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l2.t}}</text>
+          <text x="{{rt.l3.x}}" y="{{rt.l3.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l3.t}}</text>
+          <text x="{{rt.l4.x}}" y="{{rt.l4.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l4.t}}</text>
+          <text x="{{rt.l5.x}}" y="{{rt.l5.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l5.t}}</text>
+          <text x="{{rt.l6.x}}" y="{{rt.l6.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l6.t}}</text>
+          <text x="{{rt.l7.x}}" y="{{rt.l7.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l7.t}}</text>
+          <text x="{{rt.l8.x}}" y="{{rt.l8.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l8.t}}</text>
+          <text x="{{rt.l9.x}}" y="{{rt.l9.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l9.t}}</text>
+          <text x="{{rt.l10.x}}" y="{{rt.l10.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l10.t}}</text>
+          <text x="{{rt.l11.x}}" y="{{rt.l11.y}}" font-size="{{rt.fs}}" text-anchor="middle" font-family="'IBM Plex Mono', monospace" fill="{{c.bg}}">{{rt.l11.t}}</text>
+          <path d="{{hl}}" fill="none" stroke="{{c.ink}}" stroke-width="{{sw.hl}}"></path>
+
+          <g transform="{{ag.tf}}" opacity="{{ag.op}}" onPointerDown="{{agDown}}" style="cursor: grab">
+            <circle cx="0" cy="-15" r="17" fill="{{c.land}}" fill-opacity="0.01"></circle>
+            <ellipse cx="0" cy="0.6" rx="6.5" ry="1.8" fill="{{c.ink}}" opacity="0.18"></ellipse>
+            <circle cx="0.3" cy="-24.6" r="3.4" fill="{{c.land}}" stroke="{{c.ink}}" stroke-width="1.4"></circle>
+            <path d="M0.2 -21 Q-0.4 -15 0.1 -9.6 M0.1 -9.6 Q-2.2 -5 -3.8 0 M0.1 -9.6 Q2.4 -5.2 3.6 -0.2 M-4.8 -17.6 Q-1.6 -19.6 3.8 -17.8 M3.8 -17.8 Q4.6 -15 5.2 -12.4" fill="none" stroke="{{c.ink}}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M3.4 -12.4 L9 -12.6 L9.2 -7.8 L3.6 -7.6 Z M5.2 -12.5 Q6.2 -14.2 7.4 -12.6" fill="{{c.ver}}" stroke="{{c.ink}}" stroke-width="1.1" stroke-linejoin="round"></path>
+          </g>
+          <g transform="{{wk.tf}}" opacity="{{wk.op}}">
+            <circle cx="0" cy="-8" r="9" fill="{{c.ver}}"></circle>
+            <circle cx="0" cy="-11" r="2" fill="{{c.bg}}"></circle>
+            <path d="M0 -9 Q-0.2 -6.6 0 -4.6 M0 -4.6 Q-1.4 -2.6 -2.2 -0.8 M0 -4.6 Q1.4 -2.6 2.2 -0.8 M-2.4 -7.4 Q0 -8.4 2.4 -7.4" fill="none" stroke="{{c.bg}}" stroke-width="1.2" stroke-linecap="round"></path>
+          </g>
+        </svg>
+
+        <div style="position: absolute; left: 20px; top: 20px; display: flex; flex-direction: column; gap: 8px">
+          <div role="group" aria-label="City" style="display: flex; background: {{c.panel}}; border: 1px solid {{c.rule2}}; border-radius: 2px">
+            <sc-for list="{{cities}}" as="ct" hint-placeholder-count="2"><button class="fb" onClick="{{ct.go}}" aria-pressed="{{ct.on}}" style="background: {{ct.bg}}; color: {{ct.fg}}; border: none; padding: 0 16px; min-height: 40px; font-size: 13px; display: flex; gap: 8px; align-items: center">{{ct.n}} <span class="jp" style="font-size: 11px; opacity: 0.7">{{ct.jp}}</span></button></sc-for>
+          </div>
+          <div role="group" aria-label="Layer" style="display: flex; background: {{c.panel}}; border: 1px solid {{c.rule2}}; border-radius: 2px; align-self: flex-start">
+            <button class="fb" onClick="{{layerDots}}" aria-pressed="{{isDots}}" style="background: {{lyD.bg}}; color: {{lyD.fg}}; border: none; padding: 0 12px; min-height: 36px; font-size: 12px; display: flex; gap: 6px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="4" cy="4.5" r="1.8" fill="currentColor"></circle><circle cx="9.6" cy="5.6" r="1.8" fill="currentColor"></circle><circle cx="6" cy="10" r="1.8" fill="currentColor"></circle></svg>Merchants</button>
+            <button class="fb" onClick="{{layerHex}}" aria-pressed="{{isHex}}" style="background: {{lyH.bg}}; color: {{lyH.fg}}; border: none; padding: 0 12px; min-height: 36px; font-size: 12px; display: flex; gap: 6px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.4 Q9.6 2.9 12 4.3 Q12.1 7 12 9.8 Q9.5 11.2 7 12.6 Q4.4 11.2 2 9.8 Q1.9 7 2 4.3 Q4.5 2.8 7 1.4 Z" fill="none" stroke="currentColor" stroke-width="1.2"></path></svg>H3 · avg score</button>
+          </div>
+          <sc-if value="{{flying}}" hint-placeholder-val="{{ false }}"><span class="m" style="font-size: 11px; color: {{c.mute}}; padding: 2px 0">flying to {{cityName}}…</span></sc-if>
+        </div>
+
+        <div style="position: absolute; right: 20px; top: 20px; display: flex; flex-direction: column; border: 1px solid {{c.rule2}}; background: {{c.panel}}; border-radius: 2px">
+          <button class="fb" onClick="{{zoomIn}}" aria-label="Zoom in" style="width: 40px; height: 40px; background: transparent; border: none; color: {{c.ink}}; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2 Q7.1 7 7 12 M2 7.1 Q7 6.9 12 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"></path></svg></button>
+          <span style="height: 1px; background: {{c.rule2}}"></span>
+          <button class="fb" onClick="{{zoomOut}}" aria-label="Zoom out" style="width: 40px; height: 40px; background: transparent; border: none; color: {{c.ink}}; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7.1 Q7 6.9 12 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <div style="position: absolute; left: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; background: {{c.panelA}}; border: 1px solid {{c.rule2}}; padding: 10px 12px; border-radius: 2px">
+          <span style="font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: {{c.mute}}">Prospect Score</span>
+          <div style="display: flex; gap: 14px; font-size: 12px">
+            <span style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{c.hi}}"></span>High ≥ 0.50</span>
+            <span style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{c.mid}}"></span>Mid</span>
+            <span style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{c.lo}}"></span>Low &lt; 0.25</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px"><span style="height: 4px; width: {{scalePx}}; border: 1px solid {{c.ink}}; border-top: none"></span><span class="m" style="font-size: 10px; color: {{c.mute}}">{{scaleLbl}}</span></div>
+        </div>
+        <span class="m" style="position: absolute; right: 20px; bottom: 14px; font-size: 10px; color: {{c.mute}}">Places data © Google · base map simplified</span>
+
+        <sc-if value="{{hoverOn}}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; left: {{hv.left}}; top: {{hv.top}}; width: 264px; background: {{c.panel}}; border: 1px solid {{c.ink}}; border-radius: 2px; padding: 14px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 4">
+            <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start">
+              <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span class="jp" style="font-size: 15px">{{hv.jp}}</span><span style="font-size: 12px; color: {{c.mute}}">{{hv.ro}}</span></div>
+              <span class="m" style="font-size: 18px; color: {{hv.col}}">{{hv.s}}</span>
+            </div>
+            <div class="m" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; font-size: 11px; border-top: 1px solid {{c.rule}}; padding-top: 8px"><span>{{hv.cat}}</span><span>★ {{hv.rating}}</span><span>{{hv.rev}} reviews</span></div>
+            <span style="font-size: 12px">{{hv.pay}}</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid {{c.rule}}; padding-top: 8px">
+              <sc-for list="{{hv.reasons}}" as="r" hint-placeholder-count="3"><div style="display: flex; justify-content: space-between; font-size: 12px"><span>{{r.l}}</span><span class="m" style="color: {{r.c}}">{{r.v}}</span></div></sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showOverlay}}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; background: {{c.veil}}; display: flex; align-items: center; justify-content: center; padding: 20px">
+            <div class="hx-in" style="width: 100%; max-width: 560px; background: {{c.panel}}; border: 1px solid {{c.rule2}}; border-radius: 2px; padding: 26px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+              <div style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: {{c.ver}}">03 — FIELD</span><h1 class="serif" style="margin: 0; font-weight: 400; font-size: 26px">Score the map</h1></div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+                <label style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {{c.mute}}">Model
+                  <select class="m" style="font-size: 13px; min-height: 40px; background: {{c.bg}}; color: {{c.ink}}; border: 1px solid {{c.rule2}}; border-radius: 2px; padding: 0 8px; text-transform: none; letter-spacing: 0"><option>prospect-lgbm v4 · prod</option><option>prospect-lgbm v3 · archived</option></select>
+                </label>
+                <label style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {{c.mute}}">Data
+                  <select class="m" style="font-size: 13px; min-height: 40px; background: {{c.bg}}; color: {{c.ink}}; border: 1px solid {{c.rule2}}; border-radius: 2px; padding: 0 8px; text-transform: none; letter-spacing: 0"><option>osaka-fnb_2026-10-30_v3</option><option>osaka-fnb_2026-10-02_v2</option></select>
+                </label>
+              </div>
+              <div style="position: relative; padding: 6px 0 0">
+                <div style="position: absolute; left: 12.5%; right: 12.5%; top: 14px; height: 2px; display: flex"><sc-for list="{{pl.segs}}" as="g" hint-placeholder-count="3"><span style="flex: 1; height: 2px; background: {{g.bg}}"></span></sc-for></div>
+                <span aria-hidden="true" style="position: absolute; top: 9px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: {{c.ver}}; left: {{pl.dot}}; transition: left .1s linear; display: {{pl.dotD}}"></span>
+                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: relative">
+                  <sc-for list="{{pl.st}}" as="s" hint-placeholder-count="4">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
+                      <span class="{{s.ring}}" style="width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; background: {{s.bg}}; border: 2px solid {{s.bd}}"></span>
+                      <span style="font-size: 13px; font-weight: 500">{{s.n}}</span>
+                      <span class="m" style="font-size: 11px; color: {{c.mute}}">{{s.m}}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <button class="fb fbp" onClick="{{run}}" disabled="{{runBusy}}" style="background: {{c.ink}}; color: {{c.bg}}; border: 1px solid {{c.ink}}; min-height: 48px; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; padding: 0 18px"><span>{{runLabel}}</span><span class="m" style="font-size: 11px; opacity: 0.7">2,204 places · 2 cities</span></button>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+      <aside style="flex: 1 1 360px; min-width: 0; max-height: calc(100vh - 61px); min-height: 640px; overflow-y: auto; border-left: 1px solid {{c.rule}}; background: {{c.bg}}; box-sizing: border-box; padding: 22px 24px 32px; display: flex; flex-direction: column; gap: 22px">
+        <sc-if value="{{panelEmpty}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 12px; color: {{c.mute}}">
+            <svg width="120" height="40" viewBox="0 0 120 40" aria-hidden="true"><path class="{{emptyStroke}}" pathLength="1" d="M4 30 Q20 8 38 22 T74 18 Q92 14 116 24" fill="none" stroke="{{c.street}}" stroke-width="1.4" stroke-linecap="round"></path></svg>
+            <span class="serif" style="font-size: 20px; color: {{c.ink}}">Nothing on the map yet</span>
+            <span style="font-size: 13px; line-height: 1.6">Pick a model and a data version, then run. Counts, top prospects and route planning appear here.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{panelOn}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 22px">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="serif" style="font-size: 22px">{{scopeTitle}}</span><span class="m" style="font-size: 11px; color: {{c.mute}}">{{scopeMeta}}</span></div>
+              <div style="display: flex; height: 8px; gap: 2px"><span style="width: {{bands.hw}}; background: {{c.hi}}"></span><span style="width: {{bands.mw}}; background: {{c.mid}}"></span><span style="width: {{bands.lw}}; background: {{c.lo}}"></span></div>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid {{c.rule}}">
+                <div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 0"><span class="m" style="font-size: 24px">{{bands.h}}</span><span style="font-size: 12px; display: flex; gap: 6px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{c.hi}}"></span>high</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 0"><span class="m" style="font-size: 24px">{{bands.m}}</span><span style="font-size: 12px; display: flex; gap: 6px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{c.mid}}"></span>mid</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 0"><span class="m" style="font-size: 24px">{{bands.l}}</span><span style="font-size: 12px; display: flex; gap: 6px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{c.lo}}"></span>low</span></div>
+              </div>
+            </div>
+
+            <div style="border: 1px solid {{c.rule2}}; border-radius: 2px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: {{c.panel}}">
+              <sc-if value="{{noAgent}}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; gap: 14px; align-items: center">
+                  <button onPointerDown="{{trayDown}}" aria-label="Drag the sales agent onto the map" class="hx-grab" style="width: 56px; height: 64px; border: 1px dashed {{c.rule2}}; background: transparent; border-radius: 2px; display: flex; align-items: center; justify-content: center; touch-action: none">
+                    <svg width="34" height="48" viewBox="-12 -30 24 34" aria-hidden="true"><circle cx="0.3" cy="-24.6" r="3.4" fill="none" stroke="{{c.ink}}" stroke-width="1.4"></circle><path d="M0.2 -21 Q-0.4 -15 0.1 -9.6 M0.1 -9.6 Q-2.2 -5 -3.8 0 M0.1 -9.6 Q2.4 -5.2 3.6 -0.2 M-4.8 -17.6 Q-1.6 -19.6 3.8 -17.8 M3.8 -17.8 Q4.6 -15 5.2 -12.4" fill="none" stroke="{{c.ink}}" stroke-width="1.5" stroke-linecap="round"></path><path d="M3.4 -12.4 L9 -12.6 L9.2 -7.8 L3.6 -7.6 Z" fill="{{c.ver}}" stroke="{{c.ink}}" stroke-width="1.1"></path></svg>
+                  </button>
+                  <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 14px; font-weight: 500">Sales agent</span><span style="font-size: 12px; color: {{c.mute}}">Drag onto the map to count prospects within walking range.</span><button class="fb" onClick="{{placeCenter}}" style="align-self: flex-start; background: transparent; color: {{c.ink}}; border: 1px solid {{c.rule2}}; min-height: 32px; padding: 0 10px; font-size: 12px">Place at map center</button></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{hasAgent}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; font-weight: 500">Sales agent · {{agNear}}</span><button class="fb" onClick="{{removeAgent}}" style="background: transparent; border: 1px solid transparent; color: {{c.mute}}; font-size: 12px; min-height: 32px">Remove</button></div>
+                  <span class="m" style="font-size: 14px">{{radiusLine}}</span>
+                  <div style="display: flex; align-items: center; gap: 10px"><label for="hx-rad" style="font-size: 12px; color: {{c.mute}}">Radius</label><input id="hx-rad" type="range" min="300" max="2000" step="50" value="{{radius}}" onChange="{{onRadius}}" style="flex: 1"><span class="m" style="font-size: 12px; width: 56px; text-align: right">{{radiusLbl}}</span></div>
+                  <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid {{c.rule}}; padding-top: 12px">
+                    <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px; font-weight: 500">Recommended visits</span><div style="display: flex; align-items: center; border: 1px solid {{c.rule2}}; border-radius: 2px"><button class="fb" onClick="{{visitsDown}}" aria-label="Fewer visits" style="width: 30px; height: 30px; background: transparent; border: none; color: {{c.ink}}">−</button><span class="m" style="width: 26px; text-align: center; font-size: 13px">{{visits}}</span><button class="fb" onClick="{{visitsUp}}" aria-label="More visits" style="width: 30px; height: 30px; background: transparent; border: none; color: {{c.ink}}">+</button></div></div>
+                    <div role="group" aria-label="Priority" style="display: flex; gap: 4px"><sc-for list="{{prios}}" as="pm" hint-placeholder-count="3"><button class="fb" onClick="{{pm.pick}}" aria-pressed="{{pm.on}}" style="flex: 1; background: {{pm.bg}}; color: {{pm.fg}}; border: 1px solid {{c.rule2}}; min-height: 34px; font-size: 12px">{{pm.n}}</button></sc-for></div>
+                    <span style="font-size: 11px; color: {{c.mute}}; line-height: 1.45">{{prioNote}}</span>
+                    <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                      <sc-for list="{{recs}}" as="rc" hint-placeholder-count="5">
+                        <li class="hx-in" style="display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid {{c.rule}}">
+                          <span class="m" style="width: 20px; height: 20px; border-radius: 50%; background: {{c.ink}}; color: {{c.bg}}; font-size: 10px; display: flex; align-items: center; justify-content: center">{{rc.k}}</span>
+                          <span style="display: flex; flex-direction: column; min-width: 0"><span class="jp" style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{rc.jp}}</span><span style="font-size: 11px; color: {{c.mute}}">{{rc.meta}}</span></span>
+                          <span style="display: flex; flex-direction: column; align-items: flex-end"><span class="m" style="font-size: 13px; color: {{rc.col}}">{{rc.s}}</span><span class="m" style="font-size: 10px; color: {{c.mute}}">{{rc.d}}</span></span>
+                        </li>
+                      </sc-for>
+                    </ol>
+                    <span class="m" style="font-size: 11px; color: {{c.mute}}">{{recSum}}</span>
+                  </div>
+                  <sc-if value="{{routeClosed}}" hint-placeholder-val="{{ true }}"><button class="fb fbp" onClick="{{openRoute}}" style="background: {{c.ink}}; color: {{c.bg}}; border: 1px solid {{c.ink}}; min-height: 44px; font-size: 14px; font-weight: 500">Show route on map</button></sc-if>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{routeOpen}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 14px" class="hx-in">
+                <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="serif" style="font-size: 20px">Route</span><button class="fb" onClick="{{closeRoute}}" style="background: transparent; border: 1px solid transparent; color: {{c.mute}}; font-size: 12px; min-height: 32px">Close</button></div>
+                <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+                  <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 11px; color: {{c.mute}}">Visits</span><div style="display: flex; align-items: center; border: 1px solid {{c.rule2}}; border-radius: 2px"><button class="fb" onClick="{{visitsDown}}" aria-label="Fewer visits" style="width: 36px; height: 36px; background: transparent; border: none; color: {{c.ink}}">−</button><span class="m" style="flex: 1; text-align: center; font-size: 14px">{{visits}}</span><button class="fb" onClick="{{visitsUp}}" aria-label="More visits" style="width: 36px; height: 36px; background: transparent; border: none; color: {{c.ink}}">+</button></div></div>
+                  <label style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: {{c.mute}}">Start
+                    <select class="m" value="{{start}}" onChange="{{onStart}}" style="font-size: 13px; min-height: 38px; background: {{c.panel}}; color: {{c.ink}}; border: 1px solid {{c.rule2}}; border-radius: 2px; padding: 0 8px"><option>10:00</option><option>13:30</option><option>14:00</option><option>15:00</option><option>16:00</option></select>
+                  </label>
+                </div>
+                <div style="display: flex; gap: 6px"><sc-for list="{{modes}}" as="md" hint-placeholder-count="2"><button class="fb" onClick="{{md.pick}}" aria-pressed="{{md.on}}" style="flex: 1; background: {{md.bg}}; color: {{md.fg}}; border: 1px solid {{c.rule2}}; min-height: 36px; font-size: 12px">{{md.n}}</button></sc-for></div>
+                <button onClick="{{toggleAvoid}}" aria-pressed="{{avoid}}" style="font: inherit; background: transparent; border: none; color: {{c.ink}}; display: flex; align-items: center; gap: 10px; padding: 4px 0; cursor: pointer; text-align: left; min-height: 36px">
+                  <span style="flex: 0 0 auto; width: 30px; height: 16px; border: 1px solid {{c.ink}}; border-radius: 9px; position: relative; box-sizing: border-box"><span style="position: absolute; top: 2px; left: {{avoidKnob}}; width: 10px; height: 10px; border-radius: 50%; background: {{avoidCol}}; transition: left .2s ease-out"></span></span>
+                  <span style="font-size: 13px">Avoid peak service <span class="m" style="font-size: 11px; color: {{c.mute}}">11:30–13:30, after 18:00</span></span>
+                </button>
+                <sc-if value="{{rtNote}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: {{c.mute}}">{{rtNoteText}}</span></sc-if>
+                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid {{c.ink}}; border-bottom: 1px solid {{c.rule}}">
+                  <sc-for list="{{rtSum}}" as="t" hint-placeholder-count="4"><div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 0"><span class="m" style="font-size: 17px">{{t.v}}</span><span style="font-size: 11px; color: {{c.mute}}">{{t.l}}</span></div></sc-for>
+                </div>
+                <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                  <sc-for list="{{steps}}" as="sp" hint-placeholder-count="8">
+                    <li style="display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid {{c.rule}}; align-items: start">
+                      <span class="m" style="width: 22px; height: 22px; border-radius: 50%; background: {{sp.bg}}; color: {{c.bg}}; font-size: 11px; display: flex; align-items: center; justify-content: center">{{sp.k}}</span>
+                      <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+                        <span class="m" style="font-size: 11px; color: {{c.mute}}">{{sp.leg}}</span>
+                        <span style="font-size: 12px; color: {{c.mute}}; line-height: 1.45">{{sp.dir}}</span>
+                        <span class="jp" style="font-size: 14px">{{sp.jp}}</span>
+                        <span style="font-size: 11px; color: {{c.mute}}">{{sp.meta}}</span>
+                      </div>
+                      <span class="m" style="font-size: 13px; text-align: right">{{sp.eta}}<span style="display: block; font-size: 10px; color: {{sp.waitC}}">{{sp.wait}}</span></span>
+                    </li>
+                  </sc-for>
+                </ol>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{routeClosed}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column">
+                <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid {{c.ink}}"><span style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {{c.mute}}">Top 10 prospects</span><span class="m" style="font-size: 11px; color: {{c.mute}}">score</span></div>
+                <sc-for list="{{top}}" as="p" hint-placeholder-count="10">
+                  <button class="li" onPointerEnter="{{p.hover}}" onPointerLeave="{{p.unhover}}" style="font: inherit; color: {{c.ink}}; background: transparent; border: none; border-bottom: 1px solid {{c.rule}}; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; text-align: left; padding: 8px 4px; cursor: pointer; min-height: 48px">
+                    <span class="m" style="font-size: 11px; color: {{c.mute}}">{{p.k}}</span>
+                    <span style="display: flex; flex-direction: column; min-width: 0"><span class="jp" style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.jp}}</span><span style="font-size: 11px; color: {{c.mute}}">{{p.cat}} · {{p.area}} · {{p.pay}}</span></span>
+                    <span class="m" style="font-size: 13px; color: {{c.hi}}">{{p.s}}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <div style="display: flex; flex-direction: column; gap: 0">
+              <span class="m" style="font-size: 10px; letter-spacing: 0.08em; color: {{c.bg}}; background: {{c.ink}}; padding: 3px 7px; align-self: flex-start; border-radius: 2px; margin-bottom: 6px">AI INSIGHT</span>
+              <sc-for list="{{insights}}" as="i" hint-placeholder-count="3"><div style="display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid {{c.rule}}; font-size: 13px; line-height: 1.5"><span class="m" style="font-size: 10px; color: {{c.ver}}; padding-top: 3px">{{i.k}}</span><span>{{i.t}}</span></div></sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"onNav":{"editor":null},"stage":{"editor":"enum","options":["empty","running","result","agent","route"],"default":"empty"},"theme":{"editor":"enum","options":["light","night"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  navs() { const go = (k) => () => { if (this.props.onNav) this.props.onNav(k); }; return { login: go('login'), scout: go('scout'), score: go('score'), field: go('field') }; }
+  constructor(props) {
+    super(props);
+    const st = props.stage || 'empty';
+    const ran = st !== 'empty' && st !== 'running';
+    const V = this.VIEWS();
+    const agentAt = st === 'route' ? this.P(135.5022, 34.6683) : st === 'agent' ? this.P(135.5108, 34.7032) : null;
+    this.state = { theme: props.theme || 'light', ran, pipe: ran ? 4 : -1, rev: ran ? 1 : 0, city: 'osaka', view: Object.assign({}, st === 'route' ? { cx: -30, cy: 170, w: 330 } : V.osaka), layer: 'dots',
+      agent: agentAt ? { x: agentAt[0], y: agentAt[1] } : null, radius: st === 'route' ? 550 : 800, routeOpen: st === 'route', built: st === 'route', visits: 5, prio: 'hexline', start: '14:00', mode: 'walk', avoid: true, wt: 0, hover: null, flying: false, dragging: null };
+  }
+  componentDidMount() { if (this.props.stage === 'running') this.run(); if (this.state.built) this.walk(); }
+  componentWillUnmount() { clearInterval(this._t); clearInterval(this._w); cancelAnimationFrame(this._raf); }
+  P(lon, lat) { return [(lon - 135.505) * 9154, -(lat - 34.685) * 11095]; }
+  VIEWS() { return { osaka: { cx: -40, cy: -10, w: 780 }, kyoto: { cx: 2440, cy: -3545, w: 360 } }; }
+  run() {
+    clearInterval(this._t); const t0 = Date.now(); this.setState({ pipe: 0, rev: 0, ran: false });
+    this._t = setInterval(() => {
+      const t = (Date.now() - t0) / 1000;
+      if (t < 6) { this.setState({ pipe: t / 1.5 }); return; }
+      const r = Math.min(1, (t - 6) / 1.6);
+      this.setState({ pipe: 4, ran: true, rev: r });
+      if (r >= 1) clearInterval(this._t);
+    }, 50);
+  }
+  walk() { clearInterval(this._w); const t0 = Date.now(); this._w = setInterval(() => { this.setState({ wt: ((Date.now() - t0) / 18000) % 1 }); }, 40); }
+  animView(to, dur, arc) {
+    cancelAnimationFrame(this._raf); const from = Object.assign({}, this.state.view); const t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / dur); const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; const z = arc ? 1 + 2.6 * Math.sin(Math.PI * k) : 1;
+      this.setState({ view: { cx: from.cx + (to.cx - from.cx) * e, cy: from.cy + (to.cy - from.cy) * e, w: (from.w + (to.w - from.w) * e) * z } });
+      if (k < 1) this._raf = requestAnimationFrame(step); else this.setState({ flying: false }); };
+    this._raf = requestAnimationFrame(step);
+  }
+  data() {
+    if (this._d) return this._d;
+    const P = (a, b) => this.P(a, b);
+    let sd = 20261030; const r = () => { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; };
+    const gs = () => { let u = 0, v = 0; while (u === 0) u = r(); v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const AR = [
+      { id: 'tenma', n: 'Tenma', city: 'osaka', c: [135.5120, 34.7052], A: 2.0, b: [41, 82, 192], k: [[135.5116, 34.7040, 1, 0.2], [135.5113, 34.7085, 0.7, 0.22], [135.5085, 34.7018, 0.4, 0.22]], xmax: 122, cat: [0.30, 0.15, 0.10, 0.10, 0.09, 0.08, 0.06, 0.05, 0.07] },
+      { id: 'umeda', n: 'Umeda', city: 'osaka', c: [135.4985, 34.7012], A: 3.8, b: [38, 124, 420], k: [[135.4990, 34.7032, 1, 0.3], [135.4975, 34.6970, 0.8, 0.2], [135.5012, 34.7062, 0.5, 0.2]], cat: [0.29, 0.06, 0.15, 0.11, 0.07, 0.08, 0.04, 0.04, 0.16] },
+      { id: 'namba', n: 'Namba', city: 'osaka', c: [135.5015, 34.6682], A: 3.14, b: [42, 118, 396], k: [[135.5013, 34.6688, 1, 0.2], [135.5035, 34.6655, 1.1, 0.17], [135.5005, 34.6728, 0.6, 0.26], [135.4995, 34.6645, 0.6, 0.2]], xmax: 54, cat: [0.26, 0.06, 0.11, 0.13, 0.16, 0.09, 0.06, 0.04, 0.09] },
+      { id: 'fukushima', n: 'Fukushima', city: 'osaka', c: [135.4866, 34.6966], A: 1.13, b: [21, 48, 135], k: [[135.4868, 34.6968, 1, 0.22], [135.4895, 34.6955, 0.4, 0.18]], cat: [0.32, 0.09, 0.12, 0.09, 0.08, 0.10, 0.05, 0.05, 0.10] },
+      { id: 'gion', n: 'Gion', city: 'kyoto', c: [135.7765, 35.0030], A: 1.25, b: [11, 41, 150], k: [[135.7757, 35.0035, 1, 0.2], [135.7750, 35.0010, 0.6, 0.16]], cat: [0.21, 0.03, 0.22, 0.06, 0.04, 0.07, 0.02, 0.03, 0.32] },
+      { id: 'kawaramachi', n: 'Kawaramachi', city: 'kyoto', c: [135.7678, 35.0050], A: 1.35, b: [18, 56, 162], k: [[135.7684, 35.0042, 1, 0.24]], cat: [0.24, 0.05, 0.19, 0.12, 0.06, 0.08, 0.03, 0.04, 0.19] },
+      { id: 'pontocho', n: 'Pontocho', city: 'kyoto', c: [135.7708, 35.0058], A: 0.22, b: [10, 28, 71], k: [[135.77075, 35.0058, 1, 0.09]], cat: [0.33, 0.07, 0.09, 0.04, 0.03, 0.05, 0.03, 0.02, 0.34] }
+    ];
+    const CATS = [['izakaya', 'Izakaya'], ['standing', 'Standing bar'], ['cafe', 'Café'], ['ramen', 'Ramen'], ['konamon', 'Konamon'], ['yakiniku', 'Yakiniku'], ['kushikatsu', 'Kushikatsu'], ['chuka', 'Machi-chuka'], ['other', 'Bar']];
+    const PRE = { izakaya: [['居酒屋', 'Izakaya'], ['大衆酒場', 'Taishu Sakaba'], ['酒処', 'Sakedokoro']], standing: [['立呑み', 'Tachinomi'], ['立ち飲み', 'Tachinomi'], ['角打ち', 'Kakuuchi']], cafe: [['喫茶', 'Kissa'], ['珈琲', 'Coffee'], ['純喫茶', 'Jun-kissa']], ramen: [['中華そば', 'Chuka Soba'], ['らーめん', 'Ramen'], ['麺屋', 'Menya']], konamon: [['お好み焼き', 'Okonomiyaki'], ['たこ焼き', 'Takoyaki'], ['鉄板焼', 'Teppanyaki']], yakiniku: [['焼肉', 'Yakiniku'], ['ホルモン', 'Horumon']], kushikatsu: [['串かつ', 'Kushikatsu'], ['串揚げ', 'Kushiage']], chuka: [['中華料理', 'Chuka Ryori'], ['餃子', 'Gyoza']], other: [['バー', 'Bar'], ['ワインバル', 'Wine Bar'], ['割烹', 'Kappo']] };
+    const NM = [['ほたる', 'Hotaru'], ['まる吉', 'Marukichi'], ['千鳥', 'Chidori'], ['夕凪', 'Yunagi'], ['銀杏', 'Icho'], ['灯', 'Akari'], ['三日月', 'Mikazuki'], ['楓', 'Kaede'], ['松風', 'Matsukaze'], ['鶴亀', 'Tsurukame'], ['八兵衛', 'Hachibe'], ['小町', 'Komachi'], ['はなび', 'Hanabi'], ['福来', 'Fukurai'], ['こはる', 'Koharu'], ['大黒屋', 'Daikokuya'], ['ひさご', 'Hisago'], ['山茶花', 'Sazanka'], ['新月', 'Shingetsu'], ['ことぶき', 'Kotobuki'], ['寅吉', 'Torakichi'], ['まめだ', 'Mameda'], ['ろくろ', 'Rokuro'], ['のれん', 'Noren'], ['十六夜', 'Izayoi'], ['藤', 'Fuji'], ['いろは', 'Iroha'], ['かもめ', 'Kamome'], ['よし川', 'Yoshikawa'], ['きらく', 'Kiraku']];
+    const STN = { osaka: [['大阪 梅田', 135.4972, 34.7022], ['天満', 135.5119, 34.7046], ['扇町', 135.5131, 34.7008], ['天神橋筋六丁目', 135.5113, 34.7109], ['中崎町', 135.5048, 34.7068], ['福島', 135.4867, 34.6970], ['北新地', 135.4975, 34.6981], ['南森町', 135.5114, 34.6980], ['淀屋橋', 135.5017, 34.6927], ['心斎橋', 135.5010, 34.6751], ['なんば', 135.5013, 34.6655], ['日本橋', 135.5060, 34.6668]], kyoto: [['京都河原町', 135.7689, 35.0037], ['祇園四条', 135.7722, 35.0037], ['烏丸', 135.7595, 35.0037], ['三条', 135.7722, 35.0090], ['清水五条', 135.7698, 34.9965], ['京都市役所前', 135.7685, 35.0110]] };
+    const stw = {}; Object.keys(STN).forEach((c) => { stw[c] = STN[c].map((s) => { const p = P(s[1], s[2]); return { t: s[0], x: p[0], y: p[1] }; }); });
+    const pts = [];
+    AR.forEach((a) => {
+      const cc = P(a.c[0], a.c[1]); const R = Math.sqrt(a.A / Math.PI) * 100; const ks = a.k.map((k) => { const p = P(k[0], k[1]); return [p[0], p[1], k[2], k[3] * 100]; }); const kw = ks.reduce((t, k) => t + k[2], 0);
+      [2, 1, 0].forEach((band) => {
+        for (let i = 0; i < a.b[band]; i++) {
+          let x = 0, y = 0;
+          for (let tries = 0; tries < 30; tries++) { let u = r() * kw, j = 0; while (u > ks[j][2] && j < ks.length - 1) { u -= ks[j][2]; j++; } const sp = ks[j][3] * (band === 2 ? 0.8 : 1); x = ks[j][0] + gs() * sp; y = ks[j][1] + gs() * sp; if (Math.hypot(x - cc[0], y - cc[1]) <= R && (!a.xmax || x < a.xmax) && !(a.city === 'osaka' && Math.abs(y - 180) < 5 && x < 62 && x > -170)) break; }
+          const u = r(); const s = band === 0 ? 0.03 + 0.219 * Math.pow(u, 0.75) : band === 1 ? 0.25 + 0.249 * u : 0.5 + 0.39 * Math.pow(u, 1.6);
+          const cw = a.cat.slice(); if (band === 2) { cw[0] *= 1.4; cw[1] *= 2.4; cw[6] *= 1.6; cw[4] *= 1.3; cw[2] *= 0.5; cw[8] *= 0.4; } if (band === 0) { cw[1] *= 0.5; cw[2] *= 1.3; cw[8] *= 1.4; }
+          let cu = r() * cw.reduce((t, v) => t + v, 0), ci = 0; while (cu > cw[ci] && ci < cw.length - 1) { cu -= cw[ci]; ci++; }
+          const cat = CATS[ci]; const pre = PRE[cat[0]][Math.floor(r() * PRE[cat[0]].length)]; const nm = NM[Math.floor(r() * NM.length)];
+          const pu = r(); const pay = band === 2 ? (pu < 0.62 ? 'cash' : pu < 0.84 ? 'none' : 'card') : band === 1 ? (pu < 0.28 ? 'cash' : pu < 0.58 ? 'none' : 'card') : (pu < 0.06 ? 'cash' : pu < 0.31 ? 'none' : pu < 0.7 ? 'card' : 'cardqr');
+          const rating = Math.max(2.6, Math.min(4.6, Math.round((3.58 + gs() * 0.3) * 10) / 10)); const rev = Math.max(1, Math.round(Math.exp((band === 2 ? 4.0 : 3.4) + gs() * 1.1)));
+          const late = r() < (band === 2 ? 0.7 : band === 1 ? 0.45 : 0.3);
+          let dmin = 1e9, sn = ''; stw[a.city].forEach((st) => { const d = Math.hypot(st.x - x, st.y - y); if (d < dmin) { dmin = d; sn = st.t; } });
+          pts.push({ x, y, s, band, city: a.city, area: a.n, cat: cat[1], jp: pre[0] + ' ' + nm[0], ro: pre[1] + ' ' + nm[1], pay, rating, rev, late, dist: Math.round(dmin * 10), sn });
+        }
+      });
+    });
+    const R9 = 20.13, W = Math.sqrt(3) * R9; const hexes = {};
+    const key = (x, y) => { let s = y / (1.5 * R9), q = x / W - s / 2, t = -q - s; let rq = Math.round(q), rs = Math.round(s), rt = Math.round(t); const dq = Math.abs(rq - q), ds = Math.abs(rs - s), dt = Math.abs(rt - t); if (dq > ds && dq > dt) rq = -rs - rt; else if (ds > dt) rs = -rq - rt; return [rq, rs]; };
+    pts.forEach((p) => { const k = key(p.x, p.y); const id = k[0] + ',' + k[1]; const h = hexes[id] || (hexes[id] = { q: k[0], s: k[1], x: W * (k[0] + k[1] / 2), y: 1.5 * R9 * k[1], n: 0, sum: 0, city: p.city }); h.n++; h.sum += p.s; p.h = h; });
+    const hl = Object.values(hexes); hl.forEach((h) => { h.avg = h.sum / h.n; let d = ''; for (let k = 0; k < 6; k++) { const an = Math.PI / 180 * (60 * k - 90); d += (k ? 'L' : 'M') + (h.x + (R9 - 0.8) * Math.cos(an)).toFixed(1) + ' ' + (h.y + (R9 - 0.8) * Math.sin(an)).toFixed(1); } h.path = d + 'Z'; });
+    pts.forEach((p) => {
+      const R = [];
+      if (p.pay === 'cash') R.push(['Cash only', 0.18 + (p.s - 0.5) * 0.08]); else if (p.pay === 'none') R.push(['No payment data', 0.04]); else if (p.pay === 'card') R.push(['Takes cards', -0.07]); else R.push(['Takes cards & QR', -0.1]);
+      R.push(['Busy hex · ' + p.h.n + ' places', Math.max(-0.05, Math.min(0.11, (p.h.n - 8) * 0.008))]);
+      R.push(['Reviews · ' + p.rev, Math.max(-0.06, Math.min(0.09, (Math.log10(p.rev + 1) - 1.6) * 0.08))]);
+      R.push(['Station · ' + p.dist + ' m', Math.max(-0.06, Math.min(0.06, (400 - p.dist) / 400 * 0.06))]);
+      R.push([p.late ? 'Late-night service' : 'Closes before 22:00', p.late ? 0.04 : -0.02]);
+      p.reasons = R.sort((a, b) => (p.band === 0 ? a[1] - b[1] : b[1] - a[1])).slice(0, 3);
+    });
+    const ln = (pts2) => pts2.map((q, i) => { const p = P(q[0], q[1]); return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    let minor = '';
+    const grid = (x0, x1, y0, y1) => { for (let x = Math.ceil(x0 / 11) * 11; x <= x1; x += 11) minor += 'M' + x + ' ' + y0 + ' L' + x + ' ' + y1 + ' '; for (let y = Math.ceil(y0 / 11) * 11; y <= y1; y += 11) minor += 'M' + x0 + ' ' + y + ' L' + x1 + ' ' + y + ' '; };
+    grid(-235, 120, -305, -128); grid(-120, 56, 92, 292); grid(-60, 120, -60, 92);
+    grid(2350, 2432, -3610, -3470); grid(2442, 2530, -3600, -3480);
+    const streets = [ln([[135.4982, 34.7035], [135.4996, 34.6965], [135.5004, 34.6900], [135.5010, 34.6600]]), ln([[135.4945, 34.6935], [135.4945, 34.6600]]), ln([[135.4895, 34.6935], [135.4893, 34.6600]]), ln([[135.5065, 34.6935], [135.5060, 34.6560]]), ln([[135.5165, 34.7100], [135.5165, 34.6560]]), ln([[135.4790, 34.6985], [135.5060, 34.6985], [135.5180, 34.6988]]), ln([[135.4780, 34.6830], [135.5230, 34.6830]]), ln([[135.4750, 34.6745], [135.5230, 34.6745]]), ln([[135.4870, 34.6665], [135.5200, 34.6665]]), ln([[135.4900, 34.6905], [135.5200, 34.6905]]), ln([[135.4700, 34.7060], [135.4960, 34.7030]]), ln([[135.5000, 34.7130], [135.5090, 34.7100], [135.5190, 34.7095]]), ln([[135.5005, 34.7060], [135.5180, 34.7055]]),
+      ln([[135.7550, 35.0037], [135.7790, 35.0037]]), ln([[135.7550, 35.0090], [135.7800, 35.0090]]), ln([[135.7550, 34.9960], [135.7780, 34.9960]]), ln([[135.7550, 35.0105], [135.7800, 35.0105]]), ln([[135.7690, 35.0150], [135.7685, 34.9900]]), ln([[135.7596, 35.0150], [135.7590, 34.9870]]), ln([[135.7790, 35.0150], [135.7795, 34.9900]]), ln([[135.7750, 35.0037], [135.7752, 34.9990]])].join(' ');
+    const shotengai = [ln([[135.5115, 34.7160], [135.5112, 34.6960]]), ln([[135.5028, 34.6760], [135.5028, 34.6690]])].join(' ');
+    const wide = ln([[135.440, 34.700], [135.458, 34.704], [135.472, 34.709], [135.486, 34.713], [135.500, 34.716], [135.514, 34.721], [135.528, 34.728], [135.545, 34.737]]);
+    const water = [ln([[135.531, 34.735], [135.528, 34.722], [135.523, 34.712], [135.520, 34.703], [135.519, 34.6965], [135.5145, 34.6935], [135.505, 34.6946], [135.495, 34.6956], [135.485, 34.6942], [135.476, 34.6905], [135.466, 34.6825]]), ln([[135.5145, 34.6928], [135.505, 34.6916], [135.495, 34.6914], [135.485, 34.6903], [135.476, 34.6885], [135.4775, 34.6750], [135.4752, 34.6600]]), ln([[135.7730, 35.0300], [135.7722, 35.0200], [135.7716, 35.0100], [135.7712, 35.0030], [135.7706, 34.9950], [135.7695, 34.9850]])].join(' ');
+    const canal = 'M-170 180 L62 180 M64 -72 L64 180 ' + ln([[135.7700, 35.0110], [135.7698, 34.9950]]);
+    const moat = [ln([[135.5205, 34.6912], [135.5318, 34.6915], [135.5330, 34.6870], [135.5320, 34.6825], [135.5232, 34.6820], [135.5200, 34.6855], [135.5205, 34.6912]])].join(' ');
+    const BR = [-110, -44, -33, -22, 0, 11]; let bridges = ''; BR.forEach((x) => { bridges += 'M' + x + ' 175 L' + x + ' 185 '; });
+    const rail = [ln([[135.4959, 34.7025], [135.5119, 34.7046], [135.5226, 34.7053], [135.5341, 34.6966], [135.5345, 34.6879], [135.5338, 34.6809], [135.5338, 34.6718], [135.5300, 34.6655], [135.5255, 34.6578], [135.5228, 34.6476], [135.5133, 34.6466], [135.5013, 34.6497], [135.4930, 34.6555], [135.4859, 34.6612], [135.4799, 34.6681], [135.4618, 34.6688], [135.4664, 34.6827], [135.4747, 34.6921], [135.4867, 34.6970], [135.4959, 34.7025]]), ln([[135.4959, 34.7025], [135.4995, 34.7120], [135.5050, 34.7240]]), ln([[135.4985, 34.7055], [135.4930, 34.7150], [135.4826, 34.7205]]), ln([[135.5013, 34.6630], [135.5000, 34.6500], [135.4985, 34.6400]]), ln([[135.7588, 34.9858], [135.7450, 34.9870], [135.7800, 34.9845]])].join(' ');
+    const subway = [ln([[135.4985, 34.7030], [135.5010, 34.6650]]), ln([[135.5113, 34.7109], [135.5113, 34.6950], [135.5065, 34.6930], [135.5060, 34.6660]]), ln([[135.7595, 35.0037], [135.7689, 35.0037]]), ln([[135.7722, 35.0090], [135.7718, 34.9965]])].join(' ');
+    this._d = { pts, hexes: hl, stw, base: { minor, streets, shotengai, wide, water, canal, moat, bridges, rail, subway }, BR,
+      bridgeNames: { '-110': '大黒橋', '-44': '道頓堀橋', '-33': '戎橋', '-22': '太左衛門橋', '0': '相合橋', '11': '日本橋' } };
+    return this._d;
+  }
+  route() {
+    const s = this.state; if (!s.agent) return null; const pr = s.prio || 'hexline';
+    const key = [s.agent.x.toFixed(0), s.agent.y.toFixed(0), s.radius, s.visits, s.start, s.avoid, s.mode, pr].join('|');
+    if (this._rk === key) return this._rv;
+    const D = this.data(); const sn = (v) => Math.round(v / 11) * 11;
+    const inR = D.pts.filter((p) => p.city === 'osaka' && p.band >= 1 && Math.hypot(p.x - s.agent.x, p.y - s.agent.y) <= s.radius / 10);
+    const md = (p) => (Math.abs(p.x - s.agent.x) + Math.abs(p.y - s.agent.y)) * 10;
+    let pool = inR.filter((p) => p.band === 2); if (pool.length < s.visits) pool = pool.concat(inR.filter((p) => p.band === 1).sort((a, b) => b.s - a.s).slice(0, s.visits - pool.length));
+    const metric = pr === 'score' ? (p) => p.s : pr === 'near' ? (p) => -md(p) : (p) => p.s / (1 + md(p) / 500);
+    const cand = pool.slice().sort((a, b) => metric(b) - metric(a)).slice(0, s.visits);
+    const start = { x: sn(s.agent.x), y: sn(s.agent.y) };
+    const crossing = (x, ya, yb) => ya !== yb && Math.min(ya, yb) < 180 && Math.max(ya, yb) > 180 && x > -170 && x < 62;
+    const leg = (A, B) => {
+      const a = { x: sn(A.x), y: sn(A.y) }, b = { x: sn(B.x), y: sn(B.y) }; let pts;
+      if (!crossing(b.x, a.y, b.y)) pts = [a, { x: b.x, y: a.y }, b];
+      else if (!crossing(a.x, a.y, b.y)) pts = [a, { x: a.x, y: b.y }, b];
+      else { const mid = (a.x + b.x) / 2; const xb = D.BR.reduce((p, c) => (Math.abs(c - mid) < Math.abs(p - mid) ? c : p), D.BR[0]); pts = [a, { x: xb, y: a.y }, { x: xb, y: b.y }, b]; }
+      const out = [pts[0]]; pts.slice(1).forEach((p) => { const l = out[out.length - 1]; if (p.x !== l.x || p.y !== l.y) out.push(p); });
+      let len = 0; for (let i = 1; i < out.length; i++) len += Math.abs(out[i].x - out[i - 1].x) + Math.abs(out[i].y - out[i - 1].y);
+      return { pts: out, len };
+    };
+    const order = []; const left = cand.slice(); let cur = start;
+    while (left.length) { let bi = 0, bd = 1e9; left.forEach((p, i) => { const d = leg(cur, p).len; if (d < bd) { bd = d; bi = i; } }); cur = left[bi]; order.push(left.splice(bi, 1)[0]); }
+    const tot = (o) => { let t = 0, c = start; o.forEach((p) => { t += leg(c, p).len; c = p; }); return t; };
+    let improved = pr === 'hexline', guard = 0; if (pr === 'score') order.splice(0, order.length, ...cand.slice().sort((a, b) => b.s - a.s));
+    while (improved && guard++ < 40) { improved = false; for (let i = 0; i < order.length - 1; i++) for (let j = i + 1; j < order.length; j++) { const n = order.slice(0, i).concat(order.slice(i, j + 1).reverse(), order.slice(j + 1)); if (tot(n) + 0.01 < tot(order)) { order.splice(0, order.length, ...n); improved = true; } } }
+    const legs = []; let c = start; order.forEach((p) => { const l = leg(c, p); legs.push(l); c = p; });
+    const toMin = (t) => { const a = t.split(':'); return Number(a[0]) * 60 + Number(a[1]); };
+    const hhmm = (m) => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(Math.round(m % 60)).padStart(2, '0');
+    let t = toMin(s.start); const stops = []; let moved = 0;
+    order.forEach((p, i) => {
+      const walk = legs[i].len * 10 / 75; let arr = t + walk; let wait = '';
+      if (s.avoid && arr >= 690 && arr < 810) { wait = 'hold to 13:30'; arr = 810; }
+      if (s.avoid && arr + 20 > 1080) { moved++; stops.push({ p, leg: legs[i], arr: null, walk }); return; }
+      stops.push({ p, leg: legs[i], arr, walk, wait }); t = arr + 20;
+    });
+    const res = { start, order, legs, stops, moved, end: t, hhmm, dist: legs.reduce((a, l) => a + l.len, 0) * 10, walkMin: legs.reduce((a, l) => a + l.len * 10 / 75, 0) };
+    this._rk = key; this._rv = res; return res;
+  }
+  toWorld(e) { const svg = this.svg; if (!svg || !svg.getScreenCTM) return null; const m = svg.getScreenCTM(); if (!m) return null; const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const w = pt.matrixTransform(m.inverse()); return { x: w.x, y: w.y, k: m.a }; }
+  renderVals() {
+    const s = this.state; const D = this.data(); const night = s.theme === 'night';
+    const c = night ? { bg: '#16181D', land: '#1A1D23', ink: '#E6E2D8', mute: '#9A968C', rule: '#2A2E36', rule2: '#3A3F48', panel: '#1F232A', panelA: 'rgba(31,35,42,0.92)', water: '#26343F', street: '#3E434D', minor: '#252930', rail: '#9C998F', ver: '#E0573C', hi: '#86A96C', midhi: '#B3A95A', mid: '#DDB04E', lomid: '#D9824F', lo: '#D85A5A', veil: 'rgba(22,24,29,0.55)' }
+      : { bg: '#F3F0E8', land: '#EFEBE1', ink: '#1E1E1C', mute: '#5E5A52', rule: '#D8D3C7', rule2: '#BDB6A7', panel: '#F8F6F0', panelA: 'rgba(248,246,240,0.94)', water: '#C9D3D6', street: '#BDB6A7', minor: '#DED8CB', rail: '#1E1E1C', ver: '#C8442B', hi: '#5E7D4A', midhi: '#94A05A', mid: '#C89B3C', lomid: '#C46A45', lo: '#B33A3A', veil: 'rgba(239,235,225,0.55)' };
+    const fmt = (n) => Math.round(n).toLocaleString('en-US');
+    const v = s.view; const h = v.w / 1.16; const u = v.w / 780;
+    const out = { c, vb: (v.cx - v.w / 2).toFixed(1) + ' ' + (v.cy - h / 2).toFixed(1) + ' ' + v.w.toFixed(1) + ' ' + h.toFixed(1) };
+    out.themeNext = night ? 'light' : 'night'; out.toggleTheme = () => this.setState({ theme: night ? 'light' : 'night' });
+    out.svgRef = (el) => { this.svg = el; };
+    out.sw = { minor: 0.5 * u, street: 2.2 * u, shop: 3 * u, shopDash: (3 * u) + ' ' + (2 * u), wide: 46, water: 10, canal: 6, bridge: 3.2, rail: 3.4 * u, railIn: 1.6 * u, railDash: (6 * u) + ' ' + (6 * u), sub: 1.4 * u, subDash: (2 * u) + ' ' + (3 * u), hex: 1.1 * u, dotRing: 0.9 * u, station: 1.4 * u, ring: 1.6 * u, ringDash: (5 * u) + ' ' + (4 * u), route: 2 * u, routeDash: (4 * u) + ' ' + (3 * u), routeOn: 3.2 * u, hl: 1.6 * u };
+    out.base = D.base;
+    const stl = D.stw[s.city]; out.st = { fs: (12 * u).toFixed(1), dots: '' };
+    stl.forEach((x, i) => { out.st[i] = { t: x.t, x: (x.x + 7 * u).toFixed(1), y: (x.y - 6 * u).toFixed(1) }; out.st.dots += 'M' + (x.x - 4 * u).toFixed(1) + ' ' + x.y.toFixed(1) + 'a' + (4 * u).toFixed(2) + ' ' + (4 * u).toFixed(2) + ' 0 1 0 ' + (8 * u).toFixed(2) + ' 0a' + (4 * u).toFixed(2) + ' ' + (4 * u).toFixed(2) + ' 0 1 0 ' + (-8 * u).toFixed(2) + ' 0'; });
+    for (let i = stl.length; i < 12; i++) out.st[i] = { t: '', x: 0, y: 0 };
+    const showBr = s.city === 'osaka' && v.w < 500; out.br = { fs: (9 * u).toFixed(1), 0: { t: showBr ? '戎橋' : '', x: -33, y: (172 - 2 * u).toFixed(1) }, 1: { t: showBr ? '日本橋' : '', x: 11, y: (196 + 6 * u).toFixed(1) } };
+    const V = this.VIEWS(); const cc = V[s.city]; const maxD = s.city === 'osaka' ? 360 : 140;
+    const revR = s.rev * maxD * 1.05; const vis = (p) => Math.hypot(p.x - cc.cx, p.y - cc.cy) <= revR;
+    const hexOn = s.ran && s.layer === 'hex', dotOn = s.ran && s.layer === 'dots';
+    out.hexOp = night ? 0.85 : 0.78;
+    out.hex = ['', '', '', '', ''];
+    if (hexOn || s.pipe < 4 && false) D.hexes.forEach((hx) => { if (!vis(hx)) return; const a = hx.avg; const i = a < 0.15 ? 0 : a < 0.22 ? 1 : a < 0.3 ? 2 : a < 0.4 ? 3 : 4; out.hex[i] += hx.path; });
+    const rr = Math.max(1.2, Math.round(3.4 * u * 4) / 4);
+    const dk = [s.city, rr, s.rev >= 1 ? 1 : Math.round(s.rev * 20)].join('|');
+    if (dotOn) { if (this._dk !== dk) { const o = { lo: '', mid: '', hi: '' }; D.pts.forEach((p) => { if (!vis(p)) return; const r2 = p.band === 2 ? rr * 1.25 : rr; const d = 'M' + (p.x - r2).toFixed(1) + ' ' + p.y.toFixed(1) + 'a' + r2 + ' ' + r2 + ' 0 1 0 ' + (2 * r2) + ' 0a' + r2 + ' ' + r2 + ' 0 1 0 ' + (-2 * r2) + ' 0'; if (p.band === 2) o.hi += d; else if (p.band === 1) o.mid += d; else o.lo += d; }); this._dk = dk; this._dots = o; } out.dots = this._dots; }
+    else out.dots = { lo: '', mid: '', hi: '' };
+    out.cities = [['osaka', 'Osaka', '大阪'], ['kyoto', 'Kyoto', '京都']].map((x) => ({ n: x[1], jp: x[2], on: s.city === x[0], bg: s.city === x[0] ? c.ink : 'transparent', fg: s.city === x[0] ? c.bg : c.ink, go: () => { if (s.city === x[0]) return; this.setState({ city: x[0], flying: true, hover: null }); this.animView(V[x[0]], 1300, true); } }));
+    out.cityName = s.city === 'osaka' ? 'Osaka' : 'Kyoto'; out.flying = s.flying;
+    out.isDots = s.layer === 'dots'; out.isHex = s.layer === 'hex';
+    out.lyD = { bg: s.layer === 'dots' ? c.ink : 'transparent', fg: s.layer === 'dots' ? c.bg : c.ink }; out.lyH = { bg: s.layer === 'hex' ? c.ink : 'transparent', fg: s.layer === 'hex' ? c.bg : c.ink };
+    out.layerDots = () => this.setState({ layer: 'dots' }); out.layerHex = () => this.setState({ layer: 'hex', hover: null });
+    out.zoomIn = () => this.animView({ cx: v.cx, cy: v.cy, w: Math.max(180, v.w * 0.7) }, 350, false);
+    out.zoomOut = () => this.animView({ cx: v.cx, cy: v.cy, w: Math.min(2600, v.w / 0.7) }, 350, false);
+    const scaleM = v.w > 600 ? 500 : v.w > 300 ? 200 : 100; out.scaleLbl = scaleM + ' m'; out.scalePx = (scaleM / 10 / v.w * 900).toFixed(0) + 'px';
+    out.onDown = (e) => { const w = this.toWorld(e); if (!w) return; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) {} this._pan = { sx: e.clientX, sy: e.clientY, v: Object.assign({}, this.state.view), k: w.k }; };
+    out.agDown = (e) => { e.stopPropagation(); try { this.svg.setPointerCapture(e.pointerId); } catch (er) {} this.setState({ dragging: 'agent', hover: null }); };
+    out.trayDown = (e) => { e.preventDefault(); this.setState({ dragging: 'tray' }); };
+    out.onMove = (e) => {
+      const w = this.toWorld(e); if (!w) return;
+      if (this.state.dragging) { this.setState({ agent: { x: w.x, y: w.y }, built: false }); return; }
+      if (this._pan) { const dx = (e.clientX - this._pan.sx) / this._pan.k, dy = (e.clientY - this._pan.sy) / this._pan.k; if (Math.abs(dx) + Math.abs(dy) > 1) this.setState({ view: { cx: this._pan.v.cx - dx, cy: this._pan.v.cy - dy, w: this._pan.v.w }, hover: null }); return; }
+      if (!this.state.ran || this.state.layer !== 'dots') return;
+      const thr = 9 / w.k; let best = null, bd = thr;
+      D.pts.forEach((p, i) => { if (p.city !== this.state.city) return; const d = Math.hypot(p.x - w.x, p.y - w.y); if (d < bd) { bd = d; best = i; } });
+      const rect = this.svg.getBoundingClientRect(); const sc = rect.width / (this.svg.clientWidth || rect.width);
+      const lx = (e.clientX - rect.left) / sc, ly = (e.clientY - rect.top) / sc;
+      if (best !== (this.state.hover && this.state.hover.i) || best !== null) this.setState({ hover: best === null ? null : { i: best, lx, ly, w: this.svg.clientWidth || rect.width / sc, h: this.svg.clientHeight || rect.height / sc } });
+    };
+    out.onUp = () => { this._pan = null; if (this.state.dragging) this.setState({ dragging: null }); };
+    out.onLeave = () => { if (!this.state.dragging) this.setState({ hover: null }); this._pan = null; };
+    const hv = s.hover && D.pts[s.hover.i];
+    out.hoverOn = !!hv && !s.dragging;
+    if (hv) { const left = s.hover.lx + 290 > s.hover.w ? s.hover.lx - 280 : s.hover.lx + 16; const top = Math.min(s.hover.h - 230, Math.max(10, s.hover.ly - 30));
+      out.hv = { left: left + 'px', top: top + 'px', jp: hv.jp, ro: hv.ro, cat: hv.cat, rating: hv.rating.toFixed(1), rev: fmt(hv.rev), s: hv.s.toFixed(2), col: hv.band === 2 ? c.hi : hv.band === 1 ? c.mid : c.lo,
+        pay: { cash: 'Cash only', none: 'No payment info on Google', card: 'Cash · credit cards', cardqr: 'Cash · cards · QR (PayPay)' }[hv.pay] + ' · ' + hv.sn + ' ' + hv.dist + ' m',
+        reasons: hv.reasons.map((r) => ({ l: r[0], v: (r[1] >= 0 ? '+' : '−') + Math.abs(r[1]).toFixed(2), c: r[1] >= 0 ? c.hi : c.lo })) };
+      out.hl = 'M' + (hv.x - 7 * u).toFixed(1) + ' ' + hv.y.toFixed(1) + 'a' + (7 * u).toFixed(2) + ' ' + (7 * u).toFixed(2) + ' 0 1 0 ' + (14 * u).toFixed(2) + ' 0a' + (7 * u).toFixed(2) + ' ' + (7 * u).toFixed(2) + ' 0 1 0 ' + (-14 * u).toFixed(2) + ' 0';
+    } else { out.hv = { reasons: [] }; out.hl = ''; }
+    const ag = s.agent; const agVisible = !!ag && s.ran && s.city === 'osaka';
+    out.ag = { x: ag ? ag.x.toFixed(1) : 0, y: ag ? ag.y.toFixed(1) : 0, r: (s.radius / 10).toFixed(1), op: agVisible ? 1 : 0, tf: ag ? 'translate(' + ag.x.toFixed(1) + ' ' + ag.y.toFixed(1) + ') scale(' + (1.15 * u).toFixed(3) + ')' : 'translate(0 0)' };
+    out.noAgent = !ag || s.city !== 'osaka'; out.hasAgent = !out.noAgent;
+    out.placeCenter = () => this.setState({ agent: { x: v.cx, y: v.cy }, city: 'osaka' });
+    out.removeAgent = () => this.setState({ agent: null, routeOpen: false, built: false });
+    out.radius = s.radius; out.radiusLbl = fmt(s.radius) + ' m'; out.onRadius = (e) => this.setState({ radius: Number(e.target.value), built: this.state.routeOpen });
+    const hh = v.w / 1.16; const inView = (p) => p.x >= v.cx - v.w / 2 && p.x <= v.cx + v.w / 2 && p.y >= v.cy - hh / 2 && p.y <= v.cy + hh / 2;
+    const scopePts = D.pts.filter((p) => p.city === s.city && (agVisible ? Math.hypot(p.x - ag.x, p.y - ag.y) <= s.radius / 10 : inView(p)));
+    const bh = scopePts.filter((p) => p.band === 2).length, bm = scopePts.filter((p) => p.band === 1).length, bl = scopePts.length - bh - bm; const tot = Math.max(1, scopePts.length);
+    out.bands = { h: fmt(bh), m: fmt(bm), l: fmt(bl), hw: (bh / tot * 100).toFixed(1) + '%', mw: (bm / tot * 100).toFixed(1) + '%', lw: (bl / tot * 100).toFixed(1) + '%' };
+    let near = ''; if (ag) { let dm = 1e9; D.stw.osaka.forEach((st) => { const d = Math.hypot(st.x - ag.x, st.y - ag.y); if (d < dm) { dm = d; near = st.t; } }); }
+    out.agNear = near ? 'near ' + near : '';
+    out.scopeTitle = agVisible ? 'Within ' + fmt(s.radius) + ' m' : (s.city === 'osaka' ? 'Osaka' : 'Kyoto') + ' · in view';
+    out.scopeMeta = fmt(scopePts.length) + ' places · v4';
+    out.radiusLine = 'Within ' + fmt(s.radius) + ' m: ' + bh + ' high · ' + bm + ' mid · ' + bl + ' low';
+    const cityAll = D.pts.filter((p) => p.city === s.city); const cityHigh = cityAll.filter((p) => p.band === 2).length;
+    const highs = scopePts.filter((p) => p.band === 2); const cashH = highs.filter((p) => p.pay === 'cash').length;
+    if (agVisible) {
+      const pocket = {}; highs.forEach((p) => { pocket[p.sn] = (pocket[p.sn] || 0) + 1; }); const pk = Object.keys(pocket).sort((a, b) => pocket[b] - pocket[a])[0];
+      out.insights = [{ k: '01', t: bh + ' high prospects within ' + fmt(s.radius) + ' m — ' + Math.round(bh / Math.max(1, cityHigh) * 100) + '% of all ' + cityHigh + ' in Osaka.' }, { k: '02', t: cashH + ' of them are cash-only. Lead with the terminal fee waiver there.' }, { k: '03', t: pk ? 'Densest pocket: ' + pocket[pk] + ' high prospects closest to ' + pk + ' station.' : 'Widen the radius to find a pocket of high prospects.' }];
+    } else {
+      const byA = {}; scopePts.forEach((p) => { const a = byA[p.area] || (byA[p.area] = { n: 0, h: 0 }); a.n++; if (p.band === 2) a.h++; });
+      const best = Object.keys(byA).sort((a, b) => byA[b].h / byA[b].n - byA[a].h / byA[a].n)[0];
+      const med = (arr) => { const x = arr.map((p) => p.dist).sort((a, b) => a - b); return x.length ? x[Math.floor(x.length / 2)] : 0; };
+      out.insights = best ? [{ k: '01', t: best + ' holds ' + Math.round(byA[best].h / Math.max(1, bh) * 100) + '% of high prospects in view on ' + Math.round(byA[best].n / tot * 100) + '% of places.' }, { k: '02', t: cashH + ' of ' + bh + ' high prospects list cash only; ' + highs.filter((p) => p.pay === 'none').length + ' have no payment data.' }, { k: '03', t: 'High prospects sit closer to stations: median ' + med(highs) + ' m vs ' + med(scopePts.filter((p) => p.band === 0)) + ' m for low.' }] : [{ k: '01', t: 'No scored places in this view. Zoom out or switch city.' }];
+    }
+    out.top = scopePts.slice().sort((a, b) => b.s - a.s).slice(0, 10).map((p, i) => ({ k: String(i + 1).padStart(2, '0'), jp: p.jp, cat: p.cat, area: p.area, pay: { cash: 'cash only', none: 'no pay info', card: 'cards', cardqr: 'cards · QR' }[p.pay], s: p.s.toFixed(2),
+      hover: () => { const idx = D.pts.indexOf(p); const rect = this.svg ? this.svg.getBoundingClientRect() : null; const W = this.svg ? this.svg.clientWidth : 900, H = this.svg ? this.svg.clientHeight : 800; const lx = (p.x - (v.cx - v.w / 2)) / v.w * W; const ly = (p.y - (v.cy - hh / 2)) / hh * H; if (rect) this.setState({ hover: { i: idx, lx, ly, w: W, h: H } }); }, unhover: () => this.setState({ hover: null }) }));
+    out.routeOpen = s.routeOpen && agVisible; out.routeClosed = !out.routeOpen;
+    out.openRoute = () => { this.setState({ routeOpen: true, built: true }); this.walk(); };
+    out.closeRoute = () => { clearInterval(this._w); this.setState({ routeOpen: false, built: false }); };
+    out.visits = s.visits; out.visitsDown = () => this.setState({ visits: Math.max(3, s.visits - 1) }); out.visitsUp = () => this.setState({ visits: Math.min(10, s.visits + 1) });
+    out.start = s.start; out.onStart = (e) => this.setState({ start: e.target.value });
+    out.modes = [['walk', 'Walk'], ['train', 'Walk + train']].map((m) => ({ n: m[1], on: s.mode === m[0], bg: s.mode === m[0] ? c.ink : 'transparent', fg: s.mode === m[0] ? c.bg : c.ink, pick: () => this.setState({ mode: m[0] }) }));
+    out.avoid = s.avoid; out.toggleAvoid = () => this.setState({ avoid: !s.avoid }); out.avoidKnob = s.avoid ? '16px' : '2px'; out.avoidCol = s.avoid ? c.ver : c.ink;
+    out.prios = [['hexline', 'Hexline pick'], ['score', 'Highest score'], ['near', 'Nearest first']].map((m) => ({ n: m[1], on: (s.prio || 'hexline') === m[0], bg: (s.prio || 'hexline') === m[0] ? c.ink : 'transparent', fg: (s.prio || 'hexline') === m[0] ? c.bg : c.ink, pick: () => this.setState({ prio: m[0] }) }));
+    out.prioNote = { hexline: 'Best Prospect Score per minute walked, then the shortest loop through them.', score: 'Highest Prospect Score first, even when the walk is longer.', near: 'Always the closest high prospect next. Fastest to cover.' }[s.prio || 'hexline'];
+    const RR = agVisible ? this.route() : null;
+    out.recs = RR ? RR.stops.map((st, i) => ({ k: i + 1, jp: st.p.jp, ro: st.p.ro, meta: st.p.cat + ' · ' + { cash: 'cash only', none: 'no pay info', card: 'cards', cardqr: 'cards · QR' }[st.p.pay], s: st.p.s.toFixed(2), d: (i ? '+' : '') + fmt(st.leg.len * 10) + ' m', col: st.p.band === 2 ? c.hi : c.mid, bg: st.p.band === 2 ? c.hi : c.mid })) : [];
+    out.recSum = RR && RR.stops.length ? RR.stops.length + ' visits · ' + (RR.dist / 1000).toFixed(2) + ' km on foot · done by ' + RR.hhmm(RR.end) : 'No scored prospects inside the radius. Widen it or move the agent.';
+    const R = out.routeOpen ? RR : null;
+    out.rt = { all: '', done: '', stops: '', visited: '', fs: (9.5 * u).toFixed(1) }; for (let i = 0; i < 12; i++) out.rt['l' + i] = { t: '', x: 0, y: 0 };
+    out.wk = { tf: 'translate(0 0)', op: 0 }; out.steps = []; out.rtSum = []; out.rtNote = false;
+    if (R && R.stops.length) {
+      const full = [R.start]; R.legs.forEach((l) => l.pts.slice(1).forEach((p) => full.push(p)));
+      out.rt.all = full.map((p, i) => (i ? 'L' : 'M') + p.x + ' ' + p.y).join(' ');
+      const segL = []; let L = 0; for (let i = 1; i < full.length; i++) { const d = Math.abs(full[i].x - full[i - 1].x) + Math.abs(full[i].y - full[i - 1].y); segL.push(d); L += d; }
+      const target = s.wt * L * 1.08; let acc = 0, pos = full[0], dn = 'M' + full[0].x + ' ' + full[0].y;
+      for (let i = 1; i < full.length; i++) { if (acc + segL[i - 1] <= target) { acc += segL[i - 1]; dn += ' L' + full[i].x + ' ' + full[i].y; pos = full[i]; } else { const f = Math.max(0, (target - acc) / segL[i - 1]); pos = { x: full[i - 1].x + (full[i].x - full[i - 1].x) * f, y: full[i - 1].y + (full[i].y - full[i - 1].y) * f }; dn += ' L' + pos.x.toFixed(1) + ' ' + pos.y.toFixed(1); break; } }
+      out.rt.done = dn; out.wk = { tf: 'translate(' + pos.x.toFixed(1) + ' ' + pos.y.toFixed(1) + ') scale(' + (1.1 * u).toFixed(3) + ')', op: 1 };
+      let cum = 0; const rad = 8 * u;
+      R.stops.forEach((st, i) => { cum += st.leg.len; const nd = st.leg.pts[st.leg.pts.length - 1]; const d = 'M' + (nd.x - rad).toFixed(1) + ' ' + nd.y + 'a' + rad.toFixed(2) + ' ' + rad.toFixed(2) + ' 0 1 0 ' + (2 * rad).toFixed(2) + ' 0a' + rad.toFixed(2) + ' ' + rad.toFixed(2) + ' 0 1 0 ' + (-2 * rad).toFixed(2) + ' 0'; if (cum <= target) out.rt.visited += d; else out.rt.stops += d; if (i < 12) out.rt['l' + i] = { t: String(i + 1), x: nd.x, y: (nd.y + 3.3 * u).toFixed(1) }; });
+      const dirOf = (a, b) => (b.x > a.x ? 'east' : b.x < a.x ? 'west' : b.y < a.y ? 'north' : 'south');
+      const turn = (d1, d2) => { const o = ['north', 'east', 'south', 'west']; const k = (o.indexOf(d2) - o.indexOf(d1) + 4) % 4; return k === 1 ? 'right' : k === 3 ? 'left' : 'on'; };
+      out.steps = R.stops.map((st, i) => { const ps = st.leg.pts; const parts = []; let prev = null;
+        for (let j = 1; j < ps.length; j++) { const d = dirOf(ps[j - 1], ps[j]); const m = (Math.abs(ps[j].x - ps[j - 1].x) + Math.abs(ps[j].y - ps[j - 1].y)) * 10; let tx = (prev ? 'turn ' + turn(prev, d) + ', ' : 'head ') + d + ' ' + Math.round(m) + ' m'; if ((d === 'north' || d === 'south') && ((ps[j - 1].y - 180) * (ps[j].y - 180) < 0)) tx += ' over ' + (D.bridgeNames[String(ps[j].x)] || 'the bridge'); parts.push(tx); prev = d; }
+        const p = st.p; const txt = parts.join(', '); return { k: i + 1, jp: p.jp, meta: p.cat + ' · ' + p.s.toFixed(2) + ' · ' + { cash: 'cash only', none: 'no pay info', card: 'cards', cardqr: 'cards · QR' }[p.pay], leg: Math.round(st.leg.len * 10) + ' m · ' + Math.max(1, Math.round(st.walk)) + ' min walk', dir: txt.charAt(0).toUpperCase() + txt.slice(1) + '.', eta: st.arr === null ? 'next day' : R.hhmm(st.arr), wait: st.arr === null ? 'after 18:00' : (st.wait || '20 min visit'), waitC: st.arr === null || st.wait ? c.ver : c.mute, bg: st.arr === null ? c.rule2 : c.ink }; });
+      const made = R.stops.filter((x) => x.arr !== null).length;
+      out.rtSum = [{ v: made + '/' + R.stops.length, l: 'visits' }, { v: (R.dist / 1000).toFixed(2) + ' km', l: 'walking' }, { v: Math.round(R.walkMin) + ' min', l: 'on foot' }, { v: R.hhmm(R.end), l: 'done by' }];
+      if (s.mode === 'train') { out.rtNote = true; out.rtNoteText = 'Longest leg is ' + Math.round(Math.max(...R.legs.map((l) => l.len)) * 10) + ' m — walking beats Osaka Metro here, so no train leg is added.'; }
+      else if (R.moved) { out.rtNote = true; out.rtNoteText = R.moved + ' visit' + (R.moved > 1 ? 's' : '') + ' would land after 18:00 and moved to the next day.'; }
+    } else if (out.routeOpen) { out.rtNote = true; out.rtNoteText = 'No high prospects inside the radius. Widen it or move the agent.'; }
+    const pd = s.pipe; const SN = [['Load', '2,204 rows'], ['Process', 'H3 + station'], ['Predict', 'v4 · 2,204'], ['Map ready', '2 cities']];
+    out.pl = { st: SN.map((x, i) => { const done = pd >= i + 1 || (i === 3 && pd >= 4); const cur = pd >= 0 && Math.floor(pd) === i && pd < 4; return { n: x[0], m: done ? x[1] : cur ? 'running…' : 'queued', bg: done ? (i === 3 ? c.ver : c.ink) : c.panel, bd: done ? (i === 3 ? c.ver : c.ink) : cur ? c.ver : c.rule2, ring: cur ? 'hx-ring' : '' }; }),
+      segs: [0, 1, 2].map((i) => ({ bg: pd >= i + 1 ? c.ink : c.rule2 })), dot: (12.5 + Math.min(3, Math.max(0, pd)) / 3 * 75).toFixed(1) + '%', dotD: pd >= 0 && pd < 4 ? 'block' : 'none' };
+    out.showOverlay = !s.ran; out.runBusy = pd >= 0 && pd < 4; out.runLabel = pd >= 0 && pd < 4 ? 'Running…' : 'Run';
+    out.run = () => this.run();
+    out.panelEmpty = !s.ran; out.panelOn = s.ran; out.emptyStroke = pd >= 0 ? 'hx-stroke' : '';
+    out.nav = this.navs();
+    return out;
+  }
+}
+</script>
+</body>
+</html>

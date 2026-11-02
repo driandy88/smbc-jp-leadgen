@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501", "B008", "B904", "B905", "E741"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "modules", "config"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", ".."]
+testpaths = ["tests"]

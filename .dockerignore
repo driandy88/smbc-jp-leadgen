@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.venv
+**/__pycache__
+**/node_modules
+frontend/dist
+output
+output_test
+gadm41_JPN_shp
+hexline.db*
+*.ipynb
+infra

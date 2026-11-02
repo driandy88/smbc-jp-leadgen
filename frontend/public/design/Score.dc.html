@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hexline — Score</title>
+<script src="./support.js"></script>
+<script src="./bridge.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&amp;family=Inter+Tight:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+JP:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F0E8}
+a{color:#1E1E1C}a:hover{color:#C8442B}
+.m{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.jp{font-family:'Noto Sans JP',sans-serif}
+.serif{font-family:'Fraunces',Georgia,serif}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5E5A52}
+.chip{font:inherit;font-size:13px;color:#1E1E1C;background:transparent;border:1px solid #CFC9BB;border-radius:2px;padding:6px 12px;cursor:pointer;min-height:36px;transition:background .2s ease-out,border-color .2s ease-out,color .2s ease-out}
+.chip:hover{border-color:#1E1E1C}
+.chip[aria-pressed="true"]{background:#1E1E1C;color:#F3F0E8;border-color:#1E1E1C}
+.btn{font:inherit;font-size:14px;font-weight:500;background:#1E1E1C;color:#F3F0E8;border:1px solid #1E1E1C;border-radius:2px;padding:0 18px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;transition:background .25s ease-out,border-color .25s ease-out}
+.btn:hover{background:#C8442B;border-color:#C8442B;color:#F3F0E8}
+.btn:disabled{background:#B8B1A2;border-color:#B8B1A2;cursor:not-allowed}
+.btn2{font:inherit;font-size:13px;background:transparent;color:#1E1E1C;border:1px solid #BDB6A7;border-radius:2px;padding:0 14px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .2s ease-out}
+.btn2:hover{border-color:#1E1E1C}
+.card{border:1px solid #D8D3C7;background:#F8F6F0;border-radius:2px}
+.in{font:inherit;font-size:13px;color:#1E1E1C;background:#F8F6F0;border:1px solid #CFC9BB;border-radius:2px;padding:8px 10px;box-sizing:border-box;width:100%}
+.in:focus{outline:none;border-color:#1E1E1C}
+.tab{font:inherit;font-size:14px;background:transparent;border:none;border-bottom:2px solid transparent;padding:12px 2px;margin-bottom:-1px;cursor:pointer;color:#5E5A52;min-height:44px}
+.tab[aria-selected="true"]{color:#1E1E1C;border-bottom-color:#C8442B;font-weight:500}
+.tog{font:inherit;font-size:13px;color:#1E1E1C;background:transparent;border:none;padding:6px 0;cursor:pointer;display:inline-flex;align-items:center;gap:10px;min-height:36px;text-align:left}
+.trk{flex:0 0 auto;width:30px;height:16px;border:1px solid #1E1E1C;border-radius:9px;position:relative;box-sizing:border-box}
+.knob{position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#1E1E1C;transition:left .2s ease-out,background .2s ease-out}
+.tog[aria-pressed="true"] .knob{left:16px;background:#C8442B}
+.stn{font:inherit;background:transparent;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0;color:#1E1E1C;min-width:0;text-align:center}
+.stn:hover .stn-n{text-decoration:underline}
+.rrow{display:grid;grid-template-columns:56px minmax(130px,1.2fr) minmax(130px,1.3fr) 70px 70px 70px 96px 100px 104px minmax(150px,1fr);gap:12px;align-items:center;padding:12px 8px;border-top:1px solid #D8D3C7;font-size:13px;min-height:48px}
+input[type=range]{accent-color:#C8442B}
+@keyframes hxDraw{from{stroke-dashoffset:1}}
+@keyframes hxStroke{0%{stroke-dashoffset:1}55%{stroke-dashoffset:0}100%{stroke-dashoffset:-1}}
+@keyframes hxFade{from{opacity:0;transform:translateY(6px)}}
+@keyframes hxStamp{0%{opacity:0;transform:scale(2.3) rotate(-18deg)}55%{opacity:1;transform:scale(.9) rotate(-5deg)}75%{transform:scale(1.04) rotate(-7deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
+@keyframes hxInk{0%{opacity:0;transform:scale(.6)}60%{opacity:.35}100%{opacity:0;transform:scale(1.9)}}
+@keyframes hxRing{0%,100%{box-shadow:0 0 0 0 rgba(200,68,43,.35)}50%{box-shadow:0 0 0 7px rgba(200,68,43,0)}}
+.hx-draw{stroke-dasharray:1;animation:hxDraw 1.2s cubic-bezier(.2,.7,.2,1) both}
+.hx-stroke{stroke-dasharray:1;animation:hxStroke 1.6s ease-in-out infinite}
+.hx-in{animation:hxFade .5s ease-out both}
+.hx-stamp{animation:hxStamp .55s cubic-bezier(.2,.8,.2,1) both}
+.hx-ink{animation:hxInk .7s ease-out both}
+.hx-ring{animation:hxRing 1.4s ease-out infinite}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F3F0E8; color: #1E1E1C; font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif">
+
+  <nav aria-label="Primary" style="flex: 1 1 88px; min-width: 88px; border-right: 1px solid #D8D3C7; display: flex; flex-direction: column; align-items: center; gap: 32px; padding: 16px 0 20px; box-sizing: border-box">
+    <button type="button" onClick="{{nav.login}}" aria-label="Hexline — sign out" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; display: flex; padding: 6px">
+      <svg width="40" height="36" viewBox="0 0 40 36" aria-hidden="true"><path d="M26.2 24.6 Q21 27.6 16.1 30.4 Q10.9 27.4 5.7 24.4 Q5.8 18.4 5.6 12.3 Q10.8 9.3 16 6.3 Q21.2 9.4 26.3 12.4 L26.4 17.6 Q26.5 21 30 21 L34.6 21" fill="none" stroke="#1E1E1C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="36.4" cy="21" r="2.6" fill="#C8442B" stroke="#1E1E1C" stroke-width="1"></circle></svg>
+    </button>
+    <div style="position: relative; display: flex; flex-direction: column; gap: 26px; align-items: center">
+      <span aria-hidden="true" style="position: absolute; top: 30px; bottom: 40px; left: 50%; width: 1px; background: #1E1E1C; opacity: 0.3"></span>
+      <button type="button" onClick="{{nav.scout}}" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: #5E5A52; min-width: 64px">
+        <span class="m" style="font-size: 10px; background: #F3F0E8; padding: 0 4px">01</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid #1E1E1C; background: #1E1E1C; display: flex; align-items: center; justify-content: center">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 3.6 Q13.4 5.4 16.4 7.2 Q16.6 10.6 16.3 14 Q13.3 15.8 10.1 17.4 Q7 15.7 3.9 14 Q3.7 10.5 4 7.2 Q7.1 5.3 10.2 3.6 Z M15.4 15.8 Q18 18.3 20.6 20.9" fill="none" stroke="#F3F0E8" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+        <span style="font-size: 12px; background: #F3F0E8; padding: 0 4px">Scout</span>
+      </button>
+      <button type="button" onClick="{{nav.score}}" aria-current="page" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: #1E1E1C; min-width: 64px">
+        <span class="m" style="font-size: 10px; color: #C8442B; background: #F3F0E8; padding: 0 4px">02</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid #C8442B; background: #F3F0E8; display: flex; align-items: center; justify-content: center">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 3.8 Q3.3 12 3.6 20.4 Q12 20.7 20.6 20.3 M6.6 16.8 Q9.6 16 11.4 12.6 Q13.3 9.1 17.4 7.6" fill="none" stroke="#1E1E1C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="18.6" cy="7.1" r="1.6" fill="#C8442B"></circle></svg>
+        </span>
+        <span style="font-size: 12px; font-weight: 600; background: #F3F0E8; padding: 0 4px">Score</span>
+      </button>
+      <button type="button" onClick="{{nav.field}}" style="font: inherit; background: transparent; border: none; cursor: pointer; padding: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: #5E5A52; min-width: 64px">
+        <span class="m" style="font-size: 10px; background: #F3F0E8; padding: 0 4px">03</span>
+        <span style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid #BDB6A7; background: #F3F0E8; display: flex; align-items: center; justify-content: center">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.6" cy="4.6" r="1.9" fill="none" stroke="#1E1E1C" stroke-width="1.3"></circle><path d="M8.7 7.2 Q8.3 10.4 8.6 13.1 Q7.3 16.6 5.8 20.6 M8.6 13.1 Q10.4 16.3 11.8 20.4 M5.6 10.6 Q8.6 8.4 11.8 10.4 M16.6 20.6 Q16.4 15 16.5 9.4 Q18.7 9.1 20.7 10.4 Q18.5 11.6 16.5 12.6" fill="none" stroke="#1E1E1C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+        <span style="font-size: 12px; background: #F3F0E8; padding: 0 4px">Field</span>
+      </button>
+    </div>
+    <button aria-label="Settings" style="margin-top: auto; width: 44px; height: 44px; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.2 Q10 4.8 17 5.1 M3 10 Q10 10.3 17 9.9 M3 14.8 Q10 14.6 17 15" fill="none" stroke="#1E1E1C" stroke-width="1.3" stroke-linecap="round"></path><circle cx="7" cy="5.1" r="1.7" fill="#F3F0E8" stroke="#1E1E1C" stroke-width="1.2"></circle><circle cx="13" cy="10" r="1.7" fill="#F3F0E8" stroke="#1E1E1C" stroke-width="1.2"></circle><circle cx="8.5" cy="14.8" r="1.7" fill="#F3F0E8" stroke="#1E1E1C" stroke-width="1.2"></circle></svg>
+    </button>
+  </nav>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 12px 32px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #D8D3C7">
+      <div style="display: flex; align-items: baseline; gap: 10px"><span class="serif" style="font-size: 19px">Osaka FnB Pilot</span><span class="m" style="font-size: 11px; color: #5E5A52">PRJ-0142</span></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <span class="m" style="font-size: 11px; border: 1px solid #BDB6A7; padding: 4px 8px; border-radius: 2px; display: inline-flex; gap: 6px; align-items: center"><span style="width: 6px; height: 6px; background: #1E1E1C"></span>data osaka-fnb_2026-10-30_v3</span>
+        <span class="m" style="font-size: 11px; border: 1px solid #BDB6A7; padding: 4px 8px; border-radius: 2px; display: inline-flex; gap: 6px; align-items: center"><span style="width: 6px; height: 6px; border-radius: 50%; background: #5E7D4A"></span>model {{modelChip}}</span>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 190px">
+          <div style="display: flex; justify-content: space-between; gap: 12px"><span class="lbl">Maps API · Oct</span><span class="m" style="font-size: 12px">¥48,320 <span style="color: #5E5A52">/ ¥150,000</span></span></div>
+          <div style="height: 2px; background: #D8D3C7"><div style="height: 2px; width: 32.2%; background: #1E1E1C"></div></div>
+        </div>
+        <button aria-label="Account: Daniel Riandy" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid #1E1E1C; background: #EAE5D9; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer">DR</button>
+      </div>
+    </header>
+
+    <main style="padding: 28px 40px 64px; box-sizing: border-box; width: 100%; max-width: 1360px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span class="m" style="font-size: 11px; color: #C8442B">02 — SCORE</span>
+          <h1 class="serif" style="margin: 0; font-weight: 400; font-size: 36px; letter-spacing: -0.01em">Prospect Score</h1>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="hx-dv" class="lbl">Data version</label>
+            <select id="hx-dv" class="in m" value="{{dv}}" onChange="{{onDv}}" style="min-width: 260px; font-size: 13px; min-height: 40px"><option value="v3">osaka-fnb_2026-10-30_v3 · 2,318</option><option value="v2">osaka-fnb_2026-10-02_v2 · 1,906</option><option value="v1">osaka-fnb_2026-09-11_v1 · 1,213</option></select>
+          </div>
+          <span class="m" style="font-size: 11px; color: #5E5A52; padding-bottom: 12px">{{dvMeta}}</span>
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Score sections" style="display: flex; gap: 28px; border-bottom: 1px solid #D8D3C7; flex-wrap: wrap">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button role="tab" class="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}"><span class="m" style="font-size: 10px; margin-right: 6px">{{t.k}}</span>{{t.l}}</button></sc-for>
+      </div>
+
+      <sc-if value="{{tabPipe}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 28px">
+          <section class="card" style="padding: 22px 26px 26px; display: flex; flex-direction: column; gap: 22px">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap">
+              <div style="display: flex; align-items: baseline; gap: 12px"><h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Data pipeline</h2><span class="m" style="font-size: 12px; color: #5E5A52">{{pipeStatus}}</span></div>
+              <sc-if value="{{pipeIdle}}" hint-placeholder-val="{{ true }}"><button class="btn" onClick="{{runPipe}}">Run pipeline</button></sc-if>
+              <sc-if value="{{pipeBusy}}" hint-placeholder-val="{{ false }}"><svg width="64" height="18" viewBox="0 0 64 18" aria-hidden="true"><path class="hx-stroke" pathLength="1" d="M2 11 Q12 3 22 9 T42 9 T62 7" fill="none" stroke="#1E1E1C" stroke-width="1.5" stroke-linecap="round"></path></svg></sc-if>
+            </div>
+            <div style="overflow-x: auto">
+              <div style="position: relative; min-width: 980px; padding: 4px 0 0">
+                <div style="position: absolute; left: 6.25%; right: 6.25%; top: 13px; height: 2px; display: flex">
+                  <sc-for list="{{segs}}" as="g" hint-placeholder-count="7"><span style="flex: 1; height: 2px; {{g.st}}"></span></sc-for>
+                </div>
+                <span aria-hidden="true" style="position: absolute; top: 8px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: #C8442B; left: {{dotLeft}}; transition: left .12s linear; {{dotVis}}"></span>
+                <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); position: relative">
+                  <sc-for list="{{stations}}" as="s" hint-placeholder-count="8">
+                    <button class="stn" onClick="{{s.pick}}" aria-pressed="{{s.sel}}">
+                      <span class="{{s.ring}}" style="width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; {{s.dot}}"></span>
+                      <span class="stn-n" style="font-size: 13px; font-weight: 500; padding: 0 4px">{{s.n}}</span>
+                      <span class="m" style="font-size: 11px; color: #5E5A52; line-height: 1.5; white-space: pre-line">{{s.meta}}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+            <div style="border-top: 1px solid #D8D3C7; padding-top: 18px; display: flex; flex-wrap: wrap; gap: 18px 40px">
+              <div style="flex: 0 0 220px; display: flex; flex-direction: column; gap: 6px">
+                <span class="lbl">Station</span>
+                <span class="serif" style="font-size: 20px">{{det.n}}</span>
+                <span style="font-size: 13px; color: #5E5A52; line-height: 1.5">{{det.d}}</span>
+              </div>
+              <div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 0; overflow-x: auto">
+                <div class="m" style="display: grid; grid-template-columns: {{det.cols}}; gap: 12px; font-size: 10px; color: #5E5A52; letter-spacing: 0.05em; padding: 6px 0; border-bottom: 1px solid #1E1E1C"><sc-for list="{{det.head}}" as="h" hint-placeholder-count="4"><span>{{h}}</span></sc-for></div>
+                <sc-for list="{{det.rows}}" as="r" hint-placeholder-count="4">
+                  <div style="display: grid; grid-template-columns: {{det.cols}}; gap: 12px; font-size: 12px; padding: 9px 0; border-bottom: 1px solid #E2DDD1"><sc-for list="{{r}}" as="c" hint-placeholder-count="4"><span class="m jp" style="font-size: 12px">{{c}}</span></sc-for></div>
+                </sc-for>
+              </div>
+            </div>
+          </section>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+            <section style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Features</h2><span class="m" style="font-size: 11px; color: #5E5A52">18 columns · target signed_120d</span></div>
+              <div class="m" style="display: grid; grid-template-columns: minmax(0, 1.6fr) 74px minmax(0, 1fr) 56px; gap: 10px; font-size: 10px; color: #5E5A52; letter-spacing: 0.05em; padding: 6px 0; border-bottom: 1px solid #1E1E1C"><span>FEATURE</span><span>TYPE</span><span>EXAMPLE</span><span style="text-align: right">NULL</span></div>
+              <sc-for list="{{features}}" as="f" hint-placeholder-count="18">
+                <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 74px minmax(0, 1fr) 56px; gap: 10px; font-size: 12px; padding: 7px 0; border-bottom: 1px solid #E2DDD1; align-items: center"><span class="m">{{f.n}}</span><span style="font-size: 11px; color: #5E5A52">{{f.t}}</span><span class="m jp" style="font-size: 11px; color: #5E5A52; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.e}}</span><span class="m" style="text-align: right; font-size: 11px">{{f.nl}}</span></div>
+              </sc-for>
+            </section>
+
+            <section class="card" style="flex: 1 1 420px; min-width: 0; padding: 22px; display: flex; flex-direction: column; gap: 18px">
+              <h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Model</h2>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{models}}" as="m" hint-placeholder-count="4"><button class="chip" aria-pressed="{{m.on}}" onClick="{{m.pick}}">{{m.n}}</button></sc-for></div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px">
+                <sc-for list="{{hp}}" as="h" hint-placeholder-count="8">
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">{{h.k}}</span><input class="in m" value="{{h.v}}" onChange="{{h.set}}"></label>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
+                <span class="lbl">Split · stratified by city × label</span>
+                <div style="display: flex; height: 26px; border: 1px solid #1E1E1C">
+                  <span class="m" style="width: 70%; background: #1E1E1C; color: #F3F0E8; font-size: 11px; display: flex; align-items: center; padding-left: 8px">train 70% · 1,543</span>
+                  <span class="m" style="width: 15%; background: #8E8778; color: #F3F0E8; font-size: 11px; display: flex; align-items: center; justify-content: center">val 330</span>
+                  <span class="m" style="width: 15%; font-size: 11px; display: flex; align-items: center; justify-content: center">test 331</span>
+                </div>
+                <span class="m" style="font-size: 11px; color: #5E5A52">positives 278 / 59 / 60 · 18.0% overall</span>
+              </div>
+              <button class="tog" aria-pressed="{{cw}}" onClick="{{toggleCw}}"><span class="trk"><span class="knob"></span></span>Class weight (target ≈ 18% positive)</button>
+              <sc-if value="{{cw}}" hint-placeholder-val="{{ false }}"><span class="m" style="font-size: 11px; color: #5E5A52; margin-top: -10px">scale_pos_weight = 4.55 (1,265 / 278). Scores will need recalibration.</span></sc-if>
+              <button class="btn" onClick="{{train}}" disabled="{{trainDisabled}}" style="justify-content: space-between"><span>{{trainLabel}}</span><span class="m" style="font-size: 11px; opacity: 0.7">5-fold CV off</span></button>
+            </section>
+          </div>
+
+          <section class="card" style="padding: 22px; display: flex; flex-wrap: wrap; gap: 20px 36px">
+            <div style="flex: 0 0 220px; display: flex; flex-direction: column; gap: 10px">
+              <h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Training</h2>
+              <span class="m" style="font-size: 12px; color: #5E5A52">{{trainStatus}}</span>
+              <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px">
+                <sc-for list="{{trainStats}}" as="t" hint-placeholder-count="4"><div style="display: flex; justify-content: space-between; border-bottom: 1px solid #E2DDD1; padding-bottom: 6px"><span style="font-size: 12px; color: #5E5A52">{{t.l}}</span><span class="m" style="font-size: 13px">{{t.v}}</span></div></sc-for>
+              </div>
+              <sc-if value="{{trained}}" hint-placeholder-val="{{ false }}"><button class="btn" onClick="{{toEval}}" style="margin-top: 8px">View evaluation →</button></sc-if>
+            </div>
+            <div style="flex: 1 1 520px; min-width: 0; position: relative">
+              <svg viewBox="0 0 640 240" style="width: 100%; height: 260px; display: block" role="img" aria-label="Training and validation log loss by iteration">
+                <path d="M48 20 L48 210 L630 210" fill="none" stroke="#1E1E1C" stroke-width="1"></path>
+                <path d="{{lossGrid}}" fill="none" stroke="#E2DDD1" stroke-width="1"></path>
+                <text x="40" y="24" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">0.48</text>
+                <text x="40" y="117" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">0.38</text>
+                <text x="40" y="210" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">0.28</text>
+                <text x="48" y="228" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">0</text>
+                <text x="630" y="228" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">450 iter</text>
+                <path d="{{lossTrain}}" fill="none" stroke="#1E1E1C" stroke-width="1.6" stroke-linejoin="round"></path>
+                <path d="{{lossVal}}" fill="none" stroke="#C8442B" stroke-width="1.6" stroke-linejoin="round"></path>
+                <path d="{{bestLine}}" fill="none" stroke="#C8442B" stroke-width="1" stroke-dasharray="3 3"></path>
+                <circle cx="{{headX}}" cy="{{headY}}" r="3.5" fill="#C8442B" opacity="{{headOp}}"></circle>
+              </svg>
+              <div style="display: flex; gap: 18px; font-size: 11px; color: #5E5A52; padding-left: 48px">
+                <span style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 14px; height: 2px; background: #1E1E1C"></span>train binary_logloss</span>
+                <span style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 14px; height: 2px; background: #C8442B"></span>val binary_logloss</span>
+              </div>
+              <sc-if value="{{trainEmpty}}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; inset: 0 0 24px 48px; display: flex; align-items: center; justify-content: center; gap: 12px; color: #5E5A52; font-size: 13px; background: rgba(248,246,240,0.85)">
+                  <svg width="44" height="20" viewBox="0 0 44 20" aria-hidden="true"><path d="M2 4 Q12 16 22 13 T42 15" fill="none" stroke="#BDB6A7" stroke-width="1.3" stroke-linecap="round"></path></svg>
+                  Run the pipeline, then train. The loss curve draws here.
+                </div>
+              </sc-if>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tabEval}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 28px">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7">
+            <sc-for list="{{metrics}}" as="m" hint-placeholder-count="5">
+              <div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #E2DDD1"><span class="m" style="font-size: 32px; letter-spacing: -0.02em">{{m.v}}</span><span style="font-size: 13px">{{m.l}}</span><span class="m" style="font-size: 11px; color: #5E5A52">{{m.s}}</span></div>
+            </sc-for>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 24px">
+            <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; justify-content: space-between"><span class="lbl">Confusion matrix · test</span><span class="m" style="font-size: 11px; color: #5E5A52">n = 331</span></div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <label for="hx-th" class="m" style="font-size: 12px">threshold</label>
+                <input id="hx-th" type="range" min="0.05" max="0.8" step="0.01" value="{{th}}" onChange="{{onTh}}" style="flex: 1">
+                <span class="m" style="font-size: 14px; width: 40px; text-align: right">{{thLabel}}</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 64px 1fr 1fr; gap: 2px">
+                <span></span><span class="m" style="font-size: 10px; color: #5E5A52; text-align: center; padding: 4px">pred +</span><span class="m" style="font-size: 10px; color: #5E5A52; text-align: center; padding: 4px">pred −</span>
+                <span class="m" style="font-size: 10px; color: #5E5A52; display: flex; align-items: center">actual +</span>
+                <div style="height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: {{cm.tpBg}}; color: {{cm.tpFg}}"><span class="m" style="font-size: 26px">{{cm.tp}}</span><span style="font-size: 10px">TP</span></div>
+                <div style="height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: {{cm.fnBg}}; color: {{cm.fnFg}}"><span class="m" style="font-size: 26px">{{cm.fn}}</span><span style="font-size: 10px">FN</span></div>
+                <span class="m" style="font-size: 10px; color: #5E5A52; display: flex; align-items: center">actual −</span>
+                <div style="height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: {{cm.fpBg}}; color: {{cm.fpFg}}"><span class="m" style="font-size: 26px">{{cm.fp}}</span><span style="font-size: 10px">FP</span></div>
+                <div style="height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: {{cm.tnBg}}; color: {{cm.tnFg}}"><span class="m" style="font-size: 26px">{{cm.tn}}</span><span style="font-size: 10px">TN</span></div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-top: 1px solid #D8D3C7; padding-top: 12px">
+                <div style="display: flex; flex-direction: column; gap: 2px"><span class="lbl">Precision</span><span class="m" style="font-size: 18px">{{cm.p}}</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px"><span class="lbl">Recall</span><span class="m" style="font-size: 18px">{{cm.r}}</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px"><span class="lbl">F1</span><span class="m" style="font-size: 18px">{{cm.f1}}</span></div>
+              </div>
+              <span style="font-size: 12px; color: #5E5A52">{{cm.note}}</span>
+            </div>
+
+            <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between"><span class="lbl">ROC</span><span class="m" style="font-size: 11px; color: #5E5A52">AUC {{aucS}}</span></div>
+              <svg viewBox="0 0 260 250" style="width: 100%; height: 250px" role="img" aria-label="ROC curve">
+                <path d="M30 10 L30 220 L250 220" fill="none" stroke="#1E1E1C" stroke-width="1"></path>
+                <path d="M30 220 L250 10" fill="none" stroke="#BDB6A7" stroke-width="1" stroke-dasharray="3 3"></path>
+                <path d="{{rocPath}}" fill="none" stroke="#1E1E1C" stroke-width="1.7" class="hx-draw" pathLength="1"></path>
+                <circle cx="{{rocPtX}}" cy="{{rocPtY}}" r="4" fill="#C8442B"></circle>
+                <text x="140" y="240" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">false positive rate</text>
+                <text x="18" y="115" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52" transform="rotate(-90 18 115)">true positive rate</text>
+              </svg>
+            </div>
+
+            <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between"><span class="lbl">Calibration</span><span class="m" style="font-size: 11px; color: #5E5A52">Brier {{brier}}</span></div>
+              <svg viewBox="0 0 260 250" style="width: 100%; height: 250px" role="img" aria-label="Calibration plot">
+                <path d="M30 10 L30 220 L250 220" fill="none" stroke="#1E1E1C" stroke-width="1"></path>
+                <path d="M30 220 L250 10" fill="none" stroke="#BDB6A7" stroke-width="1" stroke-dasharray="3 3"></path>
+                <path d="{{calPath}}" fill="none" stroke="#C8442B" stroke-width="1.6"></path>
+                <path d="{{calDots}}" fill="#C8442B"></path>
+                <path d="{{calBars}}" fill="#1E1E1C" opacity="0.18"></path>
+                <text x="140" y="240" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">mean predicted (0 – 0.8)</text>
+                <text x="18" y="115" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52" transform="rotate(-90 18 115)">observed rate</text>
+              </svg>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 24px">
+            <div class="card" style="flex: 2 1 560px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between"><span class="lbl">SHAP · test set, top 10 features</span><span style="display: flex; align-items: center; gap: 6px; font-size: 10px; color: #5E5A52">feature value <span style="width: 8px; height: 8px; border-radius: 50%; background: #8E8778"></span>low <span style="width: 8px; height: 8px; border-radius: 50%; background: #D8A090"></span><span style="width: 8px; height: 8px; border-radius: 50%; background: #C8442B"></span>high</span></div>
+              <div style="display: flex; gap: 0">
+                <div style="flex: 0 0 170px; display: flex; flex-direction: column">
+                  <sc-for list="{{shapRows}}" as="r" hint-placeholder-count="10"><span class="m" style="height: 30px; display: flex; align-items: center; font-size: 11px">{{r.n}}</span></sc-for>
+                </div>
+                <svg viewBox="0 0 460 320" preserveAspectRatio="none" style="flex: 1; height: 320px; min-width: 0" role="img" aria-label="SHAP beeswarm">
+                  <path d="{{shapGrid}}" fill="none" stroke="#E2DDD1" stroke-width="1"></path>
+                  <path d="M153.3 0 L153.3 300" stroke="#1E1E1C" stroke-width="1"></path>
+                  <path d="{{shapLo}}" fill="#8E8778" opacity="0.85"></path>
+                  <path d="{{shapMid}}" fill="#D8A090" opacity="0.9"></path>
+                  <path d="{{shapHi}}" fill="#C8442B" opacity="0.9"></path>
+                  <text x="0" y="316" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">−0.10</text>
+                  <text x="153" y="316" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">0</text>
+                  <text x="460" y="316" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#5E5A52">+0.20 to P(sign)</text>
+                </svg>
+              </div>
+            </div>
+            <div class="card" style="flex: 1 1 320px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 8px">
+              <span class="lbl">Mean |SHAP|</span>
+              <sc-for list="{{imp}}" as="i" hint-placeholder-count="12">
+                <div style="display: grid; grid-template-columns: 150px 1fr 44px; gap: 8px; align-items: center"><span class="m" style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{i.n}}</span><span style="height: 8px; width: {{i.w}}; background: {{i.c}}"></span><span class="m" style="font-size: 11px; text-align: right">{{i.v}}</span></div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between"><span class="lbl">Lift by decile · test</span><span class="m" style="font-size: 11px; color: #5E5A52">base rate {{baseRate}}</span></div>
+            <div style="display: flex; align-items: flex-end; gap: 8px; height: 150px; border-bottom: 1px solid #1E1E1C; position: relative">
+              <span aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: {{liftOne}}; border-top: 1px dashed #9C9586"></span>
+              <sc-for list="{{lift}}" as="d" hint-placeholder-count="10"><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%"><span class="m" style="font-size: 10px">{{d.v}}</span><span style="width: 100%; height: {{d.h}}; background: {{d.c}}"></span></div></sc-for>
+            </div>
+            <div style="display: flex; gap: 8px"><sc-for list="{{lift}}" as="d" hint-placeholder-count="10"><span class="m" style="flex: 1; text-align: center; font-size: 10px; color: #5E5A52">D{{d.k}}</span></sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tabReg}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 32px">
+          <section style="display: flex; flex-direction: column; gap: 0; position: relative">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; gap: 16px; flex-wrap: wrap">
+              <h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Model registry</h2>
+              <sc-if value="{{canPromote}}" hint-placeholder-val="{{ true }}"><button class="btn" onClick="{{promote}}">Promote v4 to Production</button></sc-if>
+              <sc-if value="{{promoted}}" hint-placeholder-val="{{ false }}"><span class="m" style="font-size: 12px; color: #5E7D4A">v4 in production since 2026-10-30 17:05 JST · v3 archived</span></sc-if>
+            </div>
+            <div style="overflow-x: auto">
+              <div style="min-width: 1120px; position: relative">
+                <div class="m rrow" style="font-size: 10px; color: #5E5A52; letter-spacing: 0.05em; border-top: 1px solid #1E1E1C; min-height: 34px; padding: 8px"><span>VER</span><span>ALGORITHM</span><span>DATA LINEAGE</span><span style="text-align: right">ROC-AUC</span><span style="text-align: right">PR-AUC</span><span style="text-align: right">P@10%</span><span>TRAINED</span><span>BY</span><span>STAGE</span><span>NOTE</span></div>
+                <sc-for list="{{registry}}" as="r" hint-placeholder-count="4">
+                  <div class="rrow" style="{{r.bg}}">
+                    <span class="m" style="font-size: 14px">{{r.v}}</span><span>{{r.alg}}</span><span class="m" style="font-size: 11px">{{r.data}}</span><span class="m" style="text-align: right">{{r.auc}}</span><span class="m" style="text-align: right">{{r.pr}}</span><span class="m" style="text-align: right">{{r.p10}}</span><span class="m" style="font-size: 12px">{{r.date}}</span><span style="font-size: 12px">{{r.by}}</span>
+                    <span><span class="m" style="font-size: 10px; letter-spacing: 0.05em; padding: 3px 7px; border-radius: 2px; {{r.tag}}">{{r.stage}}</span></span>
+                    <span style="font-size: 12px; color: #5E5A52">{{r.note}}</span>
+                  </div>
+                </sc-for>
+                <sc-if value="{{promoted}}" hint-placeholder-val="{{ false }}">
+                  <div aria-hidden="true" style="position: absolute; left: 300px; top: 36px; width: 58px; height: 58px">
+                    <span class="hx-ink" style="position: absolute; inset: -6px; border-radius: 50%; background: #C8442B"></span>
+                    <span class="hx-stamp" style="position: absolute; inset: 0; border: 2.5px solid #C8442B; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #C8442B; background: rgba(243,240,232,0.6); box-shadow: inset 0 0 0 2px rgba(200,68,43,0.25)"><span class="serif" style="font-size: 24px; line-height: 1; font-weight: 600">v4</span><span class="m" style="font-size: 7px; letter-spacing: 0.1em">PROD</span></span>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0; padding-top: 18px; flex-wrap: wrap; row-gap: 10px" aria-label="Lineage">
+              <span class="lbl" style="margin-right: 16px">Lineage</span>
+              <span class="m" style="font-size: 11px; border: 1px solid #BDB6A7; padding: 4px 8px">data v1</span><span style="width: 24px; height: 1px; background: #1E1E1C"></span><span class="m" style="font-size: 11px; padding: 4px 8px; border: 1px solid #BDB6A7">model v1</span>
+              <span style="width: 32px"></span>
+              <span class="m" style="font-size: 11px; border: 1px solid #BDB6A7; padding: 4px 8px">data v2</span><span style="width: 24px; height: 1px; background: #1E1E1C"></span><span class="m" style="font-size: 11px; padding: 4px 8px; border: 1px solid #BDB6A7">model v2 · v3</span>
+              <span style="width: 32px"></span>
+              <span class="m" style="font-size: 11px; border: 1px solid #1E1E1C; padding: 4px 8px">data v3</span><span style="width: 24px; height: 1px; background: #C8442B"></span><span class="m" style="font-size: 11px; padding: 4px 8px; border: 1px solid #C8442B; color: #A8371F">model v4</span>
+            </div>
+          </section>
+
+          <section style="display: flex; flex-direction: column; gap: 16px; border-top: 1px solid #D8D3C7; padding-top: 24px">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px">
+              <h2 class="serif" style="margin: 0; font-weight: 400; font-size: 20px">Predict</h2>
+              <div style="display: flex; gap: 6px"><button class="chip" aria-pressed="{{pSingle}}" onClick="{{toSingle}}">Single merchant</button><button class="chip" aria-pressed="{{pBulk}}" onClick="{{toBulk}}">Bulk</button></div>
+            </div>
+
+            <sc-if value="{{pSingle}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+                <div class="card" style="flex: 2 1 560px; min-width: 0; padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 14px 16px">
+                  <label style="display: flex; flex-direction: column; gap: 4px; grid-column: 1 / -1"><span class="m" style="font-size: 11px; color: #5E5A52">displayName</span><input class="in jp" value="立呑み 天満ほたる（Tachinomi Tenma Hotaru）" style="font-size: 14px"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">primary_type</span><select class="in" value="{{f.type}}" onChange="{{f.setType}}"><option value="standing">Standing bar</option><option value="izakaya">Izakaya</option><option value="ramen">Ramen</option><option value="cafe">Café / kissaten</option><option value="konamon">Konamon</option><option value="yakiniku">Yakiniku</option><option value="kushikatsu">Kushikatsu</option></select></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">city</span><select class="in" value="{{f.city}}" onChange="{{f.setCity}}"><option value="osaka">Osaka · Tenma</option><option value="kyoto">Kyoto · Gion</option></select></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">rating</span><input class="in m" type="number" step="0.1" min="1" max="5" value="{{f.rating}}" onChange="{{f.setRating}}"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">user_rating_count</span><input class="in m" type="number" min="0" value="{{f.reviews}}" onChange="{{f.setReviews}}"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">price_level</span><select class="in m" value="{{f.price}}" onChange="{{f.setPrice}}"><option value="1">¥1–999</option><option value="2">¥1,000–1,999</option><option value="3">¥2,000–2,999</option><option value="4">¥3,000–4,999</option><option value="5">¥5,000+</option></select></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">dist_station_m</span><input class="in m" type="number" min="0" value="{{f.dist}}" onChange="{{f.setDist}}"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">hex_fnb_density</span><input class="in m" type="number" min="0" value="{{f.dens}}" onChange="{{f.setDens}}"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">photo_count</span><input class="in m" type="number" min="0" value="{{f.photos}}" onChange="{{f.setPhotos}}"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px"><span class="m" style="font-size: 11px; color: #5E5A52">review_recency_days</span><input class="in m" type="number" min="0" value="{{f.rec}}" onChange="{{f.setRec}}"></label>
+                  <div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 24px">
+                    <sc-for list="{{f.flags}}" as="g" hint-placeholder-count="5"><button class="tog" aria-pressed="{{g.on}}" onClick="{{g.toggle}}"><span class="trk"><span class="knob"></span></span><span class="m" style="font-size: 12px">{{g.k}}</span></button></sc-for>
+                  </div>
+                </div>
+                <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+                  <svg viewBox="0 0 240 140" style="width: 100%; max-width: 320px; height: auto" role="img" aria-label="Prospect Score {{g.s}}">
+                    <path d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke="#E2DDD1" stroke-width="14"></path>
+                    <path d="M20 120 A100 100 0 0 1 70 33.4" fill="none" stroke="#B33A3A" stroke-width="2" opacity="0.6"></path>
+                    <path d="M70 33.4 A100 100 0 0 1 120 20" fill="none" stroke="#C89B3C" stroke-width="2" opacity="0.6"></path>
+                    <path d="M120 20 A100 100 0 0 1 220 120" fill="none" stroke="#5E7D4A" stroke-width="2" opacity="0.6"></path>
+                    <path d="{{g.arc}}" fill="none" stroke="{{g.col}}" stroke-width="14"></path>
+                    <path d="{{g.needle}}" fill="none" stroke="#1E1E1C" stroke-width="1.6" stroke-linecap="round"></path>
+                    <circle cx="120" cy="120" r="4" fill="#1E1E1C"></circle>
+                    <text x="20" y="136" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#5E5A52">0</text>
+                    <text x="220" y="136" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#5E5A52">1</text>
+                  </svg>
+                  <div style="display: flex; align-items: baseline; gap: 12px"><span class="m" style="font-size: 40px">{{g.s}}</span><span style="font-size: 13px; font-weight: 600; color: {{g.col}}">{{g.band}}</span><span class="m" style="font-size: 11px; color: #5E5A52">base 0.18 · model v4</span></div>
+                  <div style="display: flex; flex-direction: column; border-top: 1px solid #1E1E1C">
+                    <span class="lbl" style="padding: 10px 0 4px">Top reasons</span>
+                    <sc-for list="{{g.reasons}}" as="r" hint-placeholder-count="3"><div style="display: grid; grid-template-columns: 1fr 60px 52px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #E2DDD1"><span style="font-size: 13px">{{r.l}}</span><span style="height: 6px; width: {{r.w}}; background: {{r.c}}; justify-self: start"></span><span class="m" style="font-size: 12px; text-align: right; color: {{r.c}}">{{r.v}}</span></div></sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{pBulk}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                  <button onClick="{{useCsv}}" style="font: inherit; border: 1px dashed #9C9586; background: transparent; border-radius: 2px; padding: 26px 18px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; color: #1E1E1C">
+                    <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M17 20 L17.2 3.6 M11 9.4 Q14.2 6.4 17.1 3.4 Q20 6.5 23.2 9.2 M3.4 18.6 Q3.2 23.4 3.6 26.6 Q17 27 30.4 26.5 Q30.8 22.6 30.6 18.4" fill="none" stroke="#1E1E1C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span style="font-size: 13px">Upload CSV</span><span class="m" style="font-size: 11px; color: #5E5A52">place_id or name + address</span>
+                  </button>
+                  <span style="font-size: 12px; color: #5E5A52; text-align: center">or score a data version</span>
+                  <div style="display: flex; gap: 6px"><button class="chip m" aria-pressed="{{bulkV3}}" onClick="{{useV3}}" style="flex: 1; font-size: 12px">osaka-fnb_2026-10-30_v3</button></div>
+                  <span class="m" style="font-size: 11px; color: #5E5A52">{{bulkMeta}}</span>
+                </div>
+                <div style="flex: 3 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+                  <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px">
+                    <div style="display: flex; justify-content: space-between"><span class="lbl">Score distribution</span><span class="m" style="font-size: 11px; color: #5E5A52">{{bulkBands}}</span></div>
+                    <div style="display: flex; align-items: flex-end; gap: 2px; height: 110px; border-bottom: 1px solid #1E1E1C">
+                      <sc-for list="{{hist}}" as="h" hint-placeholder-count="20"><span title="{{h.t}}" style="flex: 1; height: {{h.h}}; background: {{h.c}}"></span></sc-for>
+                    </div>
+                    <div class="m" style="display: flex; justify-content: space-between; font-size: 10px; color: #5E5A52"><span>0</span><span>0.25</span><span>0.50</span><span>0.75</span><span>1.0</span></div>
+                  </div>
+                  <div style="overflow-x: auto">
+                    <div style="min-width: 640px">
+                      <div class="m" style="display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) 90px 70px 64px; gap: 12px; font-size: 10px; color: #5E5A52; padding: 6px 0; border-bottom: 1px solid #1E1E1C; letter-spacing: 0.05em"><span>MERCHANT</span><span>CATEGORY</span><span>AREA</span><span style="text-align: right">SCORE</span><span>BAND</span></div>
+                      <sc-for list="{{bulkRows}}" as="r" hint-placeholder-count="8">
+                        <div style="display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) 90px 70px 64px; gap: 12px; font-size: 13px; padding: 9px 0; border-bottom: 1px solid #E2DDD1; align-items: center"><span style="display: flex; flex-direction: column"><span class="jp">{{r.jp}}</span><span style="font-size: 11px; color: #5E5A52">{{r.ro}}</span></span><span style="font-size: 12px">{{r.cat}}</span><span style="font-size: 12px">{{r.area}}</span><span class="m" style="text-align: right">{{r.s}}</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{r.c}}"></span>{{r.b}}</span></div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </section>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"onNav":{"editor":null},"stage":{"editor":"enum","options":["empty","running","result","registry"],"default":"empty"},"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  navs() { const go = (k) => () => { if (this.props.onNav) this.props.onNav(k); }; return { login: go('login'), scout: go('scout'), score: go('score'), field: go('field') }; }
+  constructor(props) {
+    super(props);
+    const st = props.stage || 'empty';
+    const done = st === 'result' || st === 'registry';
+    this.state = { tab: st === 'result' ? 'eval' : st === 'registry' ? 'reg' : 'pipe', dv: 'v3', t: done ? 1e9 : 0, it: done ? 9999 : 0, phase: done ? 'trained' : 'idle', st: 3, model: 'lgbm', hp: {}, cw: false, th: 0.35, promoted: false, pmode: 'single', bulk: 'v3',
+      f: { type: 'standing', city: 'osaka', rating: 3.7, reviews: 128, price: '2', dist: 140, dens: 63, photos: 41, rec: 6, cash: true, card: false, nfc: false, late: true, web: false } };
+  }
+  componentDidMount() { if (this.props.stage === 'running') this.runPipe(); }
+  componentWillUnmount() { clearInterval(this._t); }
+  DUR() { return [1.8, 0.9, 4.2, 11.6, 2.7, 1.3, 0.2]; }
+  ms(i) { return Math.max(450, this.DUR()[i] * 330); }
+  runPipe() {
+    clearInterval(this._t);
+    const total = this.DUR().reduce((a, _, i) => a + this.ms(i), 0);
+    const t0 = Date.now();
+    this.setState({ phase: 'pipe', t: 0, it: 0, st: 0 });
+    this._t = setInterval(() => {
+      const t = Date.now() - t0;
+      if (t < total) { this.setState({ t }); return; }
+      if (this.state.phase === 'pipe') { this.setState({ t: 1e9, phase: 'train', tt0: Date.now() }); return; }
+      const stop = this.curve().stop; const it = Math.min(stop, Math.round((Date.now() - this.state.tt0) / 5200 * stop));
+      this.setState({ it });
+      if (it >= stop) { clearInterval(this._t); this.setState({ phase: 'trained' }); }
+    }, 60);
+  }
+  trainOnly() {
+    clearInterval(this._t);
+    this.setState({ phase: 'train', it: 0, tt0: Date.now() });
+    this._t = setInterval(() => { const stop = this.curve().stop; const it = Math.min(stop, Math.round((Date.now() - this.state.tt0) / 5200 * stop)); this.setState({ it }); if (it >= stop) { clearInterval(this._t); this.setState({ phase: 'trained' }); } }, 60);
+  }
+  curve() {
+    if (this._c) return this._c;
+    const tr = [], va = []; let best = 0, bv = 9;
+    for (let i = 0; i <= 450; i++) { const a = 0.2852 + 0.1858 * Math.exp(-i / 95) + 0.00002 * Math.sin(i / 7); const b = 0.3862 + 0.0848 * Math.exp(-i / 70) + 2e-7 * Math.pow(Math.max(0, i - 300), 2) + 0.0006 * Math.sin(i / 11); tr.push(a); va.push(b); if (b < bv) { bv = b; best = i; } }
+    this._c = { tr, va, best, bv, stop: Math.min(450, best + 50) };
+    return this._c;
+  }
+  test() {
+    if (this._ts) return this._ts;
+    const rng = (a) => function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const ninv = (p) => { const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924], b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857], c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878], d = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742]; let q, r; if (p < 0.02425) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); } if (p > 1 - 0.02425) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); } q = p - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1); };
+    const R = rng(20261030), T = [];
+    for (let i = 0; i < 60; i++) { const z = ninv((i + 0.5) / 60) + (R() - 0.5) * 0.35; T.push({ y: 1, s: 1 / (1 + Math.exp(-(-0.6 + 1.0 * z))) }); }
+    for (let i = 0; i < 271; i++) { const z = ninv((i + 0.5) / 271) + (R() - 0.5) * 0.35; T.push({ y: 0, s: 1 / (1 + Math.exp(-(-1.95 + 1.12 * z))) }); }
+    T.sort((a, b) => b.s - a.s);
+    let tp = 0, fp = 0, auc = 0, ap = 0; const roc = [[0, 0]];
+    T.forEach((t) => { if (t.y) { tp++; ap += tp / (tp + fp) / 60; } else { fp++; auc += tp; } roc.push([fp / 271, tp / 60]); });
+    auc /= 60 * 271;
+    const p10 = T.slice(0, 33).filter((t) => t.y).length / 33;
+    const ll = -T.reduce((s, t) => s + (t.y ? Math.log(t.s) : Math.log(1 - t.s)), 0) / T.length;
+    const brier = T.reduce((s, t) => s + (t.s - t.y) * (t.s - t.y), 0) / T.length;
+    const cal = []; for (let b = 0; b < 8; b++) { const lo = b / 10, hi = b === 7 ? 1 : (b + 1) / 10; const g = T.filter((t) => t.s >= lo && t.s < hi); if (g.length) cal.push({ p: g.reduce((s, t) => s + t.s, 0) / g.length, o: g.filter((t) => t.y).length / g.length, n: g.length, lo }); }
+    const lift = []; for (let d = 0; d < 10; d++) { const g = T.slice(Math.round(d * 33.1), Math.round((d + 1) * 33.1)); lift.push(g.filter((t) => t.y).length / g.length / (60 / 331)); }
+    this._ts = { T, auc, ap, p10, ll, brier, roc, cal, lift };
+    return this._ts;
+  }
+  shap() {
+    if (this._sh) return this._sh;
+    let sd = 7; const r = () => { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; };
+    const F = [['accepts_cash_only', (v) => (v > 0.7 ? 0.21 : -0.07), 'bin'], ['hex_fnb_density', (v) => (v - 0.42) * 0.3], ['user_rating_count', (v) => (v - 0.5) * 0.2], ['dist_station_m', (v) => (0.45 - v) * 0.19], ['late_night_flag', (v) => (v > 0.62 ? 0.09 : -0.04), 'bin'], ['primary_type', (v) => (v - 0.5) * 0.2, 'cat'], ['review_recency_days', (v) => (0.5 - v) * 0.14], ['accepts_credit_cards', (v) => (v > 0.4 ? -0.08 : 0.05), 'bin'], ['price_level', (v) => (0.5 - v) * 0.11], ['rating', (v) => (v - 0.5) * 0.08]];
+    const x = (s) => 153.3 + s * 1533; let lo = '', mid = '', hi = '';
+    const dot = (cx, cy) => 'M' + (cx - 2.2).toFixed(1) + ' ' + cy.toFixed(1) + 'a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0';
+    F.forEach((f, i) => { for (let k = 0; k < 70; k++) { const v = r(); const s = f[1](v) + (r() - 0.5) * (f[2] === 'bin' ? 0.05 : 0.035); const cx = Math.max(3, Math.min(457, x(s))); const cy = 15 + i * 30 + (r() - 0.5) * 16; const d = dot(cx, cy); if (f[2] === 'cat') mid += d; else if (v < 0.4) lo += d; else if (v < 0.7) mid += d; else hi += d; } });
+    let grid = ''; for (let i = 0; i < 10; i++) grid += 'M0 ' + (30 + i * 30) + ' L460 ' + (30 + i * 30) + ' ';
+    this._sh = { lo, mid, hi, grid, rows: F.map((f) => ({ n: f[0] })) };
+    return this._sh;
+  }
+  renderVals() {
+    const s = this.state; const fmt = (n) => Math.round(n).toLocaleString('en-US'); const f3 = (n) => n.toFixed(3);
+    const out = {};
+    const ts = this.test();
+    out.modelChip = s.promoted ? 'prospect-lgbm v4 · prod' : 'prospect-lgbm v3 · prod';
+    out.dv = s.dv; out.onDv = (e) => this.setState({ dv: e.target.value, phase: 'idle', t: 0, it: 0 });
+    out.dvMeta = { v3: 'Osaka, Kyoto · 7 areas · saved 2026-10-30', v2: 'Osaka · 4 areas · saved 2026-10-02', v1: 'Osaka · 2 areas · saved 2026-09-11' }[s.dv];
+    out.tabs = [['pipe', '01', 'Pipeline & training'], ['eval', '02', 'Evaluation'], ['reg', '03', 'Registry & predict']].map((t) => ({ k: t[1], l: t[2], on: s.tab === t[0], pick: () => this.setState({ tab: t[0] }) }));
+    out.tabPipe = s.tab === 'pipe'; out.tabEval = s.tab === 'eval'; out.tabReg = s.tab === 'reg';
+
+    if (s.tab === 'pipe') {
+      const SN = ['Ingest', 'Validate', 'Clean & Dedup', 'Geo-enrich', 'Feature Eng.', 'Label Join', 'Split', 'Data Ready'];
+      const META = ['2,318 rows\n1.8 s', '2,318 rows · 17 warn\n0.9 s', '2,318 → 2,204\n4.2 s', 'H3 · station · competitors\n11.6 s', '2,204 × 18\n2.7 s', '397 positive · 18.0%\n1.3 s', '1,543 / 330 / 331\n0.2 s', 'features_v3.parquet\n22.7 s total'];
+      let acc = 0, idx = 0, frac = 0; const ends = this.DUR().map((_, i) => (acc += this.ms(i)));
+      if (s.phase === 'idle') { idx = -1; } else if (s.t >= acc) { idx = 7; } else { idx = ends.findIndex((e) => s.t < e); const st0 = idx ? ends[idx - 1] : 0; frac = (s.t - st0) / (ends[idx] - st0); }
+      const doneN = s.phase === 'idle' ? 0 : (idx === 7 ? 8 : idx);
+      out.pipeIdle = s.phase === 'idle'; out.pipeBusy = s.phase === 'pipe' || s.phase === 'train';
+      out.pipeStatus = s.phase === 'idle' ? 'Not run for ' + s.dv : s.phase === 'pipe' ? 'Running · ' + SN[idx] : 'Data ready · 22.7 s · 2,204 rows';
+      out.runPipe = () => this.runPipe();
+      out.segs = Array.from({ length: 7 }, (_, i) => ({ st: i < doneN - (idx === 7 ? 1 : 0) || (idx === 7) ? 'background: #1E1E1C' : 'background: repeating-linear-gradient(90deg, #BDB6A7 0 4px, transparent 4px 8px)' }));
+      out.dotLeft = (6.25 + (Math.max(0, idx) + (idx === 7 ? 0 : frac)) / 7 * 87.5).toFixed(2) + '%';
+      out.dotVis = s.phase === 'pipe' ? '' : 'display: none';
+      out.stations = SN.map((n, i) => { const done = i < doneN, cur = s.phase === 'pipe' && i === idx;
+        return { n, meta: s.phase === 'idle' ? (i === 0 ? '2,318 rows\nqueued' : 'queued') : (done ? META[i] : cur ? 'running…' : 'queued'), sel: s.st === i, pick: () => this.setState({ st: i }), ring: cur ? 'hx-ring' : '',
+          dot: done ? (i === 7 ? 'background: #C8442B; border: 2px solid #C8442B' : 'background: #1E1E1C; border: 2px solid #1E1E1C') : cur ? 'background: #F3F0E8; border: 2px solid #C8442B' : 'background: #F3F0E8; border: 1.5px solid #9C9586' }; });
+      const DET = [
+        { d: 'Reads the saved Scout version. 41 columns from Places API (New).', head: ['place_id', 'displayName', 'primaryType', 'rating'], cols: 'minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,1fr) 60px', rows: [['ChIJ7bq3p1bnAGAR4xF0…', '立呑み 天満ほたる', 'bar', '3.7'], ['ChIJq0Zx2E_nAGARm2kQ…', '大衆酒場 まる吉', 'izakaya_restaurant', '3.5'], ['ChIJ1y8aU0XnAGARd9Vw…', '串かつ 千鳥', 'japanese_restaurant', '3.8'], ['ChIJwZp3nFXnAGARc0Lb…', '喫茶 銀杏', 'coffee_shop', '3.9']] },
+        { d: 'Schema and range checks. Warnings are kept, not dropped.', head: ['check', 'rows', 'action', ''], cols: 'minmax(0,2fr) 60px minmax(0,1fr) 10px', rows: [['rating set but userRatingCount = 0', '9', 'null rating', ''], ['location < 30 m from focus edge', '5', 'keep', ''], ['phone not E.164 / 0X-XXXX-XXXX', '3', 'null phone', '']] },
+        { d: 'Drops non-FnB types, duplicate listings and out-of-area places.', head: ['drop reason', 'rows', 'example', ''], cols: 'minmax(0,1.6fr) 50px minmax(0,1.6fr) 10px', rows: [['same business, two listings (phone + address)', '46', '居酒屋 まる吉 / 居酒屋まる吉 本店', ''], ['non-FnB primaryType', '38', 'convenience_store, supermarket', ''], ['outside focus polygon', '18', '喫茶 楓 · Nakatsu', ''], ['chain HQ / central kitchen', '12', '串かつ 千鳥 本部', '']] },
+        { d: 'Adds H3 index, nearest station (GTFS-JP stops) and competitor counts.', head: ['field', 'method', 'median', ''], cols: 'minmax(0,1.3fr) minmax(0,1.6fr) 80px 10px', rows: [['h3_r9', 'h3.latlng_to_cell', '—', ''], ['dist_station_m', 'haversine · 1,214 stations', '212 m', ''], ['competitors_same_cat_hex', 'count in k-ring 1', '6', ''], ['hex_fnb_density', 'places per r9 cell', '27', '']] },
+        { d: 'Builds 18 model features. Hours parsed to weekly totals.', head: ['feature', 'transform', 'imputed', ''], cols: 'minmax(0,1.4fr) minmax(0,1.4fr) 70px 10px', rows: [['weekly_open_hours', 'sum(regularOpeningHours)', '11.4%', ''], ['late_night_flag', 'open past 23:00 ≥ 3 days', '11.4%', ''], ['review_recency_days', 'today − latest review', '2.8%', ''], ['price_level', 'priceRange → ordinal 1–5', '38.6%', '']] },
+        { d: 'Joins SMBC acquiring CRM outcomes, 2024-04 → 2026-06 outreach.', head: ['label source', 'rows', 'positive', ''], cols: 'minmax(0,1.8fr) 70px 70px 10px', rows: [['matched by phone', '1,388', '262', ''], ['matched by name + address (≥ 0.92)', '816', '135', ''], ['total', '2,204', '397 · 18.0%', '']] },
+        { d: 'Stratified by city × label. Seed 20261030.', head: ['split', 'rows', 'positive', ''], cols: 'minmax(0,1fr) 80px 90px 10px', rows: [['train', '1,543', '278 · 18.0%', ''], ['val', '330', '59 · 17.9%', ''], ['test', '331', '60 · 18.1%', '']] },
+        { d: 'Frozen feature set for training. Hash recorded in the registry.', head: ['artifact', 'value', '', ''], cols: 'minmax(0,1fr) minmax(0,2fr) 10px 10px', rows: [['file', 'features_v3.parquet · 412 KB', '', ''], ['shape', '2,204 × 18 + label', '', ''], ['sha256', '7f3a1c9e…b204', '', '']] }
+      ];
+      out.det = Object.assign({ n: SN[s.st] }, DET[s.st]);
+      const FT = [['rating', 'float', '3.7', '2.8%'], ['user_rating_count', 'int', '128', '2.8%'], ['price_level', 'ordinal', '2 (¥1,000–1,999)', '38.6%'], ['primary_type', 'category', 'bar', '0%'], ['accepts_cash_only', 'bool', 'true', '25.4%'], ['accepts_credit_cards', 'bool', 'false', '25.4%'], ['accepts_nfc', 'bool', 'false', '25.4%'], ['weekly_open_hours', 'float', '52.0', '11.4%'], ['late_night_flag', 'bool', 'true', '11.4%'], ['dist_station_m', 'float', '140 (JR 天満)', '0%'], ['competitors_same_cat_hex', 'int', '9', '0%'], ['hex_fnb_density', 'int', '63', '0%'], ['review_recency_days', 'int', '6', '2.8%'], ['review_velocity_90d', 'float', '4.1', '2.8%'], ['has_website', 'bool', 'false', '0%'], ['photo_count', 'int', '41', '0%'], ['opens_for_lunch', 'bool', 'false', '11.4%'], ['city', 'category', 'osaka', '0%']];
+      out.features = FT.map((x) => ({ n: x[0], t: x[1], e: x[2], nl: x[3] }));
+      const HP = { lgbm: [['num_leaves', '31'], ['learning_rate', '0.05'], ['n_estimators', '800'], ['early_stopping', '50'], ['min_child_samples', '25'], ['feature_fraction', '0.8'], ['bagging_fraction', '0.8'], ['lambda_l2', '1.0']], xgb: [['max_depth', '5'], ['eta', '0.05'], ['n_estimators', '800'], ['subsample', '0.8'], ['colsample_bytree', '0.8'], ['min_child_weight', '3'], ['reg_lambda', '1.0'], ['early_stopping', '50']], rf: [['n_estimators', '500'], ['max_depth', '12'], ['min_samples_leaf', '5'], ['max_features', 'sqrt']], lr: [['C', '0.5'], ['penalty', 'l2'], ['solver', 'lbfgs'], ['max_iter', '1000']] };
+      out.models = [['lgbm', 'LightGBM'], ['xgb', 'XGBoost'], ['rf', 'Random Forest'], ['lr', 'Logistic Regression']].map((m) => ({ n: m[1], on: s.model === m[0], pick: () => this.setState({ model: m[0] }) }));
+      out.hp = HP[s.model].map((h) => ({ k: h[0], v: s.hp[s.model + h[0]] !== undefined ? s.hp[s.model + h[0]] : h[1], set: (e) => { const hp = Object.assign({}, this.state.hp); hp[s.model + h[0]] = e.target.value; this.setState({ hp }); } }));
+      out.cw = s.cw; out.toggleCw = () => this.setState({ cw: !s.cw });
+      out.trainDisabled = s.phase === 'idle' || s.phase === 'pipe' || s.phase === 'train';
+      out.trainLabel = s.phase === 'train' ? 'Building model…' : 'Build Model';
+      out.train = () => this.trainOnly();
+      const C = this.curve(); const it = s.phase === 'idle' || s.phase === 'pipe' ? 0 : Math.min(C.stop, s.it);
+      const X = (i) => 48 + i / 450 * 582, Y = (v) => 210 - (v - 0.28) / 0.2 * 190;
+      let pt = '', pv = '';
+      for (let i = 0; i <= it; i += 2) { pt += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(C.tr[i]).toFixed(1); pv += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(C.va[i]).toFixed(1); }
+      out.lossTrain = pt || 'M0 0'; out.lossVal = pv || 'M0 0';
+      out.lossGrid = 'M48 22 L630 22 M48 116 L630 116';
+      out.headX = X(it).toFixed(1); out.headY = Y(C.va[it]).toFixed(1); out.headOp = s.phase === 'train' ? 1 : 0;
+      out.bestLine = s.phase === 'trained' ? 'M' + X(C.best).toFixed(1) + ' 20 L' + X(C.best).toFixed(1) + ' 210' : 'M0 0';
+      out.trained = s.phase === 'trained'; out.trainEmpty = s.phase === 'idle' || s.phase === 'pipe';
+      out.trainStatus = s.phase === 'trained' ? 'Early stopped at ' + C.stop + ' · best ' + C.best : s.phase === 'train' ? 'LightGBM · iteration ' + it : 'Waiting for data';
+      out.trainStats = [{ l: 'iteration', v: s.phase === 'idle' || s.phase === 'pipe' ? '—' : String(it) }, { l: 'train logloss', v: it ? C.tr[it].toFixed(4) : '—' }, { l: 'val logloss', v: it ? C.va[it].toFixed(4) : '—' }, { l: 'best val', v: s.phase === 'trained' ? C.bv.toFixed(4) + ' @ ' + C.best : '—' }];
+      out.toEval = () => this.setState({ tab: 'eval' });
+    }
+
+    if (s.tab === 'eval') {
+      out.metrics = [{ v: f3(ts.auc), l: 'ROC-AUC', s: 'test · 331 rows' }, { v: f3(ts.ap), l: 'PR-AUC', s: 'base rate 0.181' }, { v: ts.p10.toFixed(2), l: 'Precision @ top 10%', s: Math.round(ts.p10 * 33) + ' of 33 signed' }, { v: (ts.lift[0]).toFixed(2) + '×', l: 'Top-decile lift', s: 'vs random visit list' }, { v: f3(ts.ll), l: 'Log loss', s: 'test · no class weight' }];
+      const th = Number(s.th); let tp = 0, fp = 0; ts.T.forEach((t) => { if (t.s >= th) { t.y ? tp++ : fp++; } }); const fn = 60 - tp, tn = 271 - fp;
+      const shade = (v, tot, pos) => { const a = Math.min(1, 0.15 + v / tot * 0.95); return pos ? 'rgba(30,30,28,' + a.toFixed(2) + ')' : 'rgba(179,58,58,' + (a * 0.7).toFixed(2) + ')'; };
+      const fg = (v, tot) => (v / tot > 0.45 ? '#F3F0E8' : '#1E1E1C');
+      const P = tp / Math.max(1, tp + fp), Rc = tp / 60;
+      out.th = s.th; out.thLabel = th.toFixed(2); out.onTh = (e) => this.setState({ th: Number(e.target.value) });
+      out.cm = { tp, fp, fn, tn, tpBg: shade(tp, 60, true), tpFg: fg(tp, 60), tnBg: shade(tn, 271, true), tnFg: fg(tn, 271), fpBg: shade(fp, 120, false), fpFg: '#1E1E1C', fnBg: shade(fn, 60, false), fnFg: '#1E1E1C', p: P.toFixed(3), r: Rc.toFixed(3), f1: (2 * P * Rc / Math.max(0.001, P + Rc)).toFixed(3),
+        note: (tp + fp) + ' of 331 flagged (' + ((tp + fp) / 3.31).toFixed(1) + '%) · ≈ ' + fmt((tp + fp) / 331 * 2204) + ' of 2,204 places at this threshold' };
+      out.aucS = f3(ts.auc);
+      out.rocPath = ts.roc.map((p, i) => (i ? 'L' : 'M') + (30 + p[0] * 220).toFixed(1) + ' ' + (220 - p[1] * 210).toFixed(1)).join(' ');
+      out.rocPtX = (30 + fp / 271 * 220).toFixed(1); out.rocPtY = (220 - tp / 60 * 210).toFixed(1);
+      const cx = (p) => 30 + p / 0.8 * 220, cy = (o) => 220 - Math.min(1, o / 0.8) * 210;
+      out.calPath = ts.cal.map((c, i) => (i ? 'L' : 'M') + cx(c.p).toFixed(1) + ' ' + cy(c.o).toFixed(1)).join(' ');
+      out.calDots = ts.cal.map((c) => 'M' + (cx(c.p) - 3).toFixed(1) + ' ' + cy(c.o).toFixed(1) + 'a3 3 0 1 0 6 0a3 3 0 1 0 -6 0').join('');
+      out.calBars = ts.cal.map((c) => { const x = 30 + c.lo / 0.8 * 220; const h = c.n / 331 * 120; return 'M' + (x + 2).toFixed(1) + ' 220 L' + (x + 2).toFixed(1) + ' ' + (220 - h).toFixed(1) + ' L' + (x + 25).toFixed(1) + ' ' + (220 - h).toFixed(1) + ' L' + (x + 25).toFixed(1) + ' 220 Z'; }).join(' ');
+      out.brier = f3(ts.brier);
+      const sh = this.shap(); out.shapLo = sh.lo; out.shapMid = sh.mid; out.shapHi = sh.hi; out.shapGrid = sh.grid; out.shapRows = sh.rows;
+      const IMP = [['accepts_cash_only', 0.214], ['hex_fnb_density', 0.142], ['user_rating_count', 0.118], ['dist_station_m', 0.097], ['late_night_flag', 0.081], ['primary_type', 0.074], ['review_recency_days', 0.062], ['accepts_credit_cards', 0.058], ['price_level', 0.049], ['rating', 0.044], ['weekly_open_hours', 0.039], ['photo_count', 0.031]];
+      out.imp = IMP.map((x, i) => ({ n: x[0], v: x[1].toFixed(3), w: (x[1] / 0.214 * 100).toFixed(1) + '%', c: i === 0 ? '#C8442B' : '#1E1E1C' }));
+      out.baseRate = '18.1% · dashed = 1.0×';
+      const mx = Math.max(...ts.lift);
+      out.lift = ts.lift.map((v, i) => ({ k: i + 1, v: v.toFixed(2), h: (v / mx * 86).toFixed(1) + '%', c: v >= 1 ? '#1E1E1C' : '#BDB6A7' }));
+      out.liftOne = (1 / mx * 86).toFixed(1) + '%';
+    }
+
+    if (s.tab === 'reg') {
+      const pr = s.promoted;
+      out.canPromote = !pr; out.promoted = pr; out.promote = () => this.setState({ promoted: true });
+      const tag = (k) => ({ prod: 'background: #5E7D4A; color: #F3F0E8', stg: 'border: 1px solid #C89B3C; color: #7A5A14', arc: 'border: 1px solid #BDB6A7; color: #5E5A52' }[k]);
+      out.registry = [
+        { v: 'v4', alg: 'LightGBM · 412 trees', data: 'osaka-fnb_2026-10-30_v3', auc: f3(ts.auc), pr: f3(ts.ap), p10: ts.p10.toFixed(2), date: '2026-10-30', by: 'D. Riandy', stage: pr ? 'PRODUCTION' : 'STAGING', tag: tag(pr ? 'prod' : 'stg'), note: '+ Kyoto, + review_velocity_90d', bg: 'background: #F1ECE0' },
+        { v: 'v3', alg: 'LightGBM · 356 trees', data: 'osaka-fnb_2026-10-02_v2', auc: '0.794', pr: '0.471', p10: '0.52', date: '2026-10-06', by: 'K. Morimoto', stage: pr ? 'ARCHIVED' : 'PRODUCTION', tag: tag(pr ? 'arc' : 'prod'), note: 'Osaka only', bg: '' },
+        { v: 'v2', alg: 'XGBoost · 290 trees', data: 'osaka-fnb_2026-10-02_v2', auc: '0.787', pr: '0.458', p10: '0.48', date: '2026-10-04', by: 'K. Morimoto', stage: 'ARCHIVED', tag: tag('arc'), note: 'Calibration drift above 0.4', bg: '' },
+        { v: 'v1', alg: 'Logistic Regression', data: 'osaka-fnb_2026-09-11_v1', auc: '0.742', pr: '0.392', p10: '0.42', date: '2026-09-15', by: 'D. Riandy', stage: 'ARCHIVED', tag: tag('arc'), note: 'Baseline', bg: '' }
+      ];
+      out.pSingle = s.pmode === 'single'; out.pBulk = s.pmode === 'bulk';
+      out.toSingle = () => this.setState({ pmode: 'single' }); out.toBulk = () => this.setState({ pmode: 'bulk' });
+      const F = s.f; const setF = (k, num) => (e) => { const f = Object.assign({}, this.state.f); f[k] = num ? Number(e.target.value) : e.target.value; this.setState({ f }); };
+      const flag = (k, label) => ({ k: label, on: !!F[k], toggle: () => { const f = Object.assign({}, this.state.f); f[k] = !f[k]; this.setState({ f }); } });
+      out.f = { type: F.type, city: F.city, rating: F.rating, reviews: F.reviews, price: F.price, dist: F.dist, dens: F.dens, photos: F.photos, rec: F.rec,
+        setType: setF('type'), setCity: setF('city'), setRating: setF('rating', 1), setReviews: setF('reviews', 1), setPrice: setF('price'), setDist: setF('dist', 1), setDens: setF('dens', 1), setPhotos: setF('photos', 1), setRec: setF('rec', 1),
+        flags: [flag('cash', 'accepts_cash_only'), flag('card', 'accepts_credit_cards'), flag('nfc', 'accepts_nfc'), flag('late', 'late_night_flag'), flag('web', 'has_website')] };
+      const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+      const TY = { standing: 0.03, izakaya: 0.02, ramen: 0, cafe: -0.03, konamon: 0.01, yakiniku: -0.01, kushikatsu: 0.02 };
+      const PRc = { 1: 0.01, 2: 0.01, 3: 0, 4: -0.03, 5: -0.05 };
+      const contrib = [
+        ['Cash only', F.cash ? 0.21 : -0.05], ['Accepts credit cards', F.card ? -0.06 : 0.02], ['Accepts NFC', F.nfc ? -0.04 : 0.01],
+        ['High foot-traffic hex (' + F.dens + ' places)', cl((F.dens - 30) * 0.0027, -0.08, 0.12)], ['Review volume (' + F.reviews + ')', cl((Math.log10(F.reviews + 1) - 1.5) * 0.1, -0.08, 0.1)],
+        ['Near station (' + F.dist + ' m)', cl((400 - F.dist) / 400 * 0.06, -0.06, 0.06)], ['Late-night service', F.late ? 0.04 : -0.02], ['Rating ' + F.rating, (F.rating - 3.6) * 0.06],
+        ['No website', F.web ? -0.03 : 0.02], ['Photo count', cl((30 - F.photos) / 100 * 0.05, -0.04, 0.03)], ['Category', TY[F.type] || 0], ['Price level', PRc[F.price] || 0],
+        ['Recent reviews', cl((30 - F.rec) / 30 * 0.02, -0.03, 0.02)], ['City', F.city === 'kyoto' ? -0.02 : 0]
+      ];
+      const score = cl(0.18 + contrib.reduce((t, c) => t + c[1], 0), 0.01, 0.97);
+      const col = score >= 0.5 ? '#5E7D4A' : score >= 0.25 ? '#C89B3C' : '#B33A3A';
+      const ang = Math.PI * (1 - score); const ex = 120 + 100 * Math.cos(ang), ey = 120 - 100 * Math.sin(ang);
+      const nx = 120 + 78 * Math.cos(ang), ny = 120 - 78 * Math.sin(ang);
+      const top = contrib.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3);
+      out.g = { s: score.toFixed(2), col, band: score >= 0.5 ? 'High' : score >= 0.25 ? 'Mid' : 'Low', arc: 'M20 120 A100 100 0 0 1 ' + ex.toFixed(1) + ' ' + ey.toFixed(1), needle: 'M120 120 L' + nx.toFixed(1) + ' ' + ny.toFixed(1),
+        reasons: top.map((c) => ({ l: c[0], v: (c[1] >= 0 ? '+' : '−') + Math.abs(c[1]).toFixed(2), w: Math.round(Math.abs(c[1]) / 0.21 * 60) + 'px', c: c[1] >= 0 ? '#5E7D4A' : '#B33A3A' })) };
+      const csv = s.bulk === 'csv';
+      out.useCsv = () => this.setState({ bulk: 'csv' }); out.useV3 = () => this.setState({ bulk: 'v3' }); out.bulkV3 = !csv;
+      out.bulkMeta = csv ? 'tenma_walkin_list_2026-10.csv · 412 rows · 398 matched' : '2,204 rows scored in 1.9 s · model v4';
+      const LOW = [402, 471, 336, 205, 112], MID = [149, 121, 98, 71, 58], HIGH = [44, 36, 29, 23, 18, 13, 9, 6, 2, 1]; const all = LOW.concat(MID, HIGH);
+      const k = csv ? 398 / 2204 : 1; const mx = 471;
+      out.hist = all.map((v, i) => { const lo = i < 5 ? i * 0.05 : i < 10 ? 0.25 + (i - 5) * 0.05 : 0.5 + (i - 10) * 0.05; return { h: (v / mx * 92).toFixed(1) + '%', c: lo >= 0.5 ? '#5E7D4A' : lo >= 0.25 ? '#C89B3C' : '#B33A3A', t: lo.toFixed(2) + '–' + (lo + 0.05).toFixed(2) + ' · ' + fmt(v * k) }; });
+      out.bulkBands = csv ? 'high 41 · mid 96 · low 261' : 'high 181 · mid 497 · low 1,526';
+      const BR = [['立呑み 天満ほたる', 'Tachinomi Tenma Hotaru', 'Standing bar', 'Tenma', 0.73], ['大衆酒場 まる吉', 'Taishu Sakaba Marukichi', 'Izakaya', 'Tenma', 0.68], ['串かつ 千鳥', 'Kushikatsu Chidori', 'Kushikatsu', 'Namba', 0.61], ['お好み焼き 夕凪', 'Okonomiyaki Yunagi', 'Konamon', 'Fukushima', 0.54], ['喫茶 銀杏', 'Kissa Icho', 'Café / kissaten', 'Umeda', 0.41], ['中華そば 灯', 'Chuka Soba Akari', 'Ramen', 'Fukushima', 0.33], ['焼肉 三日月', 'Yakiniku Mikazuki', 'Yakiniku', 'Namba', 0.19], ['ワインバル 楓', 'Wine Bar Kaede', 'Bar', 'Umeda', 0.07]];
+      out.bulkRows = BR.map((r) => ({ jp: r[0], ro: r[1], cat: r[2], area: r[3], s: r[4].toFixed(2), b: r[4] >= 0.5 ? 'High' : r[4] >= 0.25 ? 'Mid' : 'Low', c: r[4] >= 0.5 ? '#5E7D4A' : r[4] >= 0.25 ? '#C89B3C' : '#B33A3A' }));
+    }
+    out.nav = this.navs();
+    return out;
+  }
+}
+</script>
+</body>
+</html>
