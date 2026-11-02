@@ -1,0 +1,71 @@
+/* Additions on top of design.css (copied verbatim from the Scout design) */
+html, body { background: #F3F0E8; color: #1E1E1C; font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif; }
+* { box-sizing: border-box; }
+button:disabled { cursor: not-allowed; }
+
+.h2 { margin: 0; font-weight: 400; font-size: 20px; }
+.sec-note { font-size: 12px; color: #5E5A52; line-height: 1.5; }
+.chip-static { font-size: 11px; border: 1px solid #BDB6A7; padding: 4px 8px; border-radius: 2px; display: inline-flex; gap: 6px; align-items: center; }
+.iconbtn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; border-radius: 2px; cursor: pointer; color: #8A8478; }
+.iconbtn:hover { border-color: #BDB6A7; color: #1E1E1C; }
+
+.tag { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #1E1E1C; border-radius: 2px; padding: 0 4px 0 10px; min-height: 34px; background: #1E1E1C; color: #F3F0E8; }
+.tag-x { width: 26px; height: 26px; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.dropdown { position: absolute; left: 0; right: 0; top: 44px; z-index: 5; display: flex; flex-direction: column; box-shadow: 0 6px 18px rgba(30,30,28,0.08); }
+.dd-row { font: inherit; display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; background: transparent; border: none; border-bottom: 1px solid #E6E1D5; cursor: pointer; text-align: left; min-height: 40px; color: #1E1E1C; }
+.dd-row:hover { background: #EEEAE0; }
+.row-toggle { font: inherit; width: 100%; display: flex; align-items: center; gap: 12px; background: transparent; border: none; cursor: pointer; padding: 8px 0; min-height: 44px; color: #1E1E1C; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #1E1E1C; border-radius: 2px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; min-height: 40px; border: none; background: transparent; cursor: pointer; color: #1E1E1C; }
+.seg button[aria-checked="true"] { background: #1E1E1C; color: #F3F0E8; }
+.seg button:disabled { color: #B8B1A2; }
+
+.overlay { position: fixed; inset: 0; background: rgba(30,30,28,0.35); z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.mock-tag { font-size: 10px; border: 1px solid #8A8478; color: #5E5A52; padding: 1px 5px; border-radius: 2px; margin-left: 8px; vertical-align: middle; font-weight: 400; }
+.latest { font-size: 10px; border: 1px solid #C8442B; color: #A8371F; padding: 1px 5px; border-radius: 2px; }
+.ai-tag { font-size: 10px; letter-spacing: 0.08em; color: #F3F0E8; background: #1E1E1C; padding: 3px 7px; align-self: flex-start; border-radius: 2px; }
+.legend { display: inline-flex; gap: 6px; align-items: center; }
+.legend > span { width: 9px; height: 9px; display: inline-block; }
+.log { background: #1E1E1C; color: #E8E4DA; border-radius: 2px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-height: 172px; max-height: 340px; overflow: hidden; }
+.slider-row { display: flex; align-items: center; gap: 12px; }
+.slider-row label { font-size: 12px; color: #5E5A52; width: 64px; }
+.slider-row .m { font-size: 13px; width: 56px; text-align: right; }
+
+.prev-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) 84px 110px 40px 64px 96px 110px 110px; gap: 10px; align-items: center; }
+.prev-head { font-size: 10px; color: #5E5A52; letter-spacing: 0.05em; padding: 8px 0; border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7; }
+.prev-row { font-size: 12px; padding: 9px 0; border-bottom: 1px solid #E2DDD1; }
+.cmp-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; }
+.cmp-grid > span:not(:first-child) { text-align: right; }
+/* Fixed-height scroll container: without this the overflow:auto tables collapse to zero height */
+.billing-panel > * { flex-shrink: 0; }
+.area-grid { display: grid; grid-template-columns: minmax(64px, 1.4fr) 46px 40px 58px 50px 44px; gap: 6px; }
+.area-grid > span:not(:first-child) { text-align: right; }
+.stamp { position: absolute; inset: 0; border: 2.5px solid #C8442B; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #C8442B; background: rgba(243,240,232,0.6); box-shadow: inset 0 0 0 2px rgba(200,68,43,0.25); }
+
+/* Login */
+.field-lbl { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #5E5A52; letter-spacing: 0.04em; }
+.hx-field { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #1E1E1C; background: transparent; border: none; border-bottom: 1px solid #BDB6A7; padding: 10px 0; border-radius: 0; }
+.hx-field:focus { outline: none; border-color: #1E1E1C; }
+@keyframes hxDrift { 0% { transform: translate(0, 0) scale(1) } 50% { transform: translate(-14px, 10px) scale(1.015) } 100% { transform: translate(0, 0) scale(1) } }
+@keyframes hxPulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+.hx-drift { animation: hxDrift 48s ease-in-out infinite; }
+.hx-pulse-layer path:not(:first-child) { animation: hxPulse 4.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hx-drift, .hx-pulse-layer path, .hx-stroke, .hx-in, .hx-stamp, .hx-ink { animation: none !important; }
+}
+@media (max-width: 720px) {
+  main { padding: 20px 16px 48px !important; }
+}
+
+/* AI lead brief */
+.brief { padding: 26px 28px; display: flex; flex-direction: column; gap: 24px; border-color: #1E1E1C; }
+.brief-top { display: flex; flex-wrap: wrap; gap: 16px 32px; }
+.brief-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7; }
+.brief-kpi { display: flex; flex-direction: column; gap: 4px; padding: 16px 16px 16px 0; }
+.brief-kpi + .brief-kpi { padding-left: 16px; border-left: 1px solid #E2DDD1; }
+.brief-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 28px; }
+.brief-col { display: flex; flex-direction: column; min-width: 0; }
+.count-pill { font-size: 11px; border: 1px solid #1E1E1C; border-radius: 10px; padding: 1px 8px; }
+.brief-actions { background: #1E1E1C; color: #F3F0E8; border-radius: 2px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }

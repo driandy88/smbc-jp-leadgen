@@ -1,0 +1,15 @@
+.env
+.venv/
+output/
+output_test/
+__pycache__/
+node_modules/
+frontend/dist/
+hexline.db*
+.DS_Store
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+# Large boundary sources live in GCS; data/boundaries holds the simplified N03 GeoJSON the app needs
+gadm41_JPN_shp/
+*.tsbuildinfo

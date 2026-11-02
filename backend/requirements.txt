@@ -1,0 +1,21 @@
+# API
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.6
+psycopg[binary]==3.3.6
+itsdangerous==2.2.0
+python-dotenv==1.2.4
+# Pipeline (modules/)
+pandas==3.1.0
+numpy==2.5.4
+geopandas==1.2.0
+shapely==2.2.0
+pyogrio==0.13.0
+pyproj==3.8.0
+h3==3.7.7
+requests==2.34.2
+# Google Cloud
+google-auth==2.62.0
+google-cloud-storage==3.17.1
+google-cloud-run==0.16.2
+anthropic[vertex]==2.3.0
