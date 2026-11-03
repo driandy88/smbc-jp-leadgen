@@ -1,6 +1,13 @@
 import { fmt, money, pct } from "../../lib/format";
 import { Profile } from "./types";
 
+/** English name of a search term; the Japanese term is what was actually searched. */
+export const kwEn = (p: Profile, k: string) => p.kw_en?.[k] || k;
+const Kw = ({ p, k, size = 13 }: { p: Profile; k: string; size?: number }) => {
+  const en = kwEn(p, k);
+  return <span style={{ fontSize: size, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={k}>{en}{en !== k && <span className="jp" style={{ fontSize: size - 2, color: "#8A8478", marginLeft: 6 }}>{k}</span>}</span>;
+};
+
 const Card = ({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) => (
   <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -57,7 +64,7 @@ export function KeywordYield({ p }: { p: Profile }) {
           </div>
           {kws.map((k) => (
             <div key={k.keyword} className="kw-grid" style={{ fontSize: 12, padding: "8px 0", borderBottom: "1px solid #E2DDD1", alignItems: "center" }}>
-              <span className="jp" style={{ fontSize: 13 }}>{k.keyword}</span>
+              <Kw p={p} k={k.keyword} />
               <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <span className="m">{fmt(k.places)}</span>
                 <span style={{ height: 3, background: "#1E1E1C", width: `${(100 * k.places) / max}%` }} />
@@ -107,9 +114,9 @@ export function KeywordInsight({ p }: { p: Profile }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span className="lbl" style={{ color: "#5E5A52" }}>Coverage curve · best term first, then the most new places each</span>
           {ks.curve.map((c: any, i: number) => (
-            <div key={c.keyword} style={{ display: "grid", gridTemplateColumns: "18px minmax(70px, 120px) 1fr 56px 52px", gap: 8, alignItems: "center", fontSize: 12, opacity: dropSet.has(c.keyword) ? 0.6 : 1 }}>
+            <div key={c.keyword} style={{ display: "grid", gridTemplateColumns: "18px minmax(90px, 170px) 1fr 56px 52px", gap: 8, alignItems: "center", fontSize: 12, opacity: dropSet.has(c.keyword) ? 0.6 : 1 }}>
               <span className="m" style={{ fontSize: 10, color: "#8A8478" }}>{i + 1}</span>
-              <span className="jp" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.keyword}</span>
+              <Kw p={p} k={c.keyword} size={12} />
               <div style={{ position: "relative", height: 12, background: "#E2DDD1" }}>
                 <div style={{ position: "absolute", inset: 0, width: `${c.cum_pct}%`, background: "#C9C2B2" }} />
                 <div style={{ position: "absolute", top: 0, bottom: 0, left: `${c.cum_pct - (100 * c.gain) / Math.max(1, ks.places)}%`, width: `${(100 * c.gain) / Math.max(1, ks.places)}%`, background: dropSet.has(c.keyword) ? "#A39B88" : i === 0 ? "#C8442B" : "#1E1E1C", minWidth: c.gain ? 2 : 0 }} title={`+${c.gain} new places`} />
@@ -126,7 +133,7 @@ export function KeywordInsight({ p }: { p: Profile }) {
             <span className="lbl" style={{ color: "#5E5A52" }}>Most overlapping pairs</span>
             {ks.pairs.slice(0, 5).map((x: any) => (
               <div key={x.a + x.b} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 64px 48px", gap: 8, fontSize: 12, alignItems: "center", padding: "4px 0", borderBottom: "1px solid #E2DDD1" }}>
-                <span className="jp" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.a} <span style={{ color: "#8A8478" }}>∩</span> {x.b}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${x.a} ∩ ${x.b}`}>{kwEn(p, x.a)} <span style={{ color: "#8A8478" }}>∩</span> {kwEn(p, x.b)}</span>
                 <span className="m" style={{ textAlign: "right" }}>{fmt(x.both)}</span>
                 <span className="m" style={{ textAlign: "right", color: x.of_smaller_pct >= 60 ? "#A8371F" : "#5E5A52" }} title="share of the smaller term's places that the other term also found">{pct(x.of_smaller_pct, 0)}</span>
               </div>
@@ -146,7 +153,7 @@ export function KeywordInsight({ p }: { p: Profile }) {
             <span className="m" style={{ fontSize: 10, color: "#C8442B" }}>NEXT RUN</span>
             {ks.drop.length ? (
               <span style={{ fontSize: 13, lineHeight: 1.5 }}>
-                Drop <span className="jp" style={{ fontWeight: 600 }}>{ks.drop.map((d: any) => d.keyword).join("、")}</span>: together they add only {fmt(ks.drop_total.places_lost)} places
+                Drop <span style={{ fontWeight: 600 }}>{ks.drop.map((d: any) => kwEn(p, d.keyword)).join(", ")}</span>: together they add only {fmt(ks.drop_total.places_lost)} places
                 for {fmt(ks.drop_total.calls)} calls. Saves about <span className="m">{money(ks.drop_total.saves_local)}</span>.
               </span>
             ) : (
@@ -165,7 +172,7 @@ export function KeywordInsight({ p }: { p: Profile }) {
           </div>
           {kws.map((k) => (
             <div key={k.keyword} className="kwi-grid" style={{ fontSize: 12, padding: "7px 0", borderBottom: "1px solid #E2DDD1", alignItems: "center", opacity: dropSet.has(k.keyword) ? 0.65 : 1 }}>
-              <span className="jp" style={{ fontSize: 13 }} title={k.top_types?.join(" · ")}>{k.keyword}</span>
+              <Kw p={p} k={k.keyword} />
               <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <span className="m">{pct(k.coverage_pct, 0)} <span style={{ color: "#8A8478" }}>{fmt(k.places)}</span></span>
                 <span style={{ height: 3, background: "#1E1E1C", width: `${k.coverage_pct}%` }} />

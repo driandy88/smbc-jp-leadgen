@@ -81,6 +81,8 @@ def test_mock_run_end_to_end(client, auth):
     prof = a["profile"]
     assert sum(h["places"] for h in prof["hexes"]["rows"]) <= prof["rows"] and prof["hexes"]["rows"][0]["types"]
     assert {k["keyword"] for k in prof["keywords"]} == {"居酒屋", "焼き鳥"}
+    assert prof["kw_en"] == {"居酒屋": "Izakaya", "焼き鳥": "Yakitori"}
+    assert prof["hexes"]["rows"][0]["area"] == "Chuo" and f["preview"][0]["area"] == "Chuo"
     assert prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"] + prof["fnb"]["no"]["n"] == prof["rows"]
 
     # Merchant mix: areas, types and contact splits each add up to the full list

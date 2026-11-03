@@ -9,7 +9,7 @@ import { Outline } from "./HexMap";
 export type Points = { cols: string[]; rows: unknown[][] };
 type Place = {
   lat: number; lng: number; name: string; type_label: string; rating: number | null; reviews: number | null;
-  pay: string; fnb: string; area_jp: string; maps_uri: string | null; address: string; phone: string | null;
+  pay: string; fnb: string; area_en: string; maps_uri: string | null; address: string; phone: string | null;
   web: string | null; status: string; lead: boolean;
 };
 
@@ -34,7 +34,7 @@ function popup(p: Place) {
   const link = (href: string | null, text: string) => (href && /^https?:\/\//.test(href) ? `<a href="${esc(href)}" target="_blank" rel="noreferrer">${text}</a>` : "");
   return `<div class="pm-pop">
     <b class="jp">${esc(p.name)}</b>
-    <span>${esc(p.type_label)} · <span class="jp">${esc(p.area_jp)}</span></span>
+    <span>${esc(p.type_label)} · ${esc(p.area_en)}</span>
     <span class="m">${p.rating != null ? `★${p.rating}` : "unrated"} · ${fmt(p.reviews)} reviews</span>
     <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.lead ? ' · <b style="color:#C8442B">priority lead</b>' : ""}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
     ${p.address ? `<span class="jp" style="color:#5E5A52">${esc(p.address)}</span>` : ""}

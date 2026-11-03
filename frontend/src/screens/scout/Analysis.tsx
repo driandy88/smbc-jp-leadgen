@@ -140,7 +140,7 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
               <div className="m area-grid" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}><span>AREA</span><span>PLACES</span><span>/KM²</span><span>CASH/NONE</span><span>NO WEB</span><span>LEADS</span></div>
               {[...p.areas].sort((x: any, y: any) => y.priority_leads - x.priority_leads).slice(0, 12).map((ar: any) => (
                 <div key={ar.code} className="m area-grid" style={{ fontSize: 12, padding: "7px 0", borderBottom: "1px solid #E2DDD1" }}>
-                  <span className="jp" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>{ar.jp}</span><span>{fmt(ar.places)}</span><span>{fmt(ar.per_km2)}</span>
+                  <span style={{ fontFamily: "'Inter Tight', sans-serif" }}>{ar.en}</span><span>{fmt(ar.places)}</span><span>{fmt(ar.per_km2)}</span>
                   <span>{pct(ar.cash_or_unknown_pct, 0)}</span><span>{pct(ar.no_website_pct, 0)}</span><span style={{ color: "#C8442B" }}>{fmt(ar.priority_leads)}</span>
                 </div>
               ))}
@@ -169,7 +169,7 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
         <Card title="Price level by area" meta="share of places">
           {p.areas.slice(0, 9).map((ar: any) => (
             <div key={ar.code} style={{ display: "grid", gridTemplateColumns: "96px 1fr", gap: 10, alignItems: "center" }}>
-              <span className="jp" style={{ fontSize: 12 }}>{ar.jp}</span>
+              <span style={{ fontSize: 12 }}>{ar.en}</span>
               <div style={{ display: "flex", height: 14, gap: 1 }}>{ar.price.map((w: number, i: number) => <span key={i} title={`${p.price_bands[i]} · ${w}%`} style={{ height: 14, width: `${w}%`, background: PRICE_COLORS[i], outline: i === 5 ? "1px solid #D8D3C7" : undefined }} />)}</div>
             </div>
           ))}

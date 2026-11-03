@@ -33,7 +33,9 @@ Rules:
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
   merchants have a phone (the call list), and how many websites are social pages or portals rather than
   the merchant's own. There is no email in Google data; never claim email reach.
-- Keep Japanese ward and place names as given. English for everything else. Short sentences."""
+- Write everything in English. Use the English ward names (`en`, e.g. Naniwa, Kita) and English type
+  names. Name a search term in English with the Japanese term in brackets, using kw_en, e.g.
+  Restaurant (レストラン). Keep merchant names exactly as given. Short sentences."""
 
 SCHEMA = {
     "type": "object",
@@ -68,6 +70,7 @@ def _prompt_payload(p: dict) -> dict:
     out["top_leads"] = (p.get("top_leads") or [])[:10]
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
+    out["kw_en"] = p.get("kw_en")
     out["type_mix"] = p.get("type_mix")
     if p.get("contact"):
         out["contact"] = {k: v for k, v in p["contact"].items() if k != "email"}
@@ -119,6 +122,12 @@ PITCH = {
 SEGMENT_NAME = {"priority": "Priority leads", "card_gap": "Card-acceptance gap", "digital_gap": "Phone-only, no website"}
 
 
+def kw_name(p: dict, kw: str) -> str:
+    """English name with the Japanese search term, e.g. Restaurant (レストラン)."""
+    en = (p.get("kw_en") or {}).get(kw)
+    return f"{en} ({kw})" if en and en != kw else kw
+
+
 def rule_based(p: dict) -> dict:
     o, seg, q, pay = p["overview"], p["segments"], p["quality"], p["payment"]
     areas = [a for a in p["areas"] if a["code"] != "outside"]
@@ -136,11 +145,11 @@ def rule_based(p: dict) -> dict:
     drop, drop_total = ks.get("drop") or [], ks.get("drop_total") or {}
 
     return {
-        "headline": (f"{seg['priority']['n']:,} priority leads in {top['jp']}" if top and len(areas) == 1
-                     else f"{seg['priority']['n']:,} priority leads; {top['jp']} holds {lead_share}%" if top
+        "headline": (f"{seg['priority']['n']:,} priority leads in {top['en']}" if top and len(areas) == 1
+                     else f"{seg['priority']['n']:,} priority leads; {top['en']} holds {lead_share}%" if top
                      else f"{seg['priority']['n']:,} priority leads"),
         "takeaway": (f"{o['cash_or_unknown_pct']}% of operational venues are cash-only or show no card info. "
-                     f"Start in {top['jp']} and pitch card + QR acceptance to well-reviewed venues first." if top
+                     f"Start in {top['en']} and pitch card + QR acceptance to well-reviewed venues first." if top
                      else "Not enough data to rank areas."),
         "kpis": [
             {"label": "Priority leads", "value": f"{seg['priority']['n']:,}",
@@ -152,7 +161,7 @@ def rule_based(p: dict) -> dict:
             {"label": "Best visit hour", "value": f"{bv['hour']}:00" if bv else "—",
              "context": f"{round(bv['open_share'] * 100)}% open, outside meal rush" if bv else "no hours data"},
         ],
-        "where": [{"area": a["jp"], "leads": a["priority_leads"],
+        "where": [{"area": a["en"], "leads": a["priority_leads"],
                    "why": f"{a['cash_or_unknown_pct']:.0f}% cash/unknown · {a['per_km2'] or '—'} venues/km² · "
                           f"median ★{a['median_rating'] or '—'}"} for a in by_leads if a["priority_leads"]],
         "who": [{"segment": SEGMENT_NAME[k], "count": seg[k]["n"], "pitch": PITCH[k]}
@@ -162,11 +171,11 @@ def rule_based(p: dict) -> dict:
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
         "actions": ([f"Walk hex {best_hex['h']} ({best_hex['area']}) first: {best_hex['leads']} priority leads among "
                      f"{best_hex['places']} merchants."] if best_hex and best_hex["leads"] else [])
-                   + ([f"Next run, drop {', '.join(d['keyword'] for d in drop[:4])}: together they add "
+                   + ([f"Next run, drop {', '.join(kw_name(p, d['keyword']) for d in drop[:4])}: together they add "
                        f"{drop_total['places_lost']:,} places for {drop_total['calls']:,} calls (≈ {get_settings().currency} {drop_total['saves_local']:,.0f})."]
-                      if drop else [f"Drop or merge {', '.join(k['keyword'] for k in weak_kw[:3])}: under 10% of their places "
+                      if drop else [f"Drop or merge {', '.join(kw_name(p, k['keyword']) for k in weak_kw[:3])}: under 10% of their places "
                                     "were not already found by other terms."] if weak_kw else [])
-                   + ([f"Assign reps to {', '.join(a['jp'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
+                   + ([f"Assign reps to {', '.join(a['en'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
                     if by_leads else [])
                    + ["Export the priority segment and call ahead to book visits.",
                       f"Verify payment status on the {pay['none']['n']:,} venues with no payment info during visits."],
