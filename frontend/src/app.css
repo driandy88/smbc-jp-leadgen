@@ -75,7 +75,10 @@ button:disabled { cursor: not-allowed; }
 
 /* Hex + keyword breakdown */
 .kw-grid { display: grid; grid-template-columns: minmax(70px, 1fr) 70px 46px 90px 50px 76px minmax(0, 1.4fr); gap: 8px; }
-.hex-grid { display: grid; grid-template-columns: 116px 58px 70px 70px minmax(0, 2.4fr) 70px 34px 44px; gap: 8px; align-items: center; }
+.hex-grid { display: grid; grid-template-columns: 116px 58px 76px 62px 58px 92px minmax(0, 2.2fr) 66px 34px 48px; gap: 8px; align-items: center; }
+.mix-grid { display: grid; grid-template-columns: minmax(96px, 1.2fr) 82px 52px 60px 60px minmax(90px, 1fr) minmax(0, 2.2fr) 84px 52px; gap: 10px; align-items: center; }
+.mix-row { width: 100%; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid #E2DDD1; padding: 8px 0; cursor: pointer; text-align: left; font-size: 12px; }
+.mix-row:hover, .mix-row[aria-expanded="true"] { background: #EEEAE0; }
 .hex-row { font-size: 12px; padding: 7px 0; border-bottom: 1px solid #E2DDD1; cursor: default; }
 .hex-row:hover { background: #EEEAE0; }
 .type-chip { font-size: 11px; border: 1px solid #D8D3C7; border-radius: 2px; padding: 1px 6px; background: #F3F0E8; }

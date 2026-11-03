@@ -83,6 +83,19 @@ def test_mock_run_end_to_end(client, auth):
     assert {k["keyword"] for k in prof["keywords"]} == {"居酒屋", "焼き鳥"}
     assert prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"] + prof["fnb"]["no"]["n"] == prof["rows"]
 
+    # Merchant mix: areas, types and contact splits each add up to the full list
+    assert sum(a["places"] for a in prof["areas"]) == prof["rows"]
+    assert all(sum(a["fnb"].values()) == a["places"] for a in prof["areas"])
+    assert sum(t["n"] for t in prof["type_mix"]) == prof["rows"]
+    c = prof["contact"]
+    assert sum(x["n"] for x in c["split"].values()) == prof["rows"]
+    assert c["either"] + c["neither"] == prof["rows"] and sum(k["n"] for k in c["web_kinds"]) == c["web"]
+    hx = prof["hexes"]
+    assert len(hx["rows"]) == hx["cells"] and sum(d["merchants"] for d in hx["dist"]) == hx["cells"]
+    assert sum(r["fnb"] for r in hx["rows"]) == prof["fnb"]["core"]["n"]
+    assert 0 < hx["fnb_half_cells"] <= hx["fnb_80_cells"] <= hx["cells"]
+    assert {i["k"] for i in prof["insights"]} >= {"Mix", "Contact", "Route"}
+
     # Keyword selection: duplicates split into same-term repeats and cross-term overlap, cover curve reaches 100%
     ks = prof["keyword_set"]
     assert ks["raw_hits"] == s["raw_hits"] and ks["dupes"] == s["dupes"]
@@ -145,3 +158,13 @@ def test_cancel_before_job_starts_does_not_hang(client, auth, monkeypatch):
     with session_scope() as db:
         db.get(Run, run["id"]).status = "cancelling"
     assert client.post(f"/api/runs/{run['id']}/cancel", headers=auth).json()["status"] == "cancelled"
+
+
+def test_web_kind():
+    from app.services.analysis import web_kind
+    assert web_kind("https://www.instagram.com/izakaya_x/") == "social"
+    assert web_kind("https://lin.ee/abc") == "social"
+    assert web_kind("https://tabelog.com/osaka/A2701/") == "portal"
+    assert web_kind("https://beauty.hotpepper.jp/slnH0001/") == "portal"
+    assert web_kind("https://izakaya-x.jp/") == "own"
+    assert web_kind(None) is None
