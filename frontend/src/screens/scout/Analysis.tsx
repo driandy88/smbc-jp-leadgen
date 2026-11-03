@@ -5,7 +5,7 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { Hotspots, MainOverview, TopMerchants } from "./Business";
+import { Hotspots, MainOverview, TopCategories } from "./Business";
 import { Profile, Version } from "./types";
 
 type Analysis = { profile: Profile; summary: Brief };
@@ -116,8 +116,8 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
       </Card>
       <Hotspots p={p} />
 
-      <Section n="03" t="Top merchants" />
-      <TopMerchants points={points} />
+      <Section n="03" t="Top categories" />
+      <TopCategories points={points} />
     </div>
   );
 }
