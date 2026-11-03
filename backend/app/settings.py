@@ -56,6 +56,9 @@ class Settings:
     # "thread" runs collection inside the API process; "job" starts a Cloud Run Job execution
     execution_mode: str = field(default_factory=lambda: _env("EXECUTION_MODE", "thread"))
     collect_job_name: str = field(default_factory=lambda: _env("COLLECT_JOB_NAME", "hexline-collect"))
+    # Parallel searches per run, and a cap on Places calls per second across them (quota is 600/min)
+    collect_workers: int = field(default_factory=lambda: int(_env("COLLECT_WORKERS", "8")))
+    places_qps: float = field(default_factory=lambda: float(_env("PLACES_QPS", "8")))
     # Default for the Real API / Mock toggle in the UI
     default_mock: bool = field(default_factory=lambda: _env("DEFAULT_MOCK", "true").lower() == "true")
 

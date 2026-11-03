@@ -342,6 +342,7 @@ export function Define({ cfg, lastRun, onStarted, onOpenRun }: { cfg: ScoutConfi
           {[
             ["Cells", fmt(est?.cells)], ["Searches (cell × term)", fmt(est?.tasks)],
             ["API calls, expected", fmt(est?.expected_calls)], ["API calls, minimum", fmt(est?.min_calls)],
+            ...(est?.duration ? [["Time, real API", `≈ ${mins(est.duration.minutes)} · ${est.duration.workers} in parallel`]] : []),
           ].map(([l, v]) => (
             <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#5E5A52" }}>{l}</span><span className="m">{v}</span></div>
           ))}
@@ -381,6 +382,7 @@ export function Define({ cfg, lastRun, onStarted, onOpenRun }: { cfg: ScoutConfi
             <div style={{ fontSize: 14, lineHeight: 1.6 }}>
               {fmt(est.cells)} cells × {est.keywords} terms = {fmt(est.tasks)} searches. Expect about <b className="m">{fmt(est.expected_calls)}</b> calls,
               roughly <b className="m">{money(est.expected_local)}</b> (at least {money(est.min_local)}). Splits in busy areas can push it higher.
+              {est.duration && <> Takes about <b className="m">{mins(est.duration.minutes)}</b> with {est.duration.workers} searches in parallel (one at a time: {mins(est.duration.minutes_sequential)}).</>}
             </div>
             <span style={{ fontSize: 12, color: "#5E5A52" }}>Every call is logged in the billing ledger. You can cancel at any time; calls already made are billed.</span>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -393,3 +395,5 @@ export function Define({ cfg, lastRun, onStarted, onOpenRun }: { cfg: ScoutConfi
     </div>
   );
 }
+
+const mins = (m: number) => (m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${(m / 60).toFixed(1)} h`);
