@@ -5,6 +5,7 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
 import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
 import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
 
@@ -43,7 +44,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const topArea = [...p.areas].sort((a: any, b: any) => b.cash_or_unknown_pct - a.cash_or_unknown_pct).find((a: any) => a.places >= 20 && a.code !== "outside");
   const leadArea = [...p.areas].sort((a: any, b: any) => b.priority_leads - a.priority_leads)[0];
   const stats = [
-    { v: fmt(data.count), l: "FnB places after filter", s: `${fmt(run.raw_hits)} raw hits · ${fmt(run.unique_places)} unique · ${fmt(run.unique_places - data.count)} filtered out` },
+    { v: fmt(data.count), l: "unique merchants after filter", s: `${fmt(p.fnb?.core?.n)} F&B · ${fmt(run.raw_hits)} raw hits · ${fmt(run.unique_places - data.count)} filtered out` },
     { v: pct(cashPct), l: "cash-only or no card info", s: `${pct(p.payment.cash.pct)} explicit cash-only · ${pct(p.payment.none.pct)} no payment data` },
     { v: o.median_rating?.toFixed(1) ?? "—", l: "median rating", s: `median ${fmt(o.median_reviews)} reviews · ${fmt(o.unrated)} unrated kept` },
     { v: fmt(p.top_cell?.n), l: "places in densest hex", s: `${p.top_cell?.h || "—"} · res ${run.base_res}` },
@@ -78,10 +79,16 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
         ))}
       </div>
 
+      <Insights p={p} />
+
       <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>hexes at res {run.base_res}</span></div>
         <PlaceMap points={points} outline={outline} res={run.base_res} highlight={hover} />
       </div>
+
+      <MerchantMix p={p} />
+      <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
+      <Contactability p={p} />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
         <div className="card" style={{ flex: "1 1 420px", minWidth: 0, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -119,7 +126,6 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
         </div>
       </div>
 
-      <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
       <KeywordInsight p={p} />
       <FnbCheck p={p} />
 

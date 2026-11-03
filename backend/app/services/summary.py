@@ -30,6 +30,9 @@ Rules:
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
   and the duplicate rate (raw hits per unique place). Mention the F&B share if non-F&B hits are material.
+- Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
+  merchants have a phone (the call list), and how many websites are social pages or portals rather than
+  the merchant's own. There is no email in Google data; never claim email reach.
 - Keep Japanese ward and place names as given. English for everything else. Short sentences."""
 
 SCHEMA = {
@@ -65,11 +68,16 @@ def _prompt_payload(p: dict) -> dict:
     out["top_leads"] = (p.get("top_leads") or [])[:10]
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
+    out["type_mix"] = p.get("type_mix")
+    if p.get("contact"):
+        out["contact"] = {k: v for k, v in p["contact"].items() if k != "email"}
+    out["insights"] = p.get("insights")
     if p.get("keyword_set"):
         out["keyword_set"] = {k: v for k, v in p["keyword_set"].items() if k != "per_place_terms"}
     if p.get("hexes"):
         h = p["hexes"]
-        out["hexes"] = {k: h[k] for k in ("cells", "median", "p90", "max", "top10_share", "top10_cells")}
+        out["hexes"] = {k: h.get(k) for k in ("cells", "median", "p90", "max", "top10_share", "top10_cells",
+                                               "fnb_median", "fnb_half_cells", "fnb_80_cells", "no_fnb_cells", "dist")}
         out["hexes"]["densest"] = h["rows"][:8]
         out["hexes"]["most_leads"] = h["by_leads"]
     return out

@@ -6,6 +6,7 @@ listings with no website, and well-reviewed venues are the signals a sales team 
 """
 
 import math
+from urllib.parse import urlparse
 
 import h3
 import numpy as np
@@ -87,6 +88,11 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "priority_leads": int(seg_priority["area"].eq(code).sum()),
             "price": [_pct((g["price"] == i).sum(), len(g)) for i in range(6)],
             "top_types": g["type_label"].value_counts().head(6).to_dict(),
+            "fnb": {k: int((g["fnb"] == k).sum()) for k in ("core", "related", "no")},
+            "types": _type_rows(g, 8),
+            "type_count": int(g["type_label"].nunique()),
+            "contact": _contact_counts(g),
+            "chains": int(g["chain"].sum()),
         })
     areas.sort(key=lambda a: -a["places"])
 
@@ -127,7 +133,7 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
 
     leads = seg_priority.sort_values("reviews", ascending=False).head(15)
 
-    return {
+    out = {
         "rows": n,
         "run": run,
         "overview": {
@@ -166,6 +172,8 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
                                                       for t in top_type_names}} for a in areas[:9]],
         "top_types": top_type_names,
         "fnb": _fnb(df),
+        "type_mix": _type_rows(df, 15),
+        "contact": _contact(df, op),
         "keywords": _keywords(df, kw_stats or {}, run),
         "keyword_set": _keyword_set(df, kw_stats or {}, run),
         "hexes": hexes,
@@ -188,6 +196,163 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "saturated_cells": run.get("saturated", 0),
         },
     }
+    out["insights"] = _insights(out, df, op)
+    return out
+
+
+SOCIAL = ("instagram.com", "facebook.com", "fb.com", "x.com", "twitter.com", "tiktok.com", "youtube.com",
+          "threads.net", "line.me", "lin.ee", "linktr.ee", "lit.link")
+PORTAL = ("tabelog.com", "hotpepper.jp", "gnavi.co.jp", "retty.me", "ikyu.com", "hitosara.com", "tablecheck.com",
+          "toreta.in", "ebica.jp", "owst.jp", "gorp.jp", "favy.jp", "ozmall.co.jp", "opentable.jp", "opentable.com",
+          "tripadvisor.jp", "tripadvisor.com", "yelp.com", "airrsv.net", "ubereats.com", "demae-can.com")
+WEB_KIND = {"own": "Own website", "social": "Social / LINE only", "portal": "Gourmet portal / booking page"}
+
+
+def web_host(url) -> str:
+    if not isinstance(url, str) or not url:
+        return ""
+    host = urlparse(url if "//" in url else f"//{url}").netloc.lower().split(":")[0]
+    return host.removeprefix("www.")
+
+
+def web_kind(url) -> str | None:
+    """Own site, social profile, or a listing on a gourmet / booking portal (not the merchant's own channel)."""
+    host = web_host(url)
+    if not host:
+        return None
+    if any(host == d or host.endswith("." + d) for d in SOCIAL):
+        return "social"
+    if any(host == d or host.endswith("." + d) for d in PORTAL):
+        return "portal"
+    return "own"
+
+
+def _contact_counts(g: pd.DataFrame) -> dict:
+    ph, web = g["phone"].notna(), g["web"].notna()
+    return {"n": len(g), "phone": int(ph.sum()), "web": int(web.sum()), "either": int((ph | web).sum()),
+            "both": int((ph & web).sum()), "neither": int((~ph & ~web).sum())}
+
+
+def _contact(df: pd.DataFrame, op: pd.DataFrame) -> dict:
+    """Ways to reach each merchant. Google Places has phone and website only; there is no email field."""
+    n = len(df)
+    c = _contact_counts(df)
+    ph, web = df["phone"].notna(), df["web"].notna()
+    kinds = df["web"].map(web_kind)
+    hosts = df["web"].map(web_host)
+    split = {"both": c["both"], "phone_only": int((ph & ~web).sum()), "web_only": int((~ph & web).sum()),
+             "neither": c["neither"]}
+    by_kind = []
+    for k, label in WEB_KIND.items():
+        m = kinds == k
+        top = hosts[m].value_counts().head(5) if k != "own" else pd.Series(dtype=int)
+        by_kind.append({"k": k, "label": label, "n": int(m.sum()), "pct": _pct(m.sum(), c["web"]),
+                        "hosts": [{"host": h, "n": int(v)} for h, v in top.items()]})
+    cashish = op[op["pay"].isin(["cash", "none"])]
+    fnb_rows = []
+    for k in ("core", "related", "no"):
+        g = df[df["fnb"] == k]
+        if len(g):
+            cc = _contact_counts(g)
+            fnb_rows.append({"fnb": k, "n": len(g), "either_pct": _pct(cc["either"], len(g)),
+                             "phone_pct": _pct(cc["phone"], len(g)), "web_pct": _pct(cc["web"], len(g))})
+    return {
+        **c, "either_pct": _pct(c["either"], n), "phone_pct": _pct(c["phone"], n), "web_pct": _pct(c["web"], n),
+        "neither_pct": _pct(c["neither"], n),
+        "split": {k: {"n": v, "pct": _pct(v, n)} for k, v in split.items()},
+        "web_kinds": by_kind,
+        "own_site": int((kinds == "own").sum()),
+        "email": None,
+        "cash_callable": {"n": int(cashish["phone"].notna().sum()), "of": len(cashish)},
+        "by_fnb": fnb_rows,
+    }
+
+
+def _type_rows(g: pd.DataFrame, top: int) -> list[dict]:
+    """Merchant types with how many of each are F&B, F&B-related or not; the tail is folded into 'Other'."""
+    n = len(g)
+    ct = pd.crosstab(g["type_label"], g["fnb"]).reindex(columns=["core", "related", "no"], fill_value=0)
+    ct["n"] = ct.sum(axis=1)
+    ct = ct.sort_values("n", ascending=False)
+    rows = [{"t": t, "n": int(r["n"]), "pct": _pct(r["n"], n), "core": int(r["core"]), "related": int(r["related"]),
+             "no": int(r["no"])} for t, r in ct.head(top).iterrows()]
+    rest = ct.iloc[top:]
+    if len(rest):
+        rows.append({"t": f"Other ({len(rest)} types)", "n": int(rest["n"].sum()), "pct": _pct(rest["n"].sum(), n),
+                     "core": int(rest["core"].sum()), "related": int(rest["related"].sum()), "no": int(rest["no"].sum()),
+                     "other": True})
+    return rows
+
+
+def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
+    """Plain-language findings from the merchant mix, hexes and contact data."""
+    out = []
+    n = p["rows"]
+    f, c, hx = p["fnb"], p["contact"], p["hexes"]
+    areas = [a for a in p["areas"] if a["code"] != "outside" and a["places"] >= 10]
+
+    noise = [t for t in p["type_mix"] if t["no"] and not t.get("other")]
+    msg = f"{pct_s(f['core']['pct'])} of the {n:,} merchants are core F&B and {pct_s(f['related']['pct'])} F&B-related."
+    if f["no"]["n"] and noise:
+        top = max(noise, key=lambda t: t["no"])
+        msg += f" {f['no']['n']:,} are not F&B, mostly {top['t']} ({top['no']:,}); filter them out before outreach."
+    out.append({"k": "Mix", "t": msg})
+
+    if areas:
+        big = max(areas, key=lambda a: a["places"])
+        share = _pct(big["places"], n)
+        rate = lambda a, x: _pct(x, a["places"])  # noqa: E731
+        lo = min(areas, key=lambda a: rate(a, a["contact"]["either"]))
+        hi_r = max(areas, key=lambda a: rate(a, a["contact"]["either"]))
+        pure = max(areas, key=lambda a: rate(a, a["fnb"]["core"]))
+        mixed = min(areas, key=lambda a: rate(a, a["fnb"]["core"]))
+        t = f"{big['jp']} ({big['en']}) holds {big['places']:,} merchants ({pct_s(share)} of the list)."
+        # Only call out an area when it really differs from the others
+        if rate(pure, pure["fnb"]["core"]) - rate(mixed, mixed["fnb"]["core"]) >= 5:
+            t += (f" Purest F&B: {pure['jp']} ({pct_s(rate(pure, pure['fnb']['core']))}); most mixed: "
+                  f"{mixed['jp']} ({pct_s(rate(mixed, mixed['fnb']['core']))}).")
+        if rate(hi_r, hi_r["contact"]["either"]) - rate(lo, lo["contact"]["either"]) >= 5:
+            t += (f" Hardest to reach: {lo['jp']}, only {pct_s(rate(lo, lo['contact']['either']))} have a phone or "
+                  f"website, against {pct_s(rate(hi_r, hi_r['contact']['either']))} in {hi_r['jp']}.")
+        out.append({"k": "Areas", "t": t})
+
+    if hx.get("fnb_half_cells"):
+        out.append({"k": "Route", "t": (
+            f"Half of all F&B merchants sit in {hx['fnb_half_cells']} of {hx['cells']} hexes "
+            f"({pct_s(_pct(hx['fnb_half_cells'], hx['cells']))}); 80% in {hx['fnb_80_cells']}. "
+            "A rep covering those hexes on foot reaches most of the market."
+            + (f" {hx['no_fnb_cells']} hexes have merchants but no F&B." if hx["no_fnb_cells"] else ""))})
+
+    cc = c["cash_callable"]
+    out.append({"k": "Contact", "t": (
+        f"{pct_s(c['either_pct'])} can be reached by phone or website; {c['neither']:,} ({pct_s(c['neither_pct'])}) "
+        f"have neither and need a walk-in. {cc['n']:,} of {cc['of']:,} cash-only / no-card merchants have a phone: "
+        f"that is the call list. Google has no email field.")})
+
+    kinds = {k["k"]: k for k in c["web_kinds"]}
+    nonown = kinds["social"]["n"] + kinds["portal"]["n"]
+    if c["web"] and _pct(nonown, c["web"]) >= 10:
+        top_host = (kinds["portal"]["hosts"] or kinds["social"]["hosts"])[0]
+        out.append({"k": "Web", "t": (
+            f"{nonown:,} of {c['web']:,} websites ({pct_s(_pct(nonown, c['web']))}) are social pages or portal "
+            f"listings, not the merchant's own site; most often {top_host['host']} ({top_host['n']:,}). "
+            "These shops rely on rented channels and are open to a direct digital / payment offer.")})
+    elif c["web"]:
+        out.append({"k": "Web", "t": (
+            f"{pct_s(c['web_pct'])} have a website and {pct_s(_pct(kinds['own']['n'], c['web']))} of those are the "
+            f"merchant's own domain. {c['split']['phone_only']['n']:,} are phone-only: the digital-gap pitch.")})
+
+    if len(areas) > 1:
+        ch = max(areas, key=lambda a: a["chains"] / max(1, a["places"]))
+        if ch["chains"]:
+            out.append({"k": "Chains", "t": (
+                f"{ch['jp']} has the most chain branches ({pct_s(_pct(ch['chains'], ch['places']))} of its merchants). "
+                f"Chains buy centrally, so independents are the realistic field targets there.")})
+    return out
+
+
+def pct_s(v: float) -> str:
+    return f"{v:.0f}%"
 
 
 def _filled(df: pd.DataFrame, col: str) -> int:
@@ -304,6 +469,9 @@ def _hex_table(df_hex: pd.DataFrame, priority_pks: set, density: pd.Series) -> d
         rows.append({
             "h": cell, "area": g["area_jp"].mode().iloc[0], "places": len(g),
             "fnb": int((g["fnb"] == "core").sum()),
+            "related": int((g["fnb"] == "related").sum()),
+            "contact": int((g["phone"].notna() | g["web"].notna()).sum()),
+            "phone": int(g["phone"].notna().sum()),
             "types": [{"t": t, "n": int(c)} for t, c in g["type_label"].value_counts().head(3).items()],
             "cash_pct": _pct(op["pay"].isin(["cash", "none"]).sum(), len(op)),
             "median_rating": _median(op["rating"]),
@@ -312,6 +480,9 @@ def _hex_table(df_hex: pd.DataFrame, priority_pks: set, density: pd.Series) -> d
     rows.sort(key=lambda r: -r["places"])
     counts = density.sort_values(ascending=False)
     top10 = max(1, round(len(counts) * 0.1))
+    fnb = pd.Series([r["fnb"] for r in rows], dtype=float).sort_values(ascending=False)
+    cum = fnb.cumsum() / max(1, fnb.sum())
+    need = lambda q: int((cum < q).sum()) + 1 if fnb.sum() else 0  # noqa: E731
     return {
         "cells": len(counts),
         "median": float(counts.median()) if len(counts) else 0,
@@ -319,6 +490,22 @@ def _hex_table(df_hex: pd.DataFrame, priority_pks: set, density: pd.Series) -> d
         "max": int(counts.max()) if len(counts) else 0,
         "top10_share": _pct(counts.head(top10).sum(), counts.sum()),
         "top10_cells": top10,
-        "rows": rows[:20],
+        "fnb_median": float(fnb.median()) if len(fnb) else 0,
+        "fnb_max": int(fnb.max()) if len(fnb) else 0,
+        "fnb_half_cells": need(0.5), "fnb_80_cells": need(0.8),
+        "no_fnb_cells": int((fnb == 0).sum()),
+        "dist": _hex_dist(counts, fnb),
+        "rows": rows,
         "by_leads": sorted(rows, key=lambda r: -r["leads"])[:5],
     }
+
+
+HEX_BINS = [0, 1, 2, 5, 10, 20, 50, math.inf]
+HEX_LABELS = ["0", "1", "2–4", "5–9", "10–19", "20–49", "50+"]
+
+
+def _hex_dist(merchants: pd.Series, fnb: pd.Series) -> list[dict]:
+    """How many hexes hold 0, 1, 2–4 … merchants, and the same for F&B merchants."""
+    cut = lambda s: pd.cut(s, bins=HEX_BINS, labels=HEX_LABELS, right=False).value_counts()  # noqa: E731
+    m, f = cut(merchants), cut(fnb)
+    return [{"l": l, "merchants": int(m.get(l, 0)), "fnb": int(f.get(l, 0))} for l in HEX_LABELS]

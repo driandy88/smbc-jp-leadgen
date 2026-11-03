@@ -6,6 +6,7 @@ import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
 import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -122,11 +123,15 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
         ))}
       </div>
 
+      <Insights p={p} />
+
       <Card title="Merchant map · every place in this version" meta={`hexes at res ${p.run.base_res}`}>
         <PlaceMap points={points} outline={outline} res={p.run.base_res} highlight={hover} />
       </Card>
 
+      <MerchantMix p={p} />
       <HexBreakdown p={p} res={p.run.base_res} onHover={setHover} />
+      <Contactability p={p} />
       <KeywordInsight p={p} />
       <FnbCheck p={p} />
 
