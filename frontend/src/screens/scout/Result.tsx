@@ -40,7 +40,6 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const run = data.run;
   const cashPct = p.payment.cash.pct + p.payment.none.pct;
   const topArea = [...p.areas].sort((a: any, b: any) => b.cash_or_unknown_pct - a.cash_or_unknown_pct).find((a: any) => a.places >= 20 && a.code !== "outside");
-  const leadArea = [...p.areas].sort((a: any, b: any) => b.priority_leads - a.priority_leads)[0];
   // With one ward there is nothing to compare it against
   const several = p.areas.filter((a: any) => a.code !== "outside").length > 1;
   const stats = [
@@ -54,9 +53,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
     topArea && { k: "01", t: several
       ? `${topArea.en} is the strongest cash pocket: ${pct(topArea.cash_or_unknown_pct)} cash-only or no card info, against ${pct(cashPct)} overall.`
       : `${pct(cashPct)} of ${topArea.en} merchants are cash-only or show no card info (${pct(p.payment.cash.pct)} explicitly cash-only).` },
-    leadArea && { k: "02", t: several
-      ? `${leadArea.en} holds the most priority leads (${fmt(leadArea.priority_leads)} of ${fmt(p.segments.priority.n)}): ${p.segments.priority.def}.`
-      : `${fmt(p.segments.priority.n)} priority leads in ${leadArea.en}: ${p.segments.priority.def}.` },
+    p.contact && { k: "02", t: `${fmt(p.contact.cash_callable.n)} of ${fmt(p.contact.cash_callable.of)} cash-only / no-card merchants list a phone number: that is the call list. ${pct(p.contact.either_pct, 0)} of all merchants are reachable by phone or website.` },
     { k: "03", t: run.saturated ? `${fmt(run.saturated)} cells still hit 60 results at res ${run.max_res}; raise the max split resolution to recover them.` : `${fmt(run.splits)} busy cells were split down to res ${run.max_res}; none stayed saturated.` },
   ].filter(Boolean) as { k: string; t: string }[];
 

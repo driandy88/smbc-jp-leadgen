@@ -96,8 +96,8 @@ button:disabled { cursor: not-allowed; }
 .pm-spot { background: none; border: 0; white-space: nowrap; font: 600 12px 'Inter Tight', sans-serif; color: #1E1E1C; text-shadow: 0 0 3px #F8F6F0, 0 0 3px #F8F6F0, 0 0 3px #F8F6F0; transform: translate(-50%, -50%); width: auto !important; height: auto !important; }
 .pm-spot b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #C8442B; color: #F8F6F0; font-size: 10px; text-shadow: none; margin-right: 4px; }
 .pm-spot span { font: 500 10px 'IBM Plex Mono', ui-monospace, monospace; color: #A8371F; margin-left: 5px; }
-.seg-grid { display: grid; grid-template-columns: minmax(170px, 1.6fr) 96px 52px 76px 96px 66px 54px 50px minmax(0, 2fr); gap: 10px; align-items: center; }
-.spot-grid { display: grid; grid-template-columns: 24px minmax(120px, 1.2fr) 110px 92px 50px 72px 96px 50px minmax(0, 1.8fr); gap: 10px; }
+.seg-grid { display: grid; grid-template-columns: minmax(170px, 1.6fr) 96px 52px 76px 96px 66px 54px minmax(0, 2fr); gap: 10px; align-items: center; }
+.spot-grid { display: grid; grid-template-columns: 24px minmax(120px, 1.2fr) 110px 100px 76px 100px 66px minmax(0, 1.8fr); gap: 10px; }
 .slice-grid { display: grid; grid-template-columns: minmax(140px, 1.6fr) 82px repeat(4, 96px) 72px minmax(80px, 1fr); gap: 8px; }
 .slice-cell { font: inherit; background: none; border: 1px solid transparent; padding: 4px 6px; display: flex; gap: 6px; align-items: baseline; cursor: pointer; text-align: left; color: inherit; }
 .slice-cell:hover:not(:disabled) { border-color: #A39B88; }

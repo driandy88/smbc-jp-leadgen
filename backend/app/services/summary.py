@@ -24,6 +24,9 @@ Rules:
 - Rank, don't list: put the highest-yield area / segment first and say why it wins.
 - Pitch lines must be concrete and fit the segment (e.g. cash-only izakaya → low-fee terminal + QR).
 - Don't restate definitions or describe the charts. No filler like "it is important to".
+- Do not use "priority leads" or any lead score. Count plain things: F&B merchants, merchants reachable
+  by phone or website, cash-only / no-card merchants, and cash / no-card merchants with a phone
+  (areas[].callable, contact.cash_callable) as the call list.
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
@@ -48,8 +51,9 @@ SCHEMA = {
             "type": "object", "additionalProperties": False, "required": ["label", "value", "context"],
             "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "context": {"type": "string"}}}},
         "where": {"type": "array", "description": "top 3-4 areas, best first", "items": {
-            "type": "object", "additionalProperties": False, "required": ["area", "leads", "why"],
-            "properties": {"area": {"type": "string"}, "leads": {"type": "integer"}, "why": {"type": "string"}}}},
+            "type": "object", "additionalProperties": False, "required": ["area", "merchants", "why"],
+            "properties": {"area": {"type": "string"}, "merchants": {"type": "integer", "description": "F&B merchants there"},
+                           "why": {"type": "string"}}}},
         "who": {"type": "array", "description": "2-3 target segments, best first", "items": {
             "type": "object", "additionalProperties": False, "required": ["segment", "count", "pitch"],
             "properties": {"segment": {"type": "string"}, "count": {"type": "integer"}, "pitch": {"type": "string"}}}},
@@ -66,8 +70,8 @@ def _prompt_payload(p: dict) -> dict:
             "visit_window", "completeness", "quality"]
     out = {k: p.get(k) for k in keep}
     out["run"] = {k: p["run"].get(k) for k in ("keywords", "base_res", "max_res", "saturated", "splits")}
-    out["areas"] = [{k: v for k, v in a.items() if k != "price"} for a in p.get("areas", [])[:24]]
-    out["top_leads"] = (p.get("top_leads") or [])[:10]
+    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads")} for a in p.get("areas", [])[:24]]
+    out["segments"] = {k: v for k, v in (p.get("segments") or {}).items() if k != "priority"}
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
     out["kw_en"] = p.get("kw_en")
@@ -112,11 +116,10 @@ def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
 
 
 PITCH = {
-    "priority": "Lead with a low-fee card + QR terminal; their reviews show the footfall to justify it.",
     "card_gap": "First card terminal: free setup and next-day settlement, framed as not losing tourist and card-only customers.",
     "digital_gap": "Bundle payments with a booking/online-presence starter; they answer the phone but have no website.",
 }
-SEGMENT_NAME = {"priority": "Priority leads", "card_gap": "Card-acceptance gap", "digital_gap": "Phone-only, no website"}
+SEGMENT_NAME = {"card_gap": "Card-acceptance gap", "digital_gap": "Phone-only, no website"}
 
 
 def kw_name(p: dict, kw: str) -> str:
@@ -127,54 +130,58 @@ def kw_name(p: dict, kw: str) -> str:
 
 def rule_based(p: dict) -> dict:
     o, seg, q, pay = p["overview"], p["segments"], p["quality"], p["payment"]
-    areas = [a for a in p["areas"] if a["code"] != "outside"]
-    by_leads = sorted(areas, key=lambda a: -a["priority_leads"])[:4]
-    top = by_leads[0] if by_leads else None
+    areas = sorted([a for a in p["areas"] if a["code"] != "outside"], key=lambda a: -a.get("fnb_n", a["places"]))[:4]
+    top = areas[0] if areas else None
     bv = p.get("best_visit")
     peak = p["open_peak"]
-    lead_share = round(100 * top["priority_leads"] / max(1, seg["priority"]["n"])) if top else 0
     spots = p.get("hotspots") or []
-    best_spot = max(spots, key=lambda h: h["leads"], default=None)
+    best_spot = spots[0] if spots else None
     fnb = p.get("fnb") or {}
+    contact = p.get("contact") or {}
+    callable_ = (contact.get("cash_callable") or {}).get("n", 0)
+    fnb_n = fnb.get("core", {}).get("n", 0) + fnb.get("related", {}).get("n", 0)
     kws = p.get("keywords") or []
     weak_kw = [k for k in kws if k["places"] >= 10 and k["only_pct"] < 10]
     ks = p.get("keyword_set") or {}
     drop, drop_total = ks.get("drop") or [], ks.get("drop_total") or {}
+    segs = [s_ for s_ in p.get("fnb_segments") or [] if not s_["segment"].startswith("F&B-related")][:3]
+    where_go = best_spot["name"] if best_spot else top["en"] if top else None
 
     return {
-        "headline": (f"{seg['priority']['n']:,} priority leads in {top['en']}" if top and len(areas) == 1
-                     else f"{seg['priority']['n']:,} priority leads; {top['en']} holds {lead_share}%" if top
-                     else f"{seg['priority']['n']:,} priority leads"),
+        "headline": f"{fnb_n:,} F&B merchants; {callable_:,} cash / no-card ones can be phoned",
         "takeaway": (f"{o['cash_or_unknown_pct']}% of operational venues are cash-only or show no card info. "
-                     f"Start in {top['en']} and pitch card + QR acceptance to well-reviewed venues first." if top
+                     f"Start in {where_go}, where F&B is densest, and pitch card + QR acceptance." if where_go
                      else "Not enough data to rank areas."),
         "kpis": [
-            {"label": "Priority leads", "value": f"{seg['priority']['n']:,}",
-             "context": f"{seg['priority']['pct']}% of {o['operational']:,} operational"},
+            {"label": "F&B merchants", "value": f"{fnb_n:,}", "context": f"of {p['rows']:,} places found"},
             {"label": "Cash-only / no card info", "value": f"{o['cash_or_unknown_pct']}%",
              "context": f"{pay['cash']['pct']}% explicit cash-only"},
-            {"label": "Reachable by phone", "value": f"{o['phone_pct']}%",
-             "context": f"{o['no_website_pct']}% have no website"},
+            {"label": "Reachable by phone or web", "value": f"{contact.get('either_pct', o['phone_pct'])}%",
+             "context": f"{callable_:,} cash / no-card merchants have a phone"},
             {"label": "Best visit hour", "value": f"{bv['hour']}:00" if bv else "—",
              "context": f"{round(bv['open_share'] * 100)}% open, outside meal rush" if bv else "no hours data"},
         ],
-        "where": [{"area": a["en"], "leads": a["priority_leads"],
-                   "why": f"{a['cash_or_unknown_pct']:.0f}% cash/unknown · {a['per_km2'] or '—'} venues/km² · "
-                          f"median ★{a['median_rating'] or '—'}"} for a in by_leads if a["priority_leads"]],
-        "who": [{"segment": SEGMENT_NAME[k], "count": seg[k]["n"], "pitch": PITCH[k]}
-                for k in ("priority", "card_gap", "digital_gap") if seg[k]["n"]],
+        "where": [{"area": a["en"], "merchants": a.get("fnb_n", a["places"]),
+                   "why": f"{a['cash_or_unknown_pct']:.0f}% cash / no card · {a.get('callable', 0):,} to call · "
+                          f"{a['per_km2'] or '—'} venues/km²"} for a in areas],
+        "who": ([{"segment": s_["segment"], "count": s_["n"],
+                  "pitch": (f"{s_['cash_pct']:.0f}% cash / no card: lead with a low-fee terminal + QR."
+                            if s_["cash_pct"] >= 50 else
+                            f"Mostly card already ({100 - s_['cash_pct']:.0f}%): pitch lower fees and faster settlement.")}
+                 for s_ in segs]
+                or [{"segment": SEGMENT_NAME[k], "count": seg[k]["n"], "pitch": PITCH[k]}
+                    for k in ("card_gap", "digital_gap") if seg[k]["n"]]),
         "when": {"window": f"Weekdays {bv['hour']}:00–{bv['hour'] + 1}:00" if bv else "—",
                  "why": (f"{round(bv['open_share'] * 100)}% of venues are open and past the lunch rush; "
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
-        "actions": ([f"Walk {best_spot['name']} ({best_spot['ward']}) first: {best_spot['leads']} priority leads among "
-                     f"{best_spot['n']} merchants within 400 m."] if best_spot and best_spot["leads"] else [])
+        "actions": ([f"Walk {best_spot['name']} ({best_spot['ward']}) first: {best_spot['n']:,} F&B merchants within "
+                     f"400 m, {best_spot['cash_pct']:.0f}% cash or no card info."] if best_spot else [])
                    + ([f"Next run, drop {', '.join(kw_name(p, d['keyword']) for d in drop[:4])}: together they add "
                        f"{drop_total['places_lost']:,} places for {drop_total['calls']:,} calls (≈ {get_settings().currency} {drop_total['saves_local']:,.0f})."]
                       if drop else [f"Drop or merge {', '.join(kw_name(p, k['keyword']) for k in weak_kw[:3])}: under 10% of their places "
                                     "were not already found by other terms."] if weak_kw else [])
-                   + ([f"Assign reps to {', '.join(a['en'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
-                    if by_leads else [])
-                   + ["Export the priority segment and call ahead to book visits.",
+                   + [f"Call the {callable_:,} cash / no-card merchants that list a phone (Contact slicer → Payment) "
+                      "to book visits.",
                       f"Verify payment status on the {pay['none']['n']:,} venues with no payment info during visits."],
         "caveats": [f"{pay['none']['pct']}% have no payment info on Google; confirm on site.",
                     *([f"{round(100 - fnb['core']['pct'], 1)}% of hits are not core F&B "
