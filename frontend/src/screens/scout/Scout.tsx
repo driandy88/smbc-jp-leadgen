@@ -27,9 +27,12 @@ export function Scout({ onDataChip }: { onDataChip: (s: string) => void }) {
       if (live) {
         setRunId(live.id);
         setStage("running");
-      } else if (runs[0]?.status === "done") {
-        setRunId(runs[0].id);
-        setRun(runs[0]);
+      } else {
+        const done = runs.find((r) => r.status === "done");
+        if (done) {
+          setRunId(done.id);
+          setRun(done);
+        }
       }
     });
   }, []);
@@ -72,7 +75,7 @@ export function Scout({ onDataChip }: { onDataChip: (s: string) => void }) {
       {!cfg ? null : stage === "define" ? (
         <Define cfg={cfg} lastRun={run} onStarted={(id) => openRun(id, "running")} onOpenRun={(id) => openRun(id, "filter")} />
       ) : stage === "running" && runId ? (
-        <Running runId={runId} onFilter={() => setStage("filter")} onBack={() => setStage("define")} />
+        <Running runId={runId} onFilter={() => setStage("filter")} onBack={() => setStage("define")} onUpdate={setRun} />
       ) : stage === "filter" && runId ? (
         <Filter runId={runId} filters={filters} setFilters={setFilters} onBack={() => setStage("define")} onNext={() => setStage("result")} />
       ) : stage === "result" && runId ? (

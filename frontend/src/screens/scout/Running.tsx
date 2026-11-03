@@ -10,7 +10,7 @@ type Cell = { h: string; s: "queued" | "active" | "done"; n: number; sat: boolea
 
 const LIVE = ["queued", "running", "cancelling"];
 
-export function Running({ runId, onFilter, onBack }: { runId: number; onFilter: () => void; onBack: () => void }) {
+export function Running({ runId, onFilter, onBack, onUpdate }: { runId: number; onFilter: () => void; onBack: () => void; onUpdate: (r: Run) => void }) {
   const [run, setRun] = useState<Run | null>(null);
   const [cells, setCells] = useState<Cell[]>([]);
   const [outline, setOutline] = useState<Outline | null>(null);
@@ -23,6 +23,7 @@ export function Running({ runId, onFilter, onBack }: { runId: number; onFilter: 
       const r = await api<Run>(`/api/runs/${runId}`).catch(() => null);
       if (stop || !r) return;
       setRun(r);
+      if (!LIVE.includes(r.status)) onUpdate(r);
       if (n++ % 2 === 0 || !LIVE.includes(r.status)) api<Cell[]>(`/api/runs/${runId}/cells`).then((c) => !stop && setCells(c));
       if (LIVE.includes(r.status)) setTimeout(poll, 1000);
     };
