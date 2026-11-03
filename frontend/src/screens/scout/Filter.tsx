@@ -7,6 +7,15 @@ import { FilterResult, Filters } from "./types";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FROM = ["any", "10:00", "11:00", "14:00", "15:00", "17:00", "20:00"];
 const TO = ["11:30", "14:00", "17:00", "18:00", "22:00", "24:00"];
+// Preview sort keys; the first direction is the natural one (most / best first, A→Z)
+const SORTS: { k: string; l: string; desc: boolean }[] = [
+  { k: "reviews", l: "Most reviewed", desc: true }, { k: "rating", l: "Rating", desc: true },
+  { k: "contact", l: "Contact info (phone + website)", desc: true }, { k: "pay", l: "Payment (cash first)", desc: false },
+  { k: "price", l: "Price", desc: false }, { k: "name", l: "Name", desc: false },
+  { k: "area", l: "Area", desc: false }, { k: "type", l: "Type", desc: false },
+];
+const site = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+
 const PAY_COLOR: Record<string, string> = { cash: "#A8371F", none: "#8A8478", card: "#1E1E1C", nfc: "#5E7D4A" };
 
 const PRESETS: { k: string; l: string; f: Partial<Filters> }[] = [
@@ -21,15 +30,16 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
 }) {
   const [res, setRes] = useState<FilterResult | null>(null);
   const [preset, setPreset] = useState("");
+  const [sort, setSort] = useState({ k: "reviews", desc: true });
   const seq = useRef(0);
 
   useEffect(() => {
     const id = ++seq.current;
     const t = setTimeout(() => {
-      api<FilterResult>(`/api/runs/${runId}/filter`, { body: filters }).then((r) => id === seq.current && setRes(r));
+      api<FilterResult>(`/api/runs/${runId}/filter?sort=${sort.k}&desc=${sort.desc}`, { body: filters }).then((r) => id === seq.current && setRes(r));
     }, 180);
     return () => clearTimeout(t);
-  }, [runId, filters]);
+  }, [runId, filters, sort]);
 
   if (!res) return <div style={{ padding: 40, color: "#5E5A52" }}>Loading places…</div>;
   if (!res.total) return <div style={{ padding: 40, color: "#5E5A52" }}>This run returned no places. <button className="btn2" onClick={onBack}>← Back</button></div>;
@@ -45,6 +55,12 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
   const maxV = Math.max(1, ...o.review_hist);
   const ratingBins = [2.0, 2.3, 2.6, 2.9, 3.2, 3.5, 3.8, 4.1, 4.4, 4.7];
   const funnelMax = res.total;
+  const sortBy = (k: string) => setSort((cur) => (cur.k === k ? { k, desc: !cur.desc } : { k, desc: SORTS.find((x) => x.k === k)!.desc }));
+  const Th = ({ k, l, right }: { k: string; l: string; right?: boolean }) => (
+    <button className="th-sort" aria-sort={sort.k === k ? (sort.desc ? "descending" : "ascending") : "none"} onClick={() => sortBy(k)} style={{ justifyContent: right ? "flex-end" : "flex-start" }}>
+      {l}<span aria-hidden="true" style={{ opacity: sort.k === k ? 1 : 0.25 }}>{sort.k === k && !sort.desc ? "▲" : "▼"}</span>
+    </button>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -159,18 +175,32 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
 
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 8 }}>
-              <span className="lbl">Preview · most reviewed first</span>
-              <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{res.preview.length} of {fmt(res.count)} · hours for today (JST)</span>
+              <span className="lbl">Preview</span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <label htmlFor="hx-sort" style={{ fontSize: 12, color: "#5E5A52" }}>Sort by</label>
+                <select id="hx-sort" className="in" value={sort.k} onChange={(e) => sortBy(e.target.value)} style={{ fontSize: 12, padding: "5px 8px", minHeight: 0 }}>
+                  {SORTS.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
+                </select>
+                <button className="btn2" onClick={() => setSort({ ...sort, desc: !sort.desc })} title="Reverse order" aria-label={sort.desc ? "Descending, click for ascending" : "Ascending, click for descending"} style={{ padding: "5px 10px", minHeight: 0, fontSize: 12 }}>
+                  {sort.desc ? "↓ desc" : "↑ asc"}
+                </button>
+                <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{res.preview.length} of {fmt(res.count)} · hours for today (JST)</span>
+              </div>
             </div>
             <div style={{ overflowX: "auto" }}>
-              <div style={{ minWidth: 760 }}>
-                <div className="m prev-grid prev-head"><span>PLACE</span><span>AREA</span><span>TYPE</span><span style={{ textAlign: "right" }}>★</span><span style={{ textAlign: "right" }}>REVIEWS</span><span>PRICE</span><span>PAYMENT</span><span>TODAY</span></div>
+              <div style={{ minWidth: 900 }}>
+                <div className="m prev-grid prev-head"><Th k="name" l="PLACE" /><Th k="area" l="AREA" /><Th k="type" l="TYPE" /><Th k="rating" l="★" right /><Th k="reviews" l="REVIEWS" right /><Th k="price" l="PRICE" /><Th k="pay" l="PAYMENT" /><Th k="contact" l="CONTACT" /><span>TODAY</span></div>
                 {res.preview.map((r) => (
                   <div key={r.pk} className="prev-grid prev-row">
                     <a href={r.maps_uri} target="_blank" rel="noreferrer" className="jp" style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: "none" }}>{r.name}</a>
                     <span className="jp">{r.area}</span><span className="jp" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.type}</span>
-                    <span className="m" style={{ textAlign: "right" }}>{r.rating ?? "—"}</span><span className="m" style={{ textAlign: "right" }}>{fmt(r.reviews)}</span>
-                    <span className="m" style={{ fontSize: 11 }}>{r.price}</span><span style={{ fontSize: 11, color: PAY_COLOR[r.pay] }}>{r.pay_label}</span><span className="m" style={{ fontSize: 11 }}>{r.today}</span>
+                    <span className="m" style={{ textAlign: "right" }}>{r.rating != null ? r.rating.toFixed(1) : "—"}</span><span className="m" style={{ textAlign: "right" }}>{fmt(r.reviews)}</span>
+                    <span className="m" style={{ fontSize: 11 }}>{r.price}</span><span style={{ fontSize: 11, color: PAY_COLOR[r.pay] }}>{r.pay_label}</span>
+                    <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, fontSize: 11 }}>
+                      {r.phone ? <a className="m" href={`tel:${r.phone.replace(/[^\d+]/g, "")}`} style={{ whiteSpace: "nowrap", textDecoration: "none" }}>{r.phone}</a> : <span className="m" style={{ color: "#A39B88" }}>no phone</span>}
+                      {r.web && /^https?:\/\//.test(r.web) ? <a href={r.web} target="_blank" rel="noreferrer" title={r.web} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#C8442B" }}>{site(r.web)} ↗</a> : <span style={{ color: "#A39B88" }}>no website</span>}
+                    </span>
+                    <span className="m" style={{ fontSize: 11 }}>{r.today}</span>
                   </div>
                 ))}
               </div>

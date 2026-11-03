@@ -6,14 +6,14 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
-from app.models import ApiCall, Run, RunCell, RunLog
+from app.models import ApiCall, Place, Run, RunCell, RunLog
 from app.services import executor, keywords, pricing, records, regions
-from app.services.analysis import profile
+from app.services.analysis import points, profile
 from app.services.collector import queue_run
 from app.settings import get_settings
 
@@ -168,8 +168,31 @@ def cancel_run(run_id: int, db: Session = Depends(get_db)):
     return {"status": run.status}
 
 
+# Preview sort keys → (column, ascending by default). Missing values always sort last.
+PREVIEW_SORT = {"reviews": ("reviews", False), "rating": ("rating", False), "name": ("name", True),
+                "area": ("area_jp", True), "type": ("type_label", True), "price": ("price", True),
+                "pay": ("pay_rank", True), "contact": ("contact", False)}
+PAY_RANK = {"cash": 0, "none": 1, "card": 2, "nfc": 3}
+
+
+def _sorted_preview(kept: pd.DataFrame, sort: str, desc: bool | None, n: int) -> list[dict]:
+    col, asc = PREVIEW_SORT.get(sort, PREVIEW_SORT["reviews"])
+    if desc is not None:
+        asc = not desc
+    d = kept.assign(
+        pay_rank=kept["pay"].map(PAY_RANK),
+        contact=kept["phone"].notna().astype(int) + kept["web"].notna().astype(int),
+        # band 5 is "unknown price": treat as missing so it sorts last
+        price=kept["price"].where(kept["price"] < 5),
+    )
+    # Ties fall back to most reviewed
+    d = d.sort_values([col, "reviews"], ascending=[asc, False], na_position="last", kind="stable")
+    return [_preview_row(r) for _, r in kept.loc[d.index[:n]].iterrows()]
+
+
 @router.post("/runs/{run_id}/filter")
-def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, db: Session = Depends(get_db)):
+def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, sort: str = "reviews",
+               desc: bool | None = None, db: Session = Depends(get_db)):
     db.get(Run, run_id) or _404()
     df = records.frame(run_id)
     if df.empty:
@@ -180,8 +203,8 @@ def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, db: 
         "total": len(df), "count": len(kept), "funnel": funnel, "filters": f,
         "defaults": records.default_filters(df),
         "options": _options(df),
-        "preview": [_preview_row(r) for _, r in kept.sort_values("reviews", ascending=False, na_position="last")
-                    .head(preview).iterrows()],
+        "sort": sort if sort in PREVIEW_SORT else "reviews",
+        "preview": _sorted_preview(kept, sort, desc, preview),
     }
 
 
@@ -194,7 +217,7 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
     kept, _ = records.apply(df, f) if not df.empty else (df, [])
     if kept.empty:
         return {"count": 0}
-    p = profile(kept, _run_out(run), kw_calls(db, run_id))
+    p = profile(kept, _run_out(run), kw_stats(db, run_id))
     city_of = {a["area"]: a["city"] for a in run.areas}
     cities = []
     for c, g in kept.groupby(kept["area"].map(lambda a: city_of.get(a, "outside"))):
@@ -204,10 +227,25 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
     return {"count": len(kept), "profile": p, "cities": cities, "run": _run_out(run)}
 
 
-def kw_calls(db: Session, run_id: int) -> dict[str, int]:
-    rows = db.execute(select(ApiCall.keyword, func.count()).where(ApiCall.run_id == run_id, ApiCall.api == "places.searchText")
-                      .group_by(ApiCall.keyword)).all()
-    return {k: n for k, n in rows if k}
+@router.post("/runs/{run_id}/points")
+def run_points(run_id: int, filters: dict | None = None, db: Session = Depends(get_db)):
+    """Every merchant in the filtered set, for the interactive map."""
+    db.get(Run, run_id) or _404()
+    df = records.frame(run_id)
+    kept, _ = records.apply(df, records.default_filters(df) | (filters or {})) if not df.empty else (df, [])
+    return points(kept)
+
+
+def kw_stats(db: Session, run_id: int) -> dict[str, dict]:
+    """Per keyword from the call ledger and the run's places, before any filter:
+    calls (pages included), searches (cell × term), empty searches, raw hits and unique places."""
+    rows = db.execute(
+        select(ApiCall.keyword, func.count(), func.sum(case((ApiCall.page == 1, 1), else_=0)),
+               func.sum(case(((ApiCall.page == 1) & (ApiCall.results == 0), 1), else_=0)), func.sum(ApiCall.results))
+        .where(ApiCall.run_id == run_id, ApiCall.api == "places.searchText").group_by(ApiCall.keyword)).all()
+    unique = Counter(k for kws in db.scalars(select(Place.keywords).where(Place.run_id == run_id)) for k in kws)
+    return {k: {"calls": n, "searches": int(s or 0), "empty": int(e or 0), "hits": int(h or 0), "unique": unique[k]}
+            for k, n, s, e, h in rows if k}
 
 
 def _med(s: pd.Series):
@@ -252,7 +290,8 @@ def _preview_row(r) -> dict:
             "rating": None if pd.isna(r["rating"]) else r["rating"],
             "reviews": None if pd.isna(r["reviews"]) else int(r["reviews"]),
             "price": records.PRICE_BANDS[int(r["price"])], "pay": r["pay"], "pay_label": records.PAY[r["pay"]],
-            "today": hours, "maps_uri": r["maps_uri"], "status": r["status"]}
+            "today": hours, "maps_uri": r["maps_uri"], "status": r["status"],
+            "phone": r["phone"] if pd.notna(r["phone"]) else None, "web": r["web"] if pd.notna(r["web"]) else None}
 
 
 def _404():

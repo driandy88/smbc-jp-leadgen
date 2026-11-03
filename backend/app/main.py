@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -26,6 +27,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Hexline", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=2048)
 for r in (auth.router, scout.router, versions.router, billing.router):
     app.include_router(r)
 

@@ -27,8 +27,9 @@ Rules:
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
 - Use the hex data: name the 1-2 hexes (by ward + hex id) a rep should walk first, and say how
   concentrated venues are (share of places in the top 10% of hexes).
-- Use keyword yield: call out terms that found few places only they could find (low value per call)
-  and terms that found many unique F&B places. Mention the F&B share if non-F&B hits are material.
+- Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
+  terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
+  and the duplicate rate (raw hits per unique place). Mention the F&B share if non-F&B hits are material.
 - Keep Japanese ward and place names as given. English for everything else. Short sentences."""
 
 SCHEMA = {
@@ -64,6 +65,8 @@ def _prompt_payload(p: dict) -> dict:
     out["top_leads"] = (p.get("top_leads") or [])[:10]
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
+    if p.get("keyword_set"):
+        out["keyword_set"] = {k: v for k, v in p["keyword_set"].items() if k != "per_place_terms"}
     if p.get("hexes"):
         h = p["hexes"]
         out["hexes"] = {k: h[k] for k in ("cells", "median", "p90", "max", "top10_share", "top10_cells")}
@@ -121,6 +124,8 @@ def rule_based(p: dict) -> dict:
     fnb = p.get("fnb") or {}
     kws = p.get("keywords") or []
     weak_kw = [k for k in kws if k["places"] >= 10 and k["only_pct"] < 10]
+    ks = p.get("keyword_set") or {}
+    drop, drop_total = ks.get("drop") or [], ks.get("drop_total") or {}
 
     return {
         "headline": (f"{seg['priority']['n']:,} priority leads in {top['jp']}" if top and len(areas) == 1
@@ -149,8 +154,10 @@ def rule_based(p: dict) -> dict:
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
         "actions": ([f"Walk hex {best_hex['h']} ({best_hex['area']}) first: {best_hex['leads']} priority leads among "
                      f"{best_hex['places']} merchants."] if best_hex and best_hex["leads"] else [])
-                   + ([f"Drop or merge {', '.join(k['keyword'] for k in weak_kw[:3])}: under 10% of their places were not "
-                       "already found by other terms."] if weak_kw else [])
+                   + ([f"Next run, drop {', '.join(d['keyword'] for d in drop[:4])}: together they add "
+                       f"{drop_total['places_lost']:,} places for {drop_total['calls']:,} calls (≈ {get_settings().currency} {drop_total['saves_local']:,.0f})."]
+                      if drop else [f"Drop or merge {', '.join(k['keyword'] for k in weak_kw[:3])}: under 10% of their places "
+                                    "were not already found by other terms."] if weak_kw else [])
                    + ([f"Assign reps to {', '.join(a['jp'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
                     if by_leads else [])
                    + ["Export the priority segment and call ahead to book visits.",
@@ -161,6 +168,9 @@ def rule_based(p: dict) -> dict:
                       if fnb and fnb["core"]["pct"] < 98 else []),
                     *([f"Venues are concentrated: the top {hx['top10_cells']} hexes (10%) hold {hx['top10_share']}% of places."]
                       if hx else []),
+                    *([f"{ks['terms_for_pct']['95']} of {ks['terms']} terms already cover 95% of the list; "
+                       f"each place came back {ks['hits_per_unique']}× on average ({ks['dupe_pct']}% of hits were duplicates)."]
+                      if ks.get("hits_per_unique") else []),
                     f"{q['chain_pct']}% look like chains (central purchasing, usually poor fit)."]
                    + ([f"{q['saturated_cells']} cell{'s' if q['saturated_cells'] != 1 else ''} hit the 60-result cap"
                        " even at max resolution; some venues are missing."]

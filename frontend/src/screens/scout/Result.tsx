@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../../api";
 import { HexMap, Outline } from "../../components/HexMap";
+import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
-import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
+import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
 import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
 
@@ -17,6 +18,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
   const [hover, setHover] = useState<string | null>(null);
+  const [points, setPoints] = useState<Points | null>(null);
 
   useEffect(() => {
     api<ResultData>(`/api/runs/${runId}/result`, { body: filters }).then((d) => {
@@ -24,6 +26,8 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       if (d.run) api<Outline>("/api/scout/geometry", { body: d.run.areas.map((a) => a.area) }).then(setOutline);
     });
     api<{ name: string }>(`/api/versions/next-name?run_id=${runId}`).then((r) => setName(r.name));
+    setPoints(null);
+    api<Points>(`/api/runs/${runId}/points`, { body: filters }).then(setPoints);
   }, [runId, filters]);
 
   const p = data?.profile;
@@ -74,6 +78,11 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
         ))}
       </div>
 
+      <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>hexes at res {run.base_res}</span></div>
+        <PlaceMap points={points} outline={outline} res={run.base_res} highlight={hover} />
+      </div>
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
         <div className="card" style={{ flex: "1 1 420px", minWidth: 0, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Place density · res {run.base_res}</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{p.areas.length} areas</span></div>
@@ -111,10 +120,8 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       </div>
 
       <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
-        <KeywordYield p={p} />
-        <FnbCheck p={p} />
-      </div>
+      <KeywordInsight p={p} />
+      <FnbCheck p={p} />
 
       <div className="card" style={{ position: "relative", padding: 22, display: "flex", flexWrap: "wrap", gap: "20px 32px", alignItems: "flex-end", overflow: "hidden" }}>
         <div style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 6 }}>

@@ -32,7 +32,10 @@ button:disabled { cursor: not-allowed; }
 .slider-row label { font-size: 12px; color: #5E5A52; width: 64px; }
 .slider-row .m { font-size: 13px; width: 56px; text-align: right; }
 
-.prev-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) 84px 110px 40px 64px 96px 110px 110px; gap: 10px; align-items: center; }
+.prev-grid { display: grid; grid-template-columns: minmax(0, 2fr) 56px minmax(0, 1fr) 32px 54px 92px 96px minmax(0, 1.3fr) 96px; gap: 10px; align-items: center; }
+.th-sort { font: inherit; letter-spacing: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; gap: 4px; text-align: left; }
+.th-sort:hover { color: #1E1E1C; }
+.th-sort span { font-size: 8px; }
 .prev-head { font-size: 10px; color: #5E5A52; letter-spacing: 0.05em; padding: 8px 0; border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7; }
 .prev-row { font-size: 12px; padding: 9px 0; border-bottom: 1px solid #E2DDD1; }
 .cmp-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -77,3 +80,16 @@ button:disabled { cursor: not-allowed; }
 .hex-row:hover { background: #EEEAE0; }
 .type-chip { font-size: 11px; border: 1px solid #D8D3C7; border-radius: 2px; padding: 1px 6px; background: #F3F0E8; }
 .type-chip .m { color: #8A8478; font-size: 10px; }
+
+/* Interactive merchant map (Leaflet) */
+.pm-map{border:1px solid #D8D3C7;background:#E6E1D5;z-index:0}
+.pm-map .leaflet-popup-content-wrapper,.pm-map .leaflet-tooltip{border-radius:2px;font-family:'Inter Tight','Noto Sans JP',sans-serif;color:#1E1E1C}
+.pm-map .leaflet-popup-content-wrapper{background:#F8F6F0;box-shadow:0 4px 18px rgba(30,30,28,.18)}
+.pm-map .leaflet-popup-content{margin:12px 14px}
+.pm-pop{display:flex;flex-direction:column;gap:4px;font-size:12px;line-height:1.45}
+.pm-pop b{font-size:14px;font-weight:600}
+.pm-pop a{color:#C8442B}
+.pm-map .pm-tip{font-size:12px;padding:3px 7px}
+.seg.pm-seg{grid-template-columns:repeat(3,auto)}
+.seg.pm-seg button{font-size:12px;min-height:32px;padding:0 14px}
+.kwi-grid { display: grid; grid-template-columns: minmax(80px, 1.2fr) 96px 62px 56px 66px 86px 50px 50px 46px 50px 70px 64px; gap: 8px; }

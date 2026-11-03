@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api, ApiError, download } from "../../api";
 import { HexMap, Outline } from "../../components/HexMap";
+import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
+import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -93,12 +94,15 @@ export function Analysis({ onDataChip }: { onDataChip: (s: string) => void }) {
         </div>
       )}
 
-      {result && !busy && <Report a={result} name={v?.name || ""} outline={outline} />}
+      {result && !busy && v && <Report key={v.id} a={result} versionId={v.id} name={v.name} outline={outline} />}
     </div>
   );
 }
 
-function Report({ a, name, outline }: { a: Analysis; name: string; outline: Outline | null }) {
+function Report({ a, versionId, name, outline }: { a: Analysis; versionId: number; name: string; outline: Outline | null }) {
+  const [points, setPoints] = useState<Points | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  useEffect(() => { api<Points>(`/api/versions/${versionId}/points`).then(setPoints); }, [versionId]);
   const p = a.profile;
   const s = a.summary;
   const cashLayers = useMemo(() => binLayers(p.cash_hex as { h: string; share: number }[], (c) => c.share, [0.2, 0.3, 0.4, 0.5], CASH), [p]);
@@ -118,11 +122,13 @@ function Report({ a, name, outline }: { a: Analysis; name: string; outline: Outl
         ))}
       </div>
 
-      <HexBreakdown p={p} res={p.run.base_res} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
-        <KeywordYield p={p} />
-        <FnbCheck p={p} />
-      </div>
+      <Card title="Merchant map · every place in this version" meta={`hexes at res ${p.run.base_res}`}>
+        <PlaceMap points={points} outline={outline} res={p.run.base_res} highlight={hover} />
+      </Card>
+
+      <HexBreakdown p={p} res={p.run.base_res} onHover={setHover} />
+      <KeywordInsight p={p} />
+      <FnbCheck p={p} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 24 }}>
         <Card title="Area ranking · where to send reps" meta="operational places">

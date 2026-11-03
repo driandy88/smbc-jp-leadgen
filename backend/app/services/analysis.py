@@ -33,8 +33,32 @@ def _pct(n: int | float, d: int | float) -> float:
     return round(100 * n / d, 1) if d else 0.0
 
 
-def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None) -> dict:
-    """kw_calls: Places calls per keyword for the run (from the api_calls ledger), for cost per new place."""
+def _priority(op: pd.DataFrame) -> pd.Series:
+    """Priority lead: operational, cash-only or no card info, well reviewed, rated 3.5+, has a phone."""
+    rev_med = op["reviews"].median() if len(op) else 0
+    return (op["pay"].isin(["cash", "none"]) & (op["reviews"].fillna(0) >= max(rev_med, 10))
+            & (op["rating"].fillna(0) >= 3.5) & op["phone"].notna())
+
+
+POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "area_jp", "hex_id",
+              "maps_uri", "address", "phone", "web", "status", "lead"]
+
+
+def points(df: pd.DataFrame) -> dict:
+    """One row per merchant for the interactive map, as columns plus row arrays to keep the payload small."""
+    if df.empty:
+        return {"cols": POINT_COLS, "rows": []}
+    op = df[df["status"] == "OPERATIONAL"]
+    out = df[df["lat"].notna() & df["lng"].notna()].copy()
+    out["lead"] = out["pk"].isin(set(op[_priority(op)]["pk"]))
+    out["lat"], out["lng"] = out["lat"].round(6), out["lng"].round(6)
+    out = out[POINT_COLS].astype(object).where(out[POINT_COLS].notna(), None)
+    return {"cols": POINT_COLS, "rows": out.values.tolist()}
+
+
+def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None) -> dict:
+    """kw_stats: per keyword calls, searches, empty searches, raw hits and unique places for the whole run
+    (from the api_calls ledger, before filters)."""
     n = len(df)
     if n == 0:
         return {"rows": 0}
@@ -45,8 +69,7 @@ def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None)
     # Lead segments (operational only)
     seg_card_gap = op[cashish & (op["reviews"].fillna(0) >= 20)]
     seg_digital_gap = op[op["phone"].notna() & op["web"].isna()]
-    seg_priority = op[cashish & (op["reviews"].fillna(0) >= max(rev_med, 10)) & (op["rating"].fillna(0) >= 3.5)
-                      & op["phone"].notna()]
+    seg_priority = op[_priority(op)]
     seg_new = op[op["reviews"].fillna(0) < 10]
 
     areas = []
@@ -143,7 +166,8 @@ def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None)
                                                       for t in top_type_names}} for a in areas[:9]],
         "top_types": top_type_names,
         "fnb": _fnb(df),
-        "keywords": _keywords(df, kw_calls or {}, run),
+        "keywords": _keywords(df, kw_stats or {}, run),
+        "keyword_set": _keyword_set(df, kw_stats or {}, run),
         "hexes": hexes,
         "density_hex": [{"h": c, "n": int(v)} for c, v in density.items() if c],
         "top_cell": {"h": top_cell, "n": int(density.max())} if top_cell else None,
@@ -192,22 +216,84 @@ def _fnb(df: pd.DataFrame) -> dict:
     return out
 
 
-def _keywords(df: pd.DataFrame, kw_calls: dict[str, int], run: dict) -> list[dict]:
-    """Yield per search term: what it found, how much is F&B, and what only it found."""
+def _keywords(df: pd.DataFrame, kw_stats: dict[str, dict], run: dict) -> list[dict]:
+    """Per search term: coverage of the final list, overlap with other terms, repeats and cost.
+    places/only_this/coverage are on the filtered list; hits/repeats/empty come from the whole run."""
+    n = len(df)
     rows = df[["pk", "keywords", "fnb", "type_label"]].explode("keywords")
     only = df[df["keywords"].map(len) == 1].assign(kw=lambda d: d["keywords"].str[0])["kw"].value_counts()
     rate = run.get("cost_local", 0) / max(1, run.get("api_calls", 1))
     out = []
     for kw, g in rows.groupby("keywords"):
-        calls = kw_calls.get(kw)
-        unique = int(only.get(kw, 0))
+        st = kw_stats.get(kw, {})
+        calls, hits, unique_run = st.get("calls"), st.get("hits", 0), st.get("unique", 0)
+        mine = int(only.get(kw, 0))
         out.append({
-            "keyword": kw, "places": len(g), "fnb_pct": _pct((g["fnb"] == "core").sum(), len(g)),
-            "only_this": unique, "only_pct": _pct(unique, len(g)),
+            "keyword": kw, "places": len(g), "coverage_pct": _pct(len(g), n),
+            "only_this": mine, "only_pct": _pct(mine, len(g)), "shared": len(g) - mine,
+            "fnb_pct": _pct((g["fnb"] == "core").sum(), len(g)),
             "top_types": g["type_label"].value_counts().head(3).index.tolist(),
-            "calls": calls, "cost_per_unique": round(calls * rate / unique, 2) if calls and unique else None,
+            "calls": calls, "searches": st.get("searches"), "empty_pct": _pct(st.get("empty", 0), st.get("searches", 0)),
+            "hits": hits, "unique_run": unique_run, "repeats": max(0, hits - unique_run),
+            "repeat_pct": _pct(max(0, hits - unique_run), hits), "kept_pct": _pct(len(g), unique_run),
+            "per_call": round(hits / calls, 1) if calls else None,
+            "cost_local": round(calls * rate, 2) if calls else None,
+            "cost_per_unique": round(calls * rate / mine, 2) if calls and mine else None,
         })
     return sorted(out, key=lambda k: -k["places"])
+
+
+def _keyword_set(df: pd.DataFrame, kw_stats: dict[str, dict], run: dict) -> dict:
+    """How the selected terms work together: duplicates, overlap, and the fewest terms that cover the list."""
+    n = len(df)
+    sets: dict[str, set] = {}
+    for pk, kws in zip(df["pk"], df["keywords"]):
+        for k in kws:
+            sets.setdefault(k, set()).add(pk)
+    # Greedy cover: at each step take the term that adds the most places not yet covered
+    left, covered, curve = dict(sets), set(), []
+    while left:
+        k = max(left, key=lambda x: (len(left[x] - covered), -len(curve)))
+        gain = len(left.pop(k) - covered)
+        covered |= sets[k]
+        curve.append({"keyword": k, "gain": gain, "cum": len(covered), "cum_pct": _pct(len(covered), n)})
+    need = {str(t): next((i + 1 for i, c in enumerate(curve) if c["cum_pct"] >= t), len(curve)) for t in (80, 90, 95, 100)}
+
+    names = sorted(sets, key=lambda k: -len(sets[k]))
+    pairs = []
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            both = len(sets[a] & sets[b])
+            if both:
+                small = min(len(sets[a]), len(sets[b]))
+                pairs.append({"a": a, "b": b, "both": both, "of_smaller_pct": _pct(both, small),
+                              "jaccard": round(both / len(sets[a] | sets[b]), 3)})
+    pairs.sort(key=lambda x: (-x["of_smaller_pct"], -x["both"]))
+
+    # Run-wide duplicates split into re-hits by the same term (overlapping or split cells, extra pages)
+    # and places that several terms found
+    raw = sum(v.get("hits", 0) for v in kw_stats.values()) or run.get("raw_hits", 0)
+    uniq = run.get("unique_places") or 0
+    within = sum(max(0, v.get("hits", 0) - v.get("unique", 0)) for v in kw_stats.values())
+    cross = max(0, sum(v.get("unique", 0) for v in kw_stats.values()) - uniq)
+    rate = run.get("cost_local", 0) / max(1, run.get("api_calls", 1))
+    # Tail of the cover curve: terms that add under 1% new places once the stronger terms are in.
+    # Unlike "only this", these can be dropped together.
+    drop = [{"keyword": c["keyword"], "places_lost": c["gain"], "calls": kw_stats.get(c["keyword"], {}).get("calls"),
+             "saves_local": round(kw_stats.get(c["keyword"], {}).get("calls", 0) * rate, 2)}
+            for c in curve[1:] if c["gain"] < 0.01 * n]
+    counts = df["keywords"].map(len)
+    return {
+        "terms": len(sets), "places": n, "raw_hits": raw, "unique_run": uniq,
+        "dupes": max(0, raw - uniq), "dupe_pct": _pct(max(0, raw - uniq), raw),
+        "hits_per_unique": round(raw / uniq, 2) if uniq else None,
+        "repeats_same_term": within, "found_by_several": cross,
+        "multi_pct": _pct((counts > 1).sum(), n), "avg_terms_per_place": round(float(counts.mean()), 2) if n else 0,
+        "per_place_terms": [{"terms": int(k), "places": int(v)} for k, v in counts.value_counts().sort_index().items()],
+        "curve": curve, "terms_for_pct": need, "pairs": pairs[:8], "drop": drop,
+        "drop_total": {"places_lost": sum(d["places_lost"] for d in drop), "calls": sum(d["calls"] or 0 for d in drop),
+                       "saves_local": round(sum(d["saves_local"] for d in drop), 2)},
+    }
 
 
 def _hex_table(df_hex: pd.DataFrame, priority_pks: set, density: pd.Series) -> dict:

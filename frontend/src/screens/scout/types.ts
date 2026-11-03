@@ -40,7 +40,8 @@ export type FilterResult = {
     status: Opt[]; fnb?: Opt[]; price: (Opt & { k: number })[]; pay: Opt[]; types: Opt[]; svc: Opt[]; qual: Opt[]; areas: Opt[];
     rating_hist: number[]; review_hist: number[]; unrated: number; no_hours: number; review_steps: number[];
   };
-  preview: { pk: number; name: string; area: string; type: string; rating: number | null; reviews: number | null; price: string; pay: string; pay_label: string; today: string; maps_uri: string; status: string }[];
+  preview: { pk: number; name: string; area: string; type: string; rating: number | null; reviews: number | null; price: string; pay: string; pay_label: string; today: string; maps_uri: string; status: string; phone: string | null; web: string | null }[];
+  sort: string;
 };
 
 export type Version = {
