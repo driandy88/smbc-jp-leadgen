@@ -1,8 +1,8 @@
 """AI summary of a version profile: Claude Sonnet on Vertex AI, or a rule-based brief in mock mode.
 
 Both produce the same structured brief (headline, key numbers, where / who / when, actions,
-watch-outs) so the UI renders one layout. Only aggregate statistics are sent (plus the top-lead
-names already shown in the UI), never raw place JSON.
+watch-outs) so the UI renders one layout; `explain` is the short read shown on the Summary step.
+Only aggregate statistics are sent, never raw place JSON.
 """
 
 import json
@@ -24,6 +24,9 @@ Rules:
 - Rank, don't list: put the highest-yield area / segment first and say why it wins.
 - Pitch lines must be concrete and fit the segment (e.g. cash-only izakaya → low-fee terminal + QR).
 - Don't restate definitions or describe the charts. No filler like "it is important to".
+- Do not use "priority leads" or any lead score. Count plain things: F&B merchants, merchants reachable
+  by phone or website, cash-only / no-card merchants, and cash / no-card merchants with a phone
+  (areas[].callable, contact.cash_callable) as the call list.
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
@@ -48,8 +51,9 @@ SCHEMA = {
             "type": "object", "additionalProperties": False, "required": ["label", "value", "context"],
             "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "context": {"type": "string"}}}},
         "where": {"type": "array", "description": "top 3-4 areas, best first", "items": {
-            "type": "object", "additionalProperties": False, "required": ["area", "leads", "why"],
-            "properties": {"area": {"type": "string"}, "leads": {"type": "integer"}, "why": {"type": "string"}}}},
+            "type": "object", "additionalProperties": False, "required": ["area", "merchants", "why"],
+            "properties": {"area": {"type": "string"}, "merchants": {"type": "integer", "description": "F&B merchants there"},
+                           "why": {"type": "string"}}}},
         "who": {"type": "array", "description": "2-3 target segments, best first", "items": {
             "type": "object", "additionalProperties": False, "required": ["segment", "count", "pitch"],
             "properties": {"segment": {"type": "string"}, "count": {"type": "integer"}, "pitch": {"type": "string"}}}},
@@ -66,8 +70,8 @@ def _prompt_payload(p: dict) -> dict:
             "visit_window", "completeness", "quality"]
     out = {k: p.get(k) for k in keep}
     out["run"] = {k: p["run"].get(k) for k in ("keywords", "base_res", "max_res", "saturated", "splits")}
-    out["areas"] = [{k: v for k, v in a.items() if k != "price"} for a in p.get("areas", [])[:24]]
-    out["top_leads"] = (p.get("top_leads") or [])[:10]
+    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads")} for a in p.get("areas", [])[:24]]
+    out["segments"] = {k: v for k, v in (p.get("segments") or {}).items() if k != "priority"}
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
     out["kw_en"] = p.get("kw_en")
@@ -83,11 +87,8 @@ def _prompt_payload(p: dict) -> dict:
     return out
 
 
-def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
-    """Returns (summary, call record for billing)."""
-    if mock:
-        return rule_based(profile), {"mock": True, "status": "OK", "tokens_in": 0, "tokens_out": 0,
-                                     "latency_ms": 0, "cost_usd": 0.0}
+def _claude(system: str, schema: dict, payload: dict, max_tokens: int, effort: str) -> tuple[dict | None, dict]:
+    """One structured Claude call on Vertex. Returns (parsed JSON or None if refused, call record for billing)."""
     s = get_settings()
     from anthropic import AnthropicVertex
 
@@ -95,28 +96,90 @@ def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
     t0 = time.perf_counter()
     msg = client.messages.create(
         model=s.claude_model,
-        max_tokens=4000,
-        system=SYSTEM,
-        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-        messages=[{"role": "user", "content":
-                   "Profile statistics (JSON):\n" + json.dumps(_prompt_payload(profile), ensure_ascii=False)}],
+        max_tokens=max_tokens,
+        system=system,
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+        messages=[{"role": "user", "content": "Profile statistics (JSON):\n" + json.dumps(payload, ensure_ascii=False)}],
     )
     call = {"mock": False, "status": msg.stop_reason, "tokens_in": msg.usage.input_tokens,
             "tokens_out": msg.usage.output_tokens, "latency_ms": int((time.perf_counter() - t0) * 1000),
             "cost_usd": claude_usd(msg.usage.input_tokens, msg.usage.output_tokens)}
     if msg.stop_reason == "refusal":
-        logger.warning("summary refused: %s", msg.stop_details)
+        logger.warning("model declined: %s", msg.stop_details)
+        return None, call
+    return json.loads(next((b.text for b in msg.content if b.type == "text"), "{}")), call
+
+
+MOCK_CALL = {"mock": True, "status": "OK", "tokens_in": 0, "tokens_out": 0, "latency_ms": 0, "cost_usd": 0.0}
+
+
+def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
+    """Returns (summary, call record for billing)."""
+    if mock:
+        return rule_based(profile), MOCK_CALL
+    out, call = _claude(SYSTEM, SCHEMA, _prompt_payload(profile), 4000, "medium")
+    if out is None:
         return rule_based(profile) | {"source": "rules (model declined)"}, call
-    text = next((b.text for b in msg.content if b.type == "text"), "{}")
-    return json.loads(text) | {"source": s.claude_model}, call
+    return out | {"source": get_settings().claude_model}, call
+
+
+EXPLAIN_SYSTEM = """You brief a sales manager at a Japanese bank's merchant-acquiring team (card terminals, \
+QR/IC payments) on a list of food & beverage merchants pulled from Google Maps, before it is saved.
+Write a short, plain-English read of the numbers: what is in the list, how reachable it is, how
+cash-heavy it is, where it is concentrated, and whether the search was efficient.
+
+Rules:
+- Every sentence cites a number from the data. No adjectives without a number.
+- Use English ward, district and type names. Name a search term in English with the Japanese term in
+  brackets (kw_en). Do not use "priority leads" or any lead score.
+- Payment info is self-reported and often missing; say "cash-only or no card info".
+- There is no email in Google data; never claim email reach.
+- Short sentences. No filler, no restating definitions."""
+
+EXPLAIN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["headline", "summary", "points"],
+    "properties": {
+        "headline": {"type": "string", "description": "≤ 14 words, the single most useful finding"},
+        "summary": {"type": "string", "description": "2-3 sentences: what this list is and what it means for sales"},
+        "points": {"type": "array", "description": "3-5 findings, most useful first", "items": {
+            "type": "object", "additionalProperties": False, "required": ["topic", "text"],
+            "properties": {"topic": {"type": "string", "description": "1-2 words, e.g. Reach, Cash, Density, Mix, Search"},
+                           "text": {"type": "string"}}}},
+    },
+}
+
+
+def explain(profile: dict, mock: bool) -> tuple[dict, dict]:
+    """Short narrative for the Summary step. Returns (explanation, call record for billing)."""
+    if mock:
+        return explain_rules(profile), MOCK_CALL
+    out, call = _claude(EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, _prompt_payload(profile), 1500, "low")
+    if out is None:
+        return explain_rules(profile) | {"source": "rules (model declined)"}, call
+    return out | {"source": get_settings().claude_model}, call
+
+
+def explain_rules(p: dict) -> dict:
+    """The same shape from the rule-based insights, for mock runs and when the model is unavailable."""
+    ins = p.get("insights") or []
+    fnb, c = p.get("fnb") or {}, p.get("contact") or {}
+    n_fnb = fnb.get("core", {}).get("n", 0) + fnb.get("related", {}).get("n", 0)
+    return {
+        "headline": f"{n_fnb:,} F&B merchants, {c.get('either_pct', 0):.0f}% reachable by phone or web",
+        "summary": f"{p['overview']['cash_or_unknown_pct']}% of operational merchants are cash-only or show no card info; "
+                   f"{(c.get('cash_callable') or {}).get('n', 0):,} of them list a phone number.",
+        "points": [{"topic": i["k"], "text": i["t"]} for i in ins[:5]],
+        "source": "rules (mock)",
+    }
 
 
 PITCH = {
-    "priority": "Lead with a low-fee card + QR terminal; their reviews show the footfall to justify it.",
     "card_gap": "First card terminal: free setup and next-day settlement, framed as not losing tourist and card-only customers.",
     "digital_gap": "Bundle payments with a booking/online-presence starter; they answer the phone but have no website.",
 }
-SEGMENT_NAME = {"priority": "Priority leads", "card_gap": "Card-acceptance gap", "digital_gap": "Phone-only, no website"}
+SEGMENT_NAME = {"card_gap": "Card-acceptance gap", "digital_gap": "Phone-only, no website"}
 
 
 def kw_name(p: dict, kw: str) -> str:
@@ -127,54 +190,58 @@ def kw_name(p: dict, kw: str) -> str:
 
 def rule_based(p: dict) -> dict:
     o, seg, q, pay = p["overview"], p["segments"], p["quality"], p["payment"]
-    areas = [a for a in p["areas"] if a["code"] != "outside"]
-    by_leads = sorted(areas, key=lambda a: -a["priority_leads"])[:4]
-    top = by_leads[0] if by_leads else None
+    areas = sorted([a for a in p["areas"] if a["code"] != "outside"], key=lambda a: -a.get("fnb_n", a["places"]))[:4]
+    top = areas[0] if areas else None
     bv = p.get("best_visit")
     peak = p["open_peak"]
-    lead_share = round(100 * top["priority_leads"] / max(1, seg["priority"]["n"])) if top else 0
     spots = p.get("hotspots") or []
-    best_spot = max(spots, key=lambda h: h["leads"], default=None)
+    best_spot = spots[0] if spots else None
     fnb = p.get("fnb") or {}
+    contact = p.get("contact") or {}
+    callable_ = (contact.get("cash_callable") or {}).get("n", 0)
+    fnb_n = fnb.get("core", {}).get("n", 0) + fnb.get("related", {}).get("n", 0)
     kws = p.get("keywords") or []
     weak_kw = [k for k in kws if k["places"] >= 10 and k["only_pct"] < 10]
     ks = p.get("keyword_set") or {}
     drop, drop_total = ks.get("drop") or [], ks.get("drop_total") or {}
+    segs = [s_ for s_ in p.get("fnb_segments") or [] if not s_["segment"].startswith("F&B-related")][:3]
+    where_go = best_spot["name"] if best_spot else top["en"] if top else None
 
     return {
-        "headline": (f"{seg['priority']['n']:,} priority leads in {top['en']}" if top and len(areas) == 1
-                     else f"{seg['priority']['n']:,} priority leads; {top['en']} holds {lead_share}%" if top
-                     else f"{seg['priority']['n']:,} priority leads"),
+        "headline": f"{fnb_n:,} F&B merchants; {callable_:,} cash / no-card ones can be phoned",
         "takeaway": (f"{o['cash_or_unknown_pct']}% of operational venues are cash-only or show no card info. "
-                     f"Start in {top['en']} and pitch card + QR acceptance to well-reviewed venues first." if top
+                     f"Start in {where_go}, where F&B is densest, and pitch card + QR acceptance." if where_go
                      else "Not enough data to rank areas."),
         "kpis": [
-            {"label": "Priority leads", "value": f"{seg['priority']['n']:,}",
-             "context": f"{seg['priority']['pct']}% of {o['operational']:,} operational"},
+            {"label": "F&B merchants", "value": f"{fnb_n:,}", "context": f"of {p['rows']:,} places found"},
             {"label": "Cash-only / no card info", "value": f"{o['cash_or_unknown_pct']}%",
              "context": f"{pay['cash']['pct']}% explicit cash-only"},
-            {"label": "Reachable by phone", "value": f"{o['phone_pct']}%",
-             "context": f"{o['no_website_pct']}% have no website"},
+            {"label": "Reachable by phone or web", "value": f"{contact.get('either_pct', o['phone_pct'])}%",
+             "context": f"{callable_:,} cash / no-card merchants have a phone"},
             {"label": "Best visit hour", "value": f"{bv['hour']}:00" if bv else "—",
              "context": f"{round(bv['open_share'] * 100)}% open, outside meal rush" if bv else "no hours data"},
         ],
-        "where": [{"area": a["en"], "leads": a["priority_leads"],
-                   "why": f"{a['cash_or_unknown_pct']:.0f}% cash/unknown · {a['per_km2'] or '—'} venues/km² · "
-                          f"median ★{a['median_rating'] or '—'}"} for a in by_leads if a["priority_leads"]],
-        "who": [{"segment": SEGMENT_NAME[k], "count": seg[k]["n"], "pitch": PITCH[k]}
-                for k in ("priority", "card_gap", "digital_gap") if seg[k]["n"]],
+        "where": [{"area": a["en"], "merchants": a.get("fnb_n", a["places"]),
+                   "why": f"{a['cash_or_unknown_pct']:.0f}% cash / no card · {a.get('callable', 0):,} to call · "
+                          f"{a['per_km2'] or '—'} venues/km²"} for a in areas],
+        "who": ([{"segment": s_["segment"], "count": s_["n"],
+                  "pitch": (f"{s_['cash_pct']:.0f}% cash / no card: lead with a low-fee terminal + QR."
+                            if s_["cash_pct"] >= 50 else
+                            f"Mostly card already ({100 - s_['cash_pct']:.0f}%): pitch lower fees and faster settlement.")}
+                 for s_ in segs]
+                or [{"segment": SEGMENT_NAME[k], "count": seg[k]["n"], "pitch": PITCH[k]}
+                    for k in ("card_gap", "digital_gap") if seg[k]["n"]]),
         "when": {"window": f"Weekdays {bv['hour']}:00–{bv['hour'] + 1}:00" if bv else "—",
                  "why": (f"{round(bv['open_share'] * 100)}% of venues are open and past the lunch rush; "
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
-        "actions": ([f"Walk {best_spot['name']} ({best_spot['ward']}) first: {best_spot['leads']} priority leads among "
-                     f"{best_spot['n']} merchants within 400 m."] if best_spot and best_spot["leads"] else [])
+        "actions": ([f"Walk {best_spot['name']} ({best_spot['ward']}) first: {best_spot['n']:,} F&B merchants within "
+                     f"400 m, {best_spot['cash_pct']:.0f}% cash or no card info."] if best_spot else [])
                    + ([f"Next run, drop {', '.join(kw_name(p, d['keyword']) for d in drop[:4])}: together they add "
                        f"{drop_total['places_lost']:,} places for {drop_total['calls']:,} calls (≈ {get_settings().currency} {drop_total['saves_local']:,.0f})."]
                       if drop else [f"Drop or merge {', '.join(kw_name(p, k['keyword']) for k in weak_kw[:3])}: under 10% of their places "
                                     "were not already found by other terms."] if weak_kw else [])
-                   + ([f"Assign reps to {', '.join(a['en'] for a in by_leads[:2])} first ({sum(a['priority_leads'] for a in by_leads[:2]):,} priority leads)."]
-                    if by_leads else [])
-                   + ["Export the priority segment and call ahead to book visits.",
+                   + [f"Call the {callable_:,} cash / no-card merchants that list a phone (Contact slicer → Payment) "
+                      "to book visits.",
                       f"Verify payment status on the {pay['none']['n']:,} venues with no payment info during visits."],
         "caveats": [f"{pay['none']['pct']}% have no payment info on Google; confirm on site.",
                     *([f"{round(100 - fnb['core']['pct'], 1)}% of hits are not core F&B "

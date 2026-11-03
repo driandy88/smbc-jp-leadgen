@@ -10,14 +10,17 @@ export type Points = { cols: string[]; rows: unknown[][] };
 type Place = {
   lat: number; lng: number; name: string; type_label: string; rating: number | null; reviews: number | null;
   pay: string; fnb: string; area_en: string; maps_uri: string | null; address: string; phone: string | null;
-  web: string | null; status: string; lead: boolean; segment: string; district: string;
+  web: string | null; status: string; segment: string; district: string;
 };
 /** Densest neighbourhoods from the profile: merchants per km² in a 300 m circle, named by district. */
-export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number; leads: number };
+export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number };
 
-type Mode = "lead" | "pay" | "fnb";
+type Mode = "contact" | "pay" | "fnb";
 const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [string, string, string][] }> = {
-  lead: { label: "Priority leads", key: (p) => (p.lead ? "lead" : "other"), keys: [["lead", "Priority lead", "#C8442B"], ["other", "Other", "#8A8478"]] },
+  contact: {
+    label: "Contact", key: (p) => (p.phone && p.web ? "both" : p.phone ? "phone" : p.web ? "web" : "none"),
+    keys: [["both", "Phone + website", "#1E1E1C"], ["phone", "Phone only", "#6E685C"], ["web", "Website only", "#A39B88"], ["none", "No contact", "#C8442B"]],
+  },
   pay: {
     label: "Payment", key: (p) => p.pay,
     keys: [["cash", "Cash only", "#8F2D1B"], ["none", "No payment info", "#D48E78"], ["card", "Card", "#6E685C"], ["nfc", "Card + NFC / IC", "#3E5A63"]],
@@ -37,9 +40,9 @@ function popup(p: Place) {
     <b class="jp">${esc(p.name)}</b>
     <span>${esc(p.type_label)} · ${esc(p.district || p.area_en)}</span>
     <span class="m">${p.rating != null ? `★${p.rating}` : "unrated"} · ${fmt(p.reviews)} reviews</span>
-    <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.lead ? ' · <b style="color:#C8442B">priority lead</b>' : ""}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
+    <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
     ${p.address ? `<span class="jp" style="color:#5E5A52">${esc(p.address)}</span>` : ""}
-    <span class="m">${esc(p.phone || "")}</span>
+    <span class="m">${p.phone ? esc(p.phone) : '<span style="color:#A8371F">no phone</span>'}${p.web ? "" : ' · <span style="color:#A8371F">no website</span>'}</span>
     <span style="display:flex;gap:12px">${link(p.maps_uri, "Google Maps ↗")}${link(p.web, "Website ↗")}</span>
   </div>`;
 }
@@ -54,15 +57,14 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
   const dots = useRef<L.LayerGroup | null>(null);
   const spots = useRef<L.LayerGroup | null>(null);
   const hi = useRef<L.Polygon | null>(null);
-  const [mode, setMode] = useState<Mode>("lead");
+  const [mode, setMode] = useState<Mode>("contact");
   const [showSpots, setShowSpots] = useState(true);
-  const [leadsOnly, setLeadsOnly] = useState(false);
 
   const places = useMemo<Place[]>(() => {
     if (!points) return [];
     return points.rows.map((r) => Object.fromEntries(points.cols.map((c, i) => [c, r[i]])) as Place);
   }, [points]);
-  const shown = useMemo(() => (leadsOnly ? places.filter((p) => p.lead) : places), [places, leadsOnly]);
+  const shown = places;
 
   useEffect(() => {
     const m = L.map(el.current!, { preferCanvas: true, zoomControl: true, scrollWheelZoom: false, attributionControl: true });
@@ -111,11 +113,9 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
     g.clearLayers();
     const s = SCHEMES[mode];
     const color = Object.fromEntries(s.keys.map(([k, , c]) => [k, c]));
-    // Leads last so they draw on top
-    const order = [...shown].sort((a, b) => Number(a.lead) - Number(b.lead));
-    for (const p of order) {
+    for (const p of shown) {
       L.circleMarker([p.lat, p.lng], {
-        radius: p.lead ? 5 : 3.6, weight: 0.8, color: "#F8F6F0", fillColor: color[s.key(p)] || "#8A8478", fillOpacity: 0.92,
+        radius: 4, weight: 0.8, color: "#F8F6F0", fillColor: color[s.key(p)] || "#8A8478", fillOpacity: 0.92,
       })
         .bindTooltip(esc(p.name), { direction: "top", offset: [0, -4], className: "pm-tip" })
         .bindPopup(() => popup(p), { maxWidth: 280 })
@@ -151,7 +151,6 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
           ))}
         </div>
         {!!hotspots?.length && <button className="tog" aria-pressed={showSpots} onClick={() => setShowSpots(!showSpots)}><span className="trk"><span className="knob" /></span>Hotspots</button>}
-        <button className="tog" aria-pressed={leadsOnly} onClick={() => setLeadsOnly(!leadsOnly)}><span className="trk"><span className="knob" /></span>Priority leads only</button>
         <span className="m" style={{ marginLeft: "auto", fontSize: 11, color: "#5E5A52" }}>{points ? `${fmt(shown.length)} merchants` : "loading…"}</span>
       </div>
       <div ref={el} className="pm-map" style={{ height }} role="region" aria-label="Interactive map of merchants" />

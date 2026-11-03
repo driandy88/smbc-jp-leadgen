@@ -102,7 +102,8 @@ def test_mock_run_end_to_end(client, auth):
     fnb_n = prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"]
     assert sum(s_["n"] for s_ in prof["fnb_segments"]) == fnb_n
     hs = prof["hotspots"]
-    assert hs and all(h["name"] and h["density_km2"] > 0 for h in hs)
+    assert hs and all(h["name"] and h["density_km2"] > 0 and "leads" not in h for h in hs)
+    assert all(h["n"] <= fnb_n for h in hs)  # hotspots count F&B merchants only
     assert [h["density_km2"] for h in hs] == sorted((h["density_km2"] for h in hs), reverse=True)
 
     # Keyword selection: duplicates split into same-term repeats and cross-term overlap, cover curve reaches 100%
@@ -115,7 +116,7 @@ def test_mock_run_end_to_end(client, auth):
     # Map points: one per merchant, filtered like the step they come from
     pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
     assert len(pts["rows"]) == v["rows"] and all(len(r) == len(pts["cols"]) for r in pts["rows"])
-    assert sum(r[pts["cols"].index("lead")] for r in pts["rows"]) == prof["segments"]["priority"]["n"]
+    assert "lead" not in pts["cols"] and {"segment", "district", "phone", "web"} <= set(pts["cols"])
     cash = client.post(f"/api/runs/{run['id']}/points", headers=auth, json={"pay": ["cash"]}).json()
     assert len(cash["rows"]) == f["count"]
 
@@ -194,3 +195,13 @@ def test_segments_and_districts():
     assert districts.segment("hotel", "no") == "Not F&B"
     en, jp = districts.assign([34.7025, 34.6687, 34.80], [135.4959, 135.5013, 135.60], ["Kita", "Chuo", "Kita"])
     assert en == ["Umeda", "Dotonbori", "Kita · other"] and jp[0] == "梅田"
+
+
+def test_summary_explanation(client, auth):
+    # The Summary step's AI read: rule-based on mock runs, same shape as the model's output
+    runs = client.get("/api/runs", headers=auth).json()
+    done = next(r for r in runs if r["status"] == "done")
+    e = client.post(f"/api/runs/{done['id']}/explain", headers=auth, json={}).json()
+    assert e["headline"] and e["summary"] and 1 <= len(e["points"]) <= 5
+    assert all(p["topic"] and p["text"] for p in e["points"])
+    assert client.post(f"/api/runs/{done['id']}/explain", headers=auth, json={}).json() == e  # cached

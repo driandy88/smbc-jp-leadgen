@@ -4,7 +4,7 @@ export type Brief = {
   headline: string;
   takeaway?: string;
   kpis?: { label: string; value: string; context: string }[];
-  where?: { area: string; leads: number; why: string }[];
+  where?: { area: string; merchants?: number; leads?: number; why: string }[];
   who?: { segment: string; count: number; pitch: string }[];
   when?: { window: string; why: string };
   actions: string[];
@@ -27,17 +27,18 @@ export function AiBrief({ s, name }: { s: Brief; name: string }) {
         <span className="m ai-tag">AI SUMMARY</span>
         <span style={{ fontSize: 15 }}>{s.headline}</span>
         {s.bullets?.map((b, i) => <span key={i} style={{ fontSize: 13 }}><span className="m" style={{ color: "#C8442B", fontSize: 11 }}>{b.k} </span>{b.t}</span>)}
-        <span style={{ fontSize: 12, color: "#A8371F" }}>This analysis was saved in the old format. Re-analyze for the full lead brief.</span>
+        <span style={{ fontSize: 12, color: "#A8371F" }}>This analysis was saved in the old format. Re-analyze for the full brief.</span>
       </div>
     );
   }
-  const maxLeads = Math.max(1, ...(s.where || []).map((w) => w.leads));
+  const count = (w: { merchants?: number; leads?: number }) => w.merchants ?? w.leads ?? 0;
+  const maxN = Math.max(1, ...(s.where || []).map(count));
 
   return (
-    <section className="card brief" aria-label="AI lead-generation brief">
+    <section className="card brief" aria-label="AI sales brief">
       <div className="brief-top">
         <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: "0 0 180px" }}>
-          <span className="m ai-tag">AI LEAD BRIEF</span>
+          <span className="m ai-tag">AI SALES BRIEF</span>
           <span className="m" style={{ fontSize: 11, color: "#5E5A52", wordBreak: "break-all" }}>{name}</span>
         </div>
         <div style={{ flex: "1 1 480px", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -63,12 +64,12 @@ export function AiBrief({ s, name }: { s: Brief; name: string }) {
             <div key={w.area} style={{ display: "flex", flexDirection: "column", gap: 5, padding: "12px 0", borderBottom: "1px solid #E2DDD1" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <span className="m" style={{ fontSize: 11, color: "#8A8478", width: 14 }}>{i + 1}</span>
-                <span className="jp" style={{ fontSize: 16, fontWeight: 500 }}>{w.area}</span>
-                <span className="m" style={{ marginLeft: "auto", fontSize: 15 }}>{fmt(w.leads)}</span>
-                <span style={{ fontSize: 11, color: "#5E5A52" }}>leads</span>
+                <span style={{ fontSize: 16, fontWeight: 500 }}>{w.area}</span>
+                <span className="m" style={{ marginLeft: "auto", fontSize: 15 }}>{fmt(count(w))}</span>
+                <span style={{ fontSize: 11, color: "#5E5A52" }}>{w.merchants != null ? "F&B" : "merchants"}</span>
               </div>
               <div style={{ marginLeft: 24, height: 4, background: "#E2DDD1" }}>
-                <div style={{ height: 4, width: `${(100 * w.leads) / maxLeads}%`, background: i === 0 ? "#C8442B" : "#1E1E1C" }} />
+                <div style={{ height: 4, width: `${(100 * count(w)) / maxN}%`, background: i === 0 ? "#C8442B" : "#1E1E1C" }} />
               </div>
               <span style={{ marginLeft: 24, fontSize: 12, color: "#5E5A52", lineHeight: 1.45 }}>{w.why}</span>
             </div>

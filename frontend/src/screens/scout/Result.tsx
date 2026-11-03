@@ -1,34 +1,30 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api";
-import type { Outline } from "../../components/HexMap";
-import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
-import { cityName, fmt, pct } from "../../lib/format";
-import { FnbCheck, KeywordInsight } from "./Breakdown";
-import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
-import { ContactSlicer, FnbSegments, Hotspots } from "./Business";
-import { CAT_COLORS } from "./charts";
+import { fmt, pct } from "../../lib/format";
 import { Filters, Profile, Run, Version } from "./types";
 
-type ResultData = { count: number; profile: Profile; cities: { city: string; places: number; cash_or_unknown_pct: number; median_rating: number | null; median_reviews: number | null }[]; run: Run };
+type ResultData = { count: number; profile: Profile; run: Run };
+type Explanation = { headline: string; summary: string; points: { topic: string; text: string }[]; source: string };
 
+/** Summary step: the headline numbers and an AI read of them. The detail lives in Versions → Analysis. */
 export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: number; filters: Partial<Filters>; onSaved: (name: string) => void; onNext: () => void; onBack: () => void }) {
   const [data, setData] = useState<ResultData | null>(null);
-  const [outline, setOutline] = useState<Outline | null>(null);
+  const [ai, setAi] = useState<Explanation | null>(null);
+  const [aiErr, setAiErr] = useState("");
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
-  const [points, setPoints] = useState<Points | null>(null);
 
   useEffect(() => {
+    setAi(null);
+    setAiErr("");
     api<ResultData>(`/api/runs/${runId}/result`, { body: filters }).then((d) => {
       setData(d);
-      if (d.run) api<Outline>("/api/scout/geometry", { body: d.run.areas.map((a) => a.area) }).then(setOutline);
+      if (d.count) api<Explanation>(`/api/runs/${runId}/explain`, { body: filters }).then(setAi).catch((e) => setAiErr(e instanceof ApiError ? e.message : "Could not write the summary"));
     });
     api<{ name: string }>(`/api/versions/next-name?run_id=${runId}`).then((r) => setName(r.name));
-    setPoints(null);
-    api<Points>(`/api/runs/${runId}/points`, { body: filters }).then(setPoints);
   }, [runId, filters]);
 
   const p = data?.profile;
@@ -38,27 +34,16 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
 
   const o = p.overview;
   const run = data.run;
-  const cashPct = p.payment.cash.pct + p.payment.none.pct;
-  const topArea = [...p.areas].sort((a: any, b: any) => b.cash_or_unknown_pct - a.cash_or_unknown_pct).find((a: any) => a.places >= 20 && a.code !== "outside");
-  const leadArea = [...p.areas].sort((a: any, b: any) => b.priority_leads - a.priority_leads)[0];
-  // With one ward there is nothing to compare it against
-  const several = p.areas.filter((a: any) => a.code !== "outside").length > 1;
+  const c = p.contact;
+  const spot = p.hotspots?.[0];
+  const fnbN = (p.fnb?.core?.n ?? 0) + (p.fnb?.related?.n ?? 0);
   const stats = [
-    { v: fmt(data.count), l: "unique merchants after filter", s: `${fmt(p.fnb?.core?.n)} F&B · ${fmt(run.raw_hits)} raw hits · ${fmt(run.unique_places - data.count)} filtered out` },
-    { v: pct(cashPct), l: "cash-only or no card info", s: `${pct(p.payment.cash.pct)} explicit cash-only · ${pct(p.payment.none.pct)} no payment data` },
-    { v: o.median_rating?.toFixed(1) ?? "—", l: "median rating", s: `median ${fmt(o.median_reviews)} reviews · ${fmt(o.unrated)} unrated kept` },
-    { v: p.hotspots?.[0] ? fmt(p.hotspots[0].density_km2) : "—", l: "merchants / km² in the densest spot", s: p.hotspots?.[0] ? `${p.hotspots[0].name} (${p.hotspots[0].ward}) · ${fmt(p.hotspots[0].n)} within 400 m` : "" },
-    { v: fmt(run.dupes), l: "duplicates merged", s: "same place_id across keywords and hexes" },
+    { v: fmt(data.count), l: "unique merchants", s: `${fmt(fnbN)} F&B · ${fmt(run.unique_places - data.count)} filtered out` },
+    { v: c ? pct(c.either_pct, 0) : "—", l: "reachable by phone or web", s: c ? `${fmt(c.phone)} phone · ${fmt(c.web)} website · ${fmt(c.neither)} neither` : "" },
+    { v: pct(o.cash_or_unknown_pct, 0), l: "cash-only or no card info", s: c ? `${fmt(c.cash_callable.n)} of them list a phone` : "" },
+    { v: o.median_rating?.toFixed(1) ?? "—", l: "median rating", s: `median ${fmt(o.median_reviews)} reviews` },
+    { v: spot ? fmt(spot.density_km2) : "—", l: "F&B / km² in the densest spot", s: spot ? `${spot.name} (${spot.ward})` : "" },
   ];
-  const insights = [
-    topArea && { k: "01", t: several
-      ? `${topArea.en} is the strongest cash pocket: ${pct(topArea.cash_or_unknown_pct)} cash-only or no card info, against ${pct(cashPct)} overall.`
-      : `${pct(cashPct)} of ${topArea.en} merchants are cash-only or show no card info (${pct(p.payment.cash.pct)} explicitly cash-only).` },
-    leadArea && { k: "02", t: several
-      ? `${leadArea.en} holds the most priority leads (${fmt(leadArea.priority_leads)} of ${fmt(p.segments.priority.n)}): ${p.segments.priority.def}.`
-      : `${fmt(p.segments.priority.n)} priority leads in ${leadArea.en}: ${p.segments.priority.def}.` },
-    { k: "03", t: run.saturated ? `${fmt(run.saturated)} cells still hit 60 results at res ${run.max_res}; raise the max split resolution to recover them.` : `${fmt(run.splits)} busy cells were split down to res ${run.max_res}; none stayed saturated.` },
-  ].filter(Boolean) as { k: string; t: string }[];
 
   const save = async () => {
     setErr("");
@@ -74,60 +59,35 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", borderTop: "1px solid #1E1E1C", borderBottom: "1px solid #D8D3C7" }}>
-        {stats.map((s) => (
+        {stats.map((s, i) => (
           <div key={s.l} style={{ padding: "20px 18px", display: "flex", flexDirection: "column", gap: 6, borderRight: "1px solid #E2DDD1" }}>
-            <span className="m" style={{ fontSize: 34, letterSpacing: "-0.02em" }}>{s.v}</span>
+            <span className="m" style={{ fontSize: 34, letterSpacing: "-0.02em", color: i === 1 ? "#C8442B" : undefined }}>{s.v}</span>
             <span style={{ fontSize: 13 }}>{s.l}</span>
-            <span className="m" style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5, wordBreak: "break-all" }}>{s.s}</span>
+            <span className="m" style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5 }}>{s.s}</span>
           </div>
         ))}
       </div>
 
-      <Insights p={p} />
-
-      <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>red circles = densest neighbourhoods</span></div>
-        <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
-      </div>
-
-      <Hotspots p={p} />
-      <FnbSegments p={p} />
-      <MerchantMix p={p} />
-      <Contactability p={p} />
-      <ContactSlicer points={points} />
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
-        <div style={{ flex: "1 1 420px", minWidth: 0, display: "flex", flexDirection: "column", gap: 22 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <span className="lbl">Category share · primaryType</span>
-            <div style={{ display: "flex", height: 22, gap: 2 }}>
-              {p.types.map((c: any, i: number) => <span key={c.label} title={`${c.label} · ${c.n}`} style={{ height: 22, width: `${c.pct}%`, background: CAT_COLORS[i % CAT_COLORS.length] }} />)}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(190px, 100%), 1fr))", gap: "6px 16px" }}>
-              {p.types.map((c: any, i: number) => (
-                <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                  <span style={{ width: 9, height: 9, background: CAT_COLORS[i % CAT_COLORS.length], flex: "0 0 auto" }} /><span className="jp">{c.label}</span><span className="m" style={{ marginLeft: "auto" }}>{fmt(c.n)}</span>
+      <section className="card" aria-label="AI summary" aria-busy={!ai && !aiErr} style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+        <span className="m ai-tag" style={{ alignSelf: "flex-start" }}>AI SUMMARY</span>
+        {!ai && !aiErr && <div style={{ display: "flex", gap: 14, alignItems: "center" }}><Squiggle w={90} /><span style={{ fontSize: 13, color: "#5E5A52" }}>Reading the numbers…</span></div>}
+        {aiErr && <span role="alert" style={{ fontSize: 13, color: "#B33A3A" }}>{aiErr}</span>}
+        {ai && (
+          <>
+            <h2 className="serif" style={{ margin: 0, fontWeight: 400, fontSize: 28, lineHeight: 1.2 }}>{ai.headline}</h2>
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: "#3A3833", maxWidth: 860 }}>{ai.summary}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: "0 28px" }}>
+              {ai.points.map((x, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "76px 1fr", gap: 12, padding: "11px 0", borderTop: "1px solid #E2DDD1", fontSize: 13, lineHeight: 1.55 }}>
+                  <span className="m" style={{ fontSize: 10, color: "#C8442B", paddingTop: 3, letterSpacing: "0.05em" }}>{x.topic.toUpperCase()}</span>
+                  <span>{x.text}</span>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", borderTop: "1px solid #D8D3C7" }}>
-            {insights.map((i) => <div key={i.k} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: "1px solid #E2DDD1", fontSize: 14, lineHeight: 1.5 }}><span className="m" style={{ fontSize: 11, color: "#C8442B", paddingTop: 3 }}>{i.k}</span><span>{i.t}</span></div>)}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span className="lbl" style={{ paddingBottom: 8 }}>City comparison</span>
-            <div className="m cmp-grid" style={{ fontSize: 10, color: "#5E5A52", letterSpacing: "0.05em", padding: "6px 0", borderBottom: "1px solid #1E1E1C" }}><span>CITY</span><span>PLACES</span><span>CASH / NO INFO</span><span>MED. RATING</span><span>MED. REVIEWS</span></div>
-            {data.cities.map((c) => (
-              <div key={c.city} className="m cmp-grid" style={{ fontSize: 13, padding: "10px 0", borderBottom: "1px solid #E2DDD1" }}>
-                <span style={{ fontFamily: "'Inter Tight', sans-serif" }}>{cityName(c.city)}</span><span>{fmt(c.places)}</span><span>{pct(c.cash_or_unknown_pct)}</span><span>{c.median_rating?.toFixed(1) ?? "—"}</span><span>{fmt(c.median_reviews)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <KeywordInsight p={p} />
-      <FnbCheck p={p} />
+            <span style={{ fontSize: 11, color: "#8A8478" }}>From aggregate statistics only · {ai.source}. Save this version and open Analysis for the map, density, contact slicer and top merchants.</span>
+          </>
+        )}
+      </section>
 
       <div className="card" style={{ position: "relative", padding: 22, display: "flex", flexWrap: "wrap", gap: "20px 32px", alignItems: "flex-end", overflow: "hidden" }}>
         <div style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 6 }}>

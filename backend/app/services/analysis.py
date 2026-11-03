@@ -43,16 +43,14 @@ def _priority(op: pd.DataFrame) -> pd.Series:
 
 
 POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "hex_id",
-              "maps_uri", "address", "phone", "web", "status", "lead"]
+              "maps_uri", "address", "phone", "web", "status", "price"]
 
 
 def points(df: pd.DataFrame) -> dict:
     """One row per merchant for the interactive map, as columns plus row arrays to keep the payload small."""
     if df.empty:
         return {"cols": POINT_COLS, "rows": []}
-    op = df[df["status"] == "OPERATIONAL"]
     out = df[df["lat"].notna() & df["lng"].notna()].copy()
-    out["lead"] = out["pk"].isin(set(op[_priority(op)]["pk"]))
     out["lat"], out["lng"] = out["lat"].round(6), out["lng"].round(6)
     out = out[POINT_COLS].astype(object).where(out[POINT_COLS].notna(), None)
     return {"cols": POINT_COLS, "rows": out.values.tolist()}
@@ -93,6 +91,8 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "types": _type_rows(g, 8),
             "type_count": int(g["type_label"].nunique()),
             "contact": _contact_counts(g),
+            "fnb_n": int((g["fnb"] != "no").sum()),
+            "callable": int((gop["pay"].isin(["cash", "none"]) & gop["phone"].notna()).sum()),
             "chains": int(g["chain"].sum()),
         })
     areas.sort(key=lambda a: -a["places"])
@@ -285,33 +285,29 @@ def _rate(g: pd.DataFrame) -> dict:
 
 def _fnb_segments(df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
     """What kind of F&B is out there: business segments with their types, reach and cash share."""
-    lead = set(op[_priority(op)]["pk"])
     rows = []
     for seg, g in df[df["fnb"] != "no"].groupby("segment"):
-        rows.append({"segment": seg, **_rate(g), "pct": _pct(len(g), len(df)), "leads": int(g["pk"].isin(lead).sum()),
+        rows.append({"segment": seg, **_rate(g), "pct": _pct(len(g), len(df)),
                      "types": [{"t": t, "n": int(c)} for t, c in g["type_label"].value_counts().items()]})
     return sorted(rows, key=lambda r: (r["segment"].startswith("F&B-related"), -r["n"]))
 
 
 def _hotspots(df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
-    """Densest neighbourhoods as merchants per km² in a 300 m circle (no grid), named by district."""
-    spots = districts.hotspots(df["lat"], df["lng"])
+    """Densest F&B neighbourhoods: F&B merchants per km² in a 300 m circle (no grid), named by district."""
+    f = df[df["fnb"] != "no"].reset_index(drop=True)
+    spots = districts.hotspots(f["lat"], f["lng"])
     if not spots:
         return []
-    lead = set(op[_priority(op)]["pk"])
-    lat0 = float(df["lat"].mean())
-    x, y = districts._xy(df["lat"], df["lng"], lat0)
+    x, y = districts._xy(f["lat"], f["lng"], float(f["lat"].mean()))
     out = []
     for h in spots:
-        near = df[((x - h["_x"]) ** 2 + (y - h["_y"]) ** 2) <= 400 ** 2]
-        name = near["district"].mode().iloc[0] if len(near) else df.iloc[h["row"]]["district"]
+        near = f[((x - h["_x"]) ** 2 + (y - h["_y"]) ** 2) <= 400 ** 2]
+        name = near["district"].mode().iloc[0] if len(near) else f.iloc[h["row"]]["district"]
         jp = near.loc[near["district"] == name, "district_jp"].iloc[0] if len(near) else ""
         out.append({"name": name, "jp": jp, "ward": near["area_en"].mode().iloc[0] if len(near) else "",
                     "lat": round(h["lat"], 6), "lng": round(h["lng"], 6), "density_km2": h["density_km2"],
-                    "core": h["core"], "radius_m": 400, **_rate(near), "fnb": int((near["fnb"] == "core").sum()),
-                    "share": _pct(len(near), len(df)), "leads": int(near["pk"].isin(lead).sum()),
-                    "top_segments": [{"s": k, "n": int(v)} for k, v in
-                                     near.loc[near["fnb"] != "no", "segment"].value_counts().head(3).items()]})
+                    "core": h["core"], "radius_m": 400, **_rate(near), "share": _pct(len(near), len(f)),
+                    "top_segments": [{"s": k, "n": int(v)} for k, v in near["segment"].value_counts().head(3).items()]})
     return out
 
 
@@ -348,11 +344,11 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
     hs = p.get("hotspots") or []
     if hs:
         top = hs[0]
-        t = (f"Densest spot: {top['name']} ({top['ward']}), {top['density_km2']:,} merchants per km² at its core and "
+        t = (f"Densest spot: {top['name']} ({top['ward']}), {top['density_km2']:,} F&B merchants per km² at its core and "
              f"{top['n']:,} within 400 m, {pct_s(top['reach_pct'])} reachable by phone or web.")
         if len(hs) > 1:
             t += (f" Next: {', '.join(h['name'] for h in hs[1:3])}. The top {min(3, len(hs))} spots hold "
-                  f"{pct_s(sum(h['share'] for h in hs[:3]))} of all merchants.")
+                  f"{pct_s(sum(h['share'] for h in hs[:3]))} of all F&B merchants.")
         out.append({"k": "Hotspot", "t": t})
 
     segs = [s_ for s_ in p.get("fnb_segments") or [] if not s_["segment"].startswith("F&B-related")]
