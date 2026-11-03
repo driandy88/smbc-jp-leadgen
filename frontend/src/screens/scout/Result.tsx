@@ -4,7 +4,7 @@ import { HexMap, Outline } from "../../components/HexMap";
 import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
-import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
+import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
 import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
 
@@ -120,10 +120,8 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       </div>
 
       <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
-        <KeywordYield p={p} />
-        <FnbCheck p={p} />
-      </div>
+      <KeywordInsight p={p} />
+      <FnbCheck p={p} />
 
       <div className="card" style={{ position: "relative", padding: 22, display: "flex", flexWrap: "wrap", gap: "20px 32px", alignItems: "flex-end", overflow: "hidden" }}>
         <div style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 6 }}>

@@ -5,7 +5,7 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
+import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -127,10 +127,8 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
       </Card>
 
       <HexBreakdown p={p} res={p.run.base_res} onHover={setHover} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 24 }}>
-        <KeywordYield p={p} />
-        <FnbCheck p={p} />
-      </div>
+      <KeywordInsight p={p} />
+      <FnbCheck p={p} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 24 }}>
         <Card title="Area ranking · where to send reps" meta="operational places">

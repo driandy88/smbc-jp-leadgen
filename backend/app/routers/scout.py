@@ -6,12 +6,12 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
-from app.models import ApiCall, Run, RunCell, RunLog
+from app.models import ApiCall, Place, Run, RunCell, RunLog
 from app.services import executor, keywords, pricing, records, regions
 from app.services.analysis import points, profile
 from app.services.collector import queue_run
@@ -194,7 +194,7 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
     kept, _ = records.apply(df, f) if not df.empty else (df, [])
     if kept.empty:
         return {"count": 0}
-    p = profile(kept, _run_out(run), kw_calls(db, run_id))
+    p = profile(kept, _run_out(run), kw_stats(db, run_id))
     city_of = {a["area"]: a["city"] for a in run.areas}
     cities = []
     for c, g in kept.groupby(kept["area"].map(lambda a: city_of.get(a, "outside"))):
@@ -213,10 +213,16 @@ def run_points(run_id: int, filters: dict | None = None, db: Session = Depends(g
     return points(kept)
 
 
-def kw_calls(db: Session, run_id: int) -> dict[str, int]:
-    rows = db.execute(select(ApiCall.keyword, func.count()).where(ApiCall.run_id == run_id, ApiCall.api == "places.searchText")
-                      .group_by(ApiCall.keyword)).all()
-    return {k: n for k, n in rows if k}
+def kw_stats(db: Session, run_id: int) -> dict[str, dict]:
+    """Per keyword from the call ledger and the run's places, before any filter:
+    calls (pages included), searches (cell × term), empty searches, raw hits and unique places."""
+    rows = db.execute(
+        select(ApiCall.keyword, func.count(), func.sum(case((ApiCall.page == 1, 1), else_=0)),
+               func.sum(case(((ApiCall.page == 1) & (ApiCall.results == 0), 1), else_=0)), func.sum(ApiCall.results))
+        .where(ApiCall.run_id == run_id, ApiCall.api == "places.searchText").group_by(ApiCall.keyword)).all()
+    unique = Counter(k for kws in db.scalars(select(Place.keywords).where(Place.run_id == run_id)) for k in kws)
+    return {k: {"calls": n, "searches": int(s or 0), "empty": int(e or 0), "hits": int(h or 0), "unique": unique[k]}
+            for k, n, s, e, h in rows if k}
 
 
 def _med(s: pd.Series):

@@ -73,6 +73,13 @@ def test_mock_run_end_to_end(client, auth):
     assert {k["keyword"] for k in prof["keywords"]} == {"居酒屋", "焼き鳥"}
     assert prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"] + prof["fnb"]["no"]["n"] == prof["rows"]
 
+    # Keyword selection: duplicates split into same-term repeats and cross-term overlap, cover curve reaches 100%
+    ks = prof["keyword_set"]
+    assert ks["raw_hits"] == s["raw_hits"] and ks["dupes"] == s["dupes"]
+    assert ks["repeats_same_term"] + ks["found_by_several"] == ks["dupes"]
+    assert ks["curve"][-1]["cum_pct"] == 100 and sum(c["gain"] for c in ks["curve"]) == prof["rows"]
+    assert sum(k["calls"] for k in prof["keywords"]) == s["api_calls"]
+
     # Map points: one per merchant, filtered like the step they come from
     pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
     assert len(pts["rows"]) == v["rows"] and all(len(r) == len(pts["cols"]) for r in pts["rows"])

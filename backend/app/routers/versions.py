@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import current_user
 from app.db import get_db
 from app.models import ApiCall, Run, Version
-from app.routers.scout import _run_out, kw_calls
+from app.routers.scout import _run_out, kw_stats
 from app.services import records
 from app.services.analysis import points, profile
 from app.services.storage import Storage
@@ -110,7 +110,7 @@ def get_analysis(version_id: int, db: Session = Depends(get_db)):
 def analyze(version_id: int, db: Session = Depends(get_db)):
     v = db.get(Version, version_id) or _404()
     run = db.get(Run, v.run_id)
-    p = profile(_version_frame(v), _run_out(run), kw_calls(db, run.id))
+    p = profile(_version_frame(v), _run_out(run), kw_stats(db, run.id))
     if p["rows"] == 0:
         raise HTTPException(422, "This version has no rows")
     p = json.loads(json.dumps(p, default=str))  # plain JSON for the DB column
