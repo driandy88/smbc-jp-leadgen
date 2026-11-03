@@ -52,7 +52,7 @@ export function HexMap({ outline, layers, height = 300, labels = true, labelPx =
       labels: outRings.map((o) => {
         const big = o.rings.reduce((a, b) => (b.length > a.length ? b : a), [] as Ring);
         const [x, y] = centroid(big);
-        return { x, y, t: o.f.properties.jp };
+        return { x, y, t: o.f.properties.en || o.f.properties.jp };
       }),
       layers: layers.map((l) => ({ ...l, d: l.cells.map((c) => path(cellRings.get(c)!)).join(" ") })),
       hl: highlight && cellRings.has(highlight.cell) ? { d: path(cellRings.get(highlight.cell)!), at: centroid(cellRings.get(highlight.cell)!), text: highlight.text } : null,

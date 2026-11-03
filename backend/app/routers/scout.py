@@ -176,7 +176,7 @@ def cancel_run(run_id: int, db: Session = Depends(get_db)):
 
 # Preview sort keys → (column, ascending by default). Missing values always sort last.
 PREVIEW_SORT = {"reviews": ("reviews", False), "rating": ("rating", False), "name": ("name", True),
-                "area": ("area_jp", True), "type": ("type_label", True), "price": ("price", True),
+                "area": ("area_en", True), "type": ("type_label", True), "price": ("price", True),
                 "pay": ("pay_rank", True), "contact": ("contact", False)}
 PAY_RANK = {"cash": 0, "none": 1, "card": 2, "nfc": 3}
 
@@ -273,7 +273,7 @@ def _options(df) -> dict:
                  {"k": "web", "l": records.QUALITY["web"], "n": int(df["web"].notna().sum())},
                  {"k": "photos", "l": records.QUALITY["photos"], "n": int((df["photos"] >= 5).sum())},
                  {"k": "nochain", "l": records.QUALITY["nochain"], "n": int((~df["chain"]).sum())}],
-        "areas": [{"k": a, "l": g["area_jp"].iloc[0], "en": g["area_en"].iloc[0], "n": len(g)}
+        "areas": [{"k": a, "l": g["area_en"].iloc[0], "jp": g["area_jp"].iloc[0], "n": len(g)}
                   for a, g in df.groupby("area")],
         "rating_hist": [int(((df["rating"] >= lo) & (df["rating"] < lo + 0.3)).sum())
                         for lo in [2.0, 2.3, 2.6, 2.9, 3.2, 3.5, 3.8, 4.1, 4.4, 4.7]],
@@ -292,7 +292,7 @@ def _preview_row(r) -> dict:
     spans = [(s - today * 1440, e - today * 1440) for s, e in r["hours"] if s // 1440 == today]
     fmt = lambda m: f"{m // 60:02d}:{m % 60:02d}"  # noqa: E731
     hours = ", ".join(f"{fmt(s)}–{fmt(e)}" for s, e in spans) if spans else ("closed" if r["has_hours"] else "—")
-    return {"pk": int(r["pk"]), "name": r["name"], "area": r["area_jp"], "type": r["type_label"],
+    return {"pk": int(r["pk"]), "name": r["name"], "area": r["area_en"], "type": r["type_label"],
             "rating": None if pd.isna(r["rating"]) else r["rating"],
             "reviews": None if pd.isna(r["reviews"]) else int(r["reviews"]),
             "price": records.PRICE_BANDS[int(r["price"])], "pay": r["pay"], "pay_label": records.PAY[r["pay"]],

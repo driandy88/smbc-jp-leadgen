@@ -5,8 +5,9 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { FnbCheck, KeywordInsight } from "./Breakdown";
 import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
+import { ContactSlicer, FnbSegments, Hotspots } from "./Business";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -102,7 +103,6 @@ export function Analysis({ onDataChip }: { onDataChip: (s: string) => void }) {
 
 function Report({ a, versionId, name, outline }: { a: Analysis; versionId: number; name: string; outline: Outline | null }) {
   const [points, setPoints] = useState<Points | null>(null);
-  const [hover, setHover] = useState<string | null>(null);
   useEffect(() => { api<Points>(`/api/versions/${versionId}/points`).then(setPoints); }, [versionId]);
   const p = a.profile;
   const s = a.summary;
@@ -125,13 +125,15 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
 
       <Insights p={p} />
 
-      <Card title="Merchant map · every place in this version" meta={`hexes at res ${p.run.base_res}`}>
-        <PlaceMap points={points} outline={outline} res={p.run.base_res} highlight={hover} />
+      <Card title="Merchant map · every place in this version" meta="red circles = densest neighbourhoods">
+        <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
       </Card>
 
+      <Hotspots p={p} />
+      <FnbSegments p={p} />
       <MerchantMix p={p} />
-      <HexBreakdown p={p} res={p.run.base_res} onHover={setHover} />
       <Contactability p={p} />
+      <ContactSlicer points={points} />
       <KeywordInsight p={p} />
       <FnbCheck p={p} />
 
@@ -142,7 +144,7 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
               <div className="m area-grid" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}><span>AREA</span><span>PLACES</span><span>/KM²</span><span>CASH/NONE</span><span>NO WEB</span><span>LEADS</span></div>
               {[...p.areas].sort((x: any, y: any) => y.priority_leads - x.priority_leads).slice(0, 12).map((ar: any) => (
                 <div key={ar.code} className="m area-grid" style={{ fontSize: 12, padding: "7px 0", borderBottom: "1px solid #E2DDD1" }}>
-                  <span className="jp" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>{ar.jp}</span><span>{fmt(ar.places)}</span><span>{fmt(ar.per_km2)}</span>
+                  <span style={{ fontFamily: "'Inter Tight', sans-serif" }}>{ar.en}</span><span>{fmt(ar.places)}</span><span>{fmt(ar.per_km2)}</span>
                   <span>{pct(ar.cash_or_unknown_pct, 0)}</span><span>{pct(ar.no_website_pct, 0)}</span><span style={{ color: "#C8442B" }}>{fmt(ar.priority_leads)}</span>
                 </div>
               ))}
@@ -171,7 +173,7 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
         <Card title="Price level by area" meta="share of places">
           {p.areas.slice(0, 9).map((ar: any) => (
             <div key={ar.code} style={{ display: "grid", gridTemplateColumns: "96px 1fr", gap: 10, alignItems: "center" }}>
-              <span className="jp" style={{ fontSize: 12 }}>{ar.jp}</span>
+              <span style={{ fontSize: 12 }}>{ar.en}</span>
               <div style={{ display: "flex", height: 14, gap: 1 }}>{ar.price.map((w: number, i: number) => <span key={i} title={`${p.price_bands[i]} · ${w}%`} style={{ height: 14, width: `${w}%`, background: PRICE_COLORS[i], outline: i === 5 ? "1px solid #D8D3C7" : undefined }} />)}</div>
             </div>
           ))}

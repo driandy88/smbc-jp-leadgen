@@ -92,8 +92,8 @@ export function MerchantMix({ p }: { p: Profile }) {
               <Fragment key={a.code}>
                 <button className="mix-grid mix-row" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : a.code)}>
                   <span style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
-                    <span className="jp" style={{ fontSize: 13 }}>{isOpen ? "▾" : "▸"} {a.jp}</span>
-                    <span style={{ fontSize: 10, color: "#8A8478", paddingLeft: 12 }}>{a.en}</span>
+                    <span style={{ fontSize: 13 }}>{isOpen ? "▾" : "▸"} {a.en}</span>
+                    <span className="jp" style={{ fontSize: 10, color: "#8A8478", paddingLeft: 12 }}>{a.jp}</span>
                   </span>
                   <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     <span className="m">{fmt(a.places)}</span>
@@ -231,7 +231,7 @@ export function Contactability({ p }: { p: Profile }) {
               const r = (100 * a.contact.either) / Math.max(1, a.places);
               return (
                 <div key={a.code} className="m" style={{ display: "grid", gridTemplateColumns: "minmax(70px, 1fr) 50px 50px 50px 60px", gap: 8, fontSize: 12, padding: "5px 0", borderBottom: "1px solid #E2DDD1" }}>
-                  <span className="jp" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>{a.jp}</span>
+                  <span>{a.en}</span>
                   <span style={{ textAlign: "right" }}>{fmt(a.contact.phone)}</span><span style={{ textAlign: "right" }}>{fmt(a.contact.web)}</span>
                   <span style={{ textAlign: "right", color: "#A8371F" }}>{fmt(a.contact.neither)}</span>
                   <span style={{ textAlign: "right", color: r < 70 ? "#A8371F" : undefined }}>{pct(r, 0)}</span>

@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api";
-import { HexMap, Outline } from "../../components/HexMap";
+import type { Outline } from "../../components/HexMap";
 import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
-import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { FnbCheck, KeywordInsight } from "./Breakdown";
 import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
-import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
+import { ContactSlicer, FnbSegments, Hotspots } from "./Business";
+import { CAT_COLORS } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
 
 type ResultData = { count: number; profile: Profile; cities: { city: string; places: number; cash_or_unknown_pct: number; median_rating: number | null; median_reviews: number | null }[]; run: Run };
@@ -18,7 +19,6 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
-  const [hover, setHover] = useState<string | null>(null);
   const [points, setPoints] = useState<Points | null>(null);
 
   useEffect(() => {
@@ -32,8 +32,6 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   }, [runId, filters]);
 
   const p = data?.profile;
-  const cuts = useMemo(() => quantileCuts((p?.density_hex || []).map((d: { n: number }) => d.n)), [p]);
-  const layers = useMemo(() => (p ? binLayers(p.density_hex as { h: string; n: number }[], (d) => d.n, cuts, DENSITY) : []), [p, cuts]);
 
   if (!data) return <div style={{ display: "flex", gap: 14, alignItems: "center", padding: 40 }}><Squiggle w={120} /><span style={{ fontSize: 13, color: "#5E5A52" }}>Summarising…</span></div>;
   if (!data.count) return <div style={{ padding: 40 }}>No places left after filtering. <button className="btn2" onClick={onBack}>← Back to Filter</button></div>;
@@ -43,16 +41,22 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const cashPct = p.payment.cash.pct + p.payment.none.pct;
   const topArea = [...p.areas].sort((a: any, b: any) => b.cash_or_unknown_pct - a.cash_or_unknown_pct).find((a: any) => a.places >= 20 && a.code !== "outside");
   const leadArea = [...p.areas].sort((a: any, b: any) => b.priority_leads - a.priority_leads)[0];
+  // With one ward there is nothing to compare it against
+  const several = p.areas.filter((a: any) => a.code !== "outside").length > 1;
   const stats = [
     { v: fmt(data.count), l: "unique merchants after filter", s: `${fmt(p.fnb?.core?.n)} F&B · ${fmt(run.raw_hits)} raw hits · ${fmt(run.unique_places - data.count)} filtered out` },
     { v: pct(cashPct), l: "cash-only or no card info", s: `${pct(p.payment.cash.pct)} explicit cash-only · ${pct(p.payment.none.pct)} no payment data` },
     { v: o.median_rating?.toFixed(1) ?? "—", l: "median rating", s: `median ${fmt(o.median_reviews)} reviews · ${fmt(o.unrated)} unrated kept` },
-    { v: fmt(p.top_cell?.n), l: "places in densest hex", s: `${p.top_cell?.h || "—"} · res ${run.base_res}` },
+    { v: p.hotspots?.[0] ? fmt(p.hotspots[0].density_km2) : "—", l: "merchants / km² in the densest spot", s: p.hotspots?.[0] ? `${p.hotspots[0].name} (${p.hotspots[0].ward}) · ${fmt(p.hotspots[0].n)} within 400 m` : "" },
     { v: fmt(run.dupes), l: "duplicates merged", s: "same place_id across keywords and hexes" },
   ];
   const insights = [
-    topArea && { k: "01", t: `${topArea.jp} (${topArea.en}) is the strongest cash pocket: ${pct(topArea.cash_or_unknown_pct)} cash-only or no card info, against ${pct(cashPct)} overall.` },
-    leadArea && { k: "02", t: `${leadArea.jp} holds the most priority leads (${fmt(leadArea.priority_leads)} of ${fmt(p.segments.priority.n)}): ${p.segments.priority.def}.` },
+    topArea && { k: "01", t: several
+      ? `${topArea.en} is the strongest cash pocket: ${pct(topArea.cash_or_unknown_pct)} cash-only or no card info, against ${pct(cashPct)} overall.`
+      : `${pct(cashPct)} of ${topArea.en} merchants are cash-only or show no card info (${pct(p.payment.cash.pct)} explicitly cash-only).` },
+    leadArea && { k: "02", t: several
+      ? `${leadArea.en} holds the most priority leads (${fmt(leadArea.priority_leads)} of ${fmt(p.segments.priority.n)}): ${p.segments.priority.def}.`
+      : `${fmt(p.segments.priority.n)} priority leads in ${leadArea.en}: ${p.segments.priority.def}.` },
     { k: "03", t: run.saturated ? `${fmt(run.saturated)} cells still hit 60 results at res ${run.max_res}; raise the max split resolution to recover them.` : `${fmt(run.splits)} busy cells were split down to res ${run.max_res}; none stayed saturated.` },
   ].filter(Boolean) as { k: string; t: string }[];
 
@@ -82,21 +86,17 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       <Insights p={p} />
 
       <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>hexes at res {run.base_res}</span></div>
-        <PlaceMap points={points} outline={outline} res={run.base_res} highlight={hover} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>red circles = densest neighbourhoods</span></div>
+        <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
       </div>
 
+      <Hotspots p={p} />
+      <FnbSegments p={p} />
       <MerchantMix p={p} />
-      <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
       <Contactability p={p} />
+      <ContactSlicer points={points} />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
-        <div className="card" style={{ flex: "1 1 420px", minWidth: 0, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Place density · res {run.base_res}</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{p.areas.length} areas</span></div>
-          <HexMap outline={outline} layers={layers} height={440} ariaLabel="Hex map of place density" highlight={hover ? { cell: hover, text: `${p.hexes?.rows.find((r: { h: string }) => r.h === hover)?.places ?? ""}` } : p.top_cell ? { cell: p.top_cell.h, text: `${p.top_cell.n}` } : null} />
-          <Legend title="places / cell" colors={DENSITY} labels={`0 · ${cuts.map((c) => Math.round(c)).join(" · ")}+`} />
-        </div>
-
         <div style={{ flex: "1 1 420px", minWidth: 0, display: "flex", flexDirection: "column", gap: 22 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <span className="lbl">Category share · primaryType</span>

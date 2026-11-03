@@ -1,4 +1,4 @@
-import { cellToBoundary, latLngToCell } from "h3-js";
+import { cellToBoundary } from "h3-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,9 +9,11 @@ import { Outline } from "./HexMap";
 export type Points = { cols: string[]; rows: unknown[][] };
 type Place = {
   lat: number; lng: number; name: string; type_label: string; rating: number | null; reviews: number | null;
-  pay: string; fnb: string; area_jp: string; maps_uri: string | null; address: string; phone: string | null;
-  web: string | null; status: string; lead: boolean;
+  pay: string; fnb: string; area_en: string; maps_uri: string | null; address: string; phone: string | null;
+  web: string | null; status: string; lead: boolean; segment: string; district: string;
 };
+/** Densest neighbourhoods from the profile: merchants per km² in a 300 m circle, named by district. */
+export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number; leads: number };
 
 type Mode = "lead" | "pay" | "fnb";
 const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [string, string, string][] }> = {
@@ -25,7 +27,6 @@ const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [s
     keys: [["core", "F&B", "#1E1E1C"], ["related", "F&B-related", "#C8442B"], ["no", "Not F&B", "#C9C2B2"]],
   },
 };
-const HEX_FILL = ["#E6E1D5", "#C9C2B2", "#A39B88", "#6E685C", "#1E1E1C"];
 const PAY_LABEL: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -34,7 +35,7 @@ function popup(p: Place) {
   const link = (href: string | null, text: string) => (href && /^https?:\/\//.test(href) ? `<a href="${esc(href)}" target="_blank" rel="noreferrer">${text}</a>` : "");
   return `<div class="pm-pop">
     <b class="jp">${esc(p.name)}</b>
-    <span>${esc(p.type_label)} · <span class="jp">${esc(p.area_jp)}</span></span>
+    <span>${esc(p.type_label)} · ${esc(p.district || p.area_en)}</span>
     <span class="m">${p.rating != null ? `★${p.rating}` : "unrated"} · ${fmt(p.reviews)} reviews</span>
     <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.lead ? ' · <b style="color:#C8442B">priority lead</b>' : ""}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
     ${p.address ? `<span class="jp" style="color:#5E5A52">${esc(p.address)}</span>` : ""}
@@ -44,17 +45,17 @@ function popup(p: Place) {
 }
 
 /**
- * Every merchant as a dot over a street basemap, with hexes shaded by merchant count.
+ * Every merchant as a dot over a street basemap, with the densest neighbourhoods circled and named.
  * Basemap: GSI 地理院タイル (pale), free and keyless, so it works on any page.
  */
-export function PlaceMap({ points, outline, res, highlight, height = 560 }: { points: Points | null; outline: Outline | null; res: number; highlight?: string | null; height?: number }) {
+export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }: { points: Points | null; outline: Outline | null; res?: number; hotspots?: Hotspot[]; highlight?: string | null; height?: number }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const dots = useRef<L.LayerGroup | null>(null);
-  const hexes = useRef<L.LayerGroup | null>(null);
+  const spots = useRef<L.LayerGroup | null>(null);
   const hi = useRef<L.Polygon | null>(null);
   const [mode, setMode] = useState<Mode>("lead");
-  const [showHex, setShowHex] = useState(true);
+  const [showSpots, setShowSpots] = useState(true);
   const [leadsOnly, setLeadsOnly] = useState(false);
 
   const places = useMemo<Place[]>(() => {
@@ -72,7 +73,7 @@ export function PlaceMap({ points, outline, res, highlight, height = 560 }: { po
     // Wheel zoom only after the map is clicked, so the page still scrolls past it
     m.on("click", () => m.scrollWheelZoom.enable());
     m.on("mouseout", () => m.scrollWheelZoom.disable());
-    hexes.current = L.layerGroup().addTo(m);
+    spots.current = L.layerGroup().addTo(m);
     dots.current = L.layerGroup().addTo(m);
     map.current = m;
     return () => { m.remove(); map.current = null; };
@@ -88,30 +89,21 @@ export function PlaceMap({ points, outline, res, highlight, height = 560 }: { po
     return () => { layer.remove(); };
   }, [outline]);
 
-  // Merchant count per hex at the run's base resolution
+  // Hotspots: the densest neighbourhoods, drawn as circles with their name and density
   useEffect(() => {
-    const g = hexes.current;
+    const g = spots.current;
     if (!g) return;
     g.clearLayers();
-    if (!showHex || !shown.length) return;
-    const count = new Map<string, { n: number; leads: number }>();
-    for (const p of shown) {
-      const h = latLngToCell(p.lat, p.lng, res);
-      const c = count.get(h) || { n: 0, leads: 0 };
-      c.n++;
-      if (p.lead) c.leads++;
-      count.set(h, c);
-    }
-    const sorted = [...count.values()].map((c) => c.n).sort((a, b) => a - b);
-    const cuts = [0.2, 0.4, 0.6, 0.8].map((q) => sorted[Math.floor(q * sorted.length)]);
-    for (const [h, c] of count) {
-      const bin = cuts.filter((x) => c.n > x).length;
-      L.polygon(cellToBoundary(h) as [number, number][], { color: "#F8F6F0", weight: 0.6, fillColor: HEX_FILL[bin], fillOpacity: 0.38 })
-        .bindTooltip(`<span class="m">${fmt(c.n)} merchants · ${fmt(c.leads)} leads</span>`, { sticky: true })
-        .on("click", (e) => map.current?.fitBounds((e.target as L.Polygon).getBounds(), { maxZoom: 16 }))
-        .addTo(g);
-    }
-  }, [shown, showHex, res]);
+    if (!showSpots || !hotspots?.length) return;
+    const max = Math.max(...hotspots.map((h) => h.density_km2));
+    hotspots.forEach((h, i) => {
+      L.circle([h.lat, h.lng], { radius: h.radius_m, color: "#C8442B", weight: 1.5, fillColor: "#C8442B", fillOpacity: 0.08 + 0.17 * (h.density_km2 / max), interactive: false }).addTo(g);
+      L.marker([h.lat, h.lng], {
+        icon: L.divIcon({ className: "pm-spot", html: `<b>${i + 1}</b> ${esc(h.name)}<span>${fmt(h.density_km2)}/km²</span>`, iconSize: undefined as unknown as L.PointExpression }),
+        interactive: false, keyboard: false,
+      }).addTo(g);
+    });
+  }, [hotspots, showSpots]);
 
   useEffect(() => {
     const g = dots.current;
@@ -158,7 +150,7 @@ export function PlaceMap({ points, outline, res, highlight, height = 560 }: { po
             <button key={k} role="radio" aria-checked={mode === k} onClick={() => setMode(k)}>{SCHEMES[k].label}</button>
           ))}
         </div>
-        <button className="tog" aria-pressed={showHex} onClick={() => setShowHex(!showHex)}><span className="trk"><span className="knob" /></span>Hex density</button>
+        {!!hotspots?.length && <button className="tog" aria-pressed={showSpots} onClick={() => setShowSpots(!showSpots)}><span className="trk"><span className="knob" /></span>Hotspots</button>}
         <button className="tog" aria-pressed={leadsOnly} onClick={() => setLeadsOnly(!leadsOnly)}><span className="trk"><span className="knob" /></span>Priority leads only</button>
         <span className="m" style={{ marginLeft: "auto", fontSize: 11, color: "#5E5A52" }}>{points ? `${fmt(shown.length)} merchants` : "loading…"}</span>
       </div>

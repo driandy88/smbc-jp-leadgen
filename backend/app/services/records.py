@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.db import session_scope
 from app.models import Place, Run
-from app.services import regions
+from app.services import districts, regions
 
 PRICE_BANDS = ["〜¥1,000", "¥1,000–2,000", "¥2,000–3,000", "¥3,000–5,000", "¥5,000+", "No info"]
 PRICE_LEVEL_BAND = {"PRICE_LEVEL_INEXPENSIVE": 0, "PRICE_LEVEL_MODERATE": 1, "PRICE_LEVEL_EXPENSIVE": 3,
@@ -96,6 +96,18 @@ def open_at(intervals: list[tuple[int, int]], minute_of_week: int) -> bool:
     return False
 
 
+# Clearer English than the raw type code gives; everything else is the code in plain words
+TYPE_EN = {"japanese_izakaya_restaurant": "Izakaya", "meal_takeaway": "Takeaway", "meal_delivery": "Delivery",
+           "bar_and_grill": "Bar & grill", "wine_bar": "Wine bar", "coffee_shop": "Coffee shop"}
+
+
+def type_en(primary_type: str | None) -> str:
+    """English label from Google's primaryType code, e.g. ramen_restaurant -> Ramen restaurant."""
+    if not primary_type:
+        return "Other"
+    return TYPE_EN.get(primary_type) or primary_type.replace("_", " ").capitalize()
+
+
 def flatten(row: Place) -> dict:
     p = row.data
     a = regions.area(row.area) if row.area else None
@@ -108,7 +120,8 @@ def flatten(row: Place) -> dict:
         "lat": row.lat, "lng": row.lng, "hex_id": row.hex_id,
         "area": row.area or "outside", "area_jp": a["jp"] if a else "範囲外", "area_en": a["en"] if a else "Outside",
         "type": p.get("primaryType") or "unknown",
-        "type_label": (p.get("primaryTypeDisplayName") or {}).get("text") or p.get("primaryType") or "—",
+        "type_label": type_en(p.get("primaryType")),
+        "type_label_jp": (p.get("primaryTypeDisplayName") or {}).get("text") or "",
         "status": p.get("businessStatus") or "UNKNOWN",
         "rating": p.get("rating"), "reviews": p.get("userRatingCount"),
         "price": _price_band(p), "price_level": p.get("priceLevel"), "pay": _pay(p),
@@ -133,6 +146,8 @@ def _frame(run_id: int, unique_places: int) -> pd.DataFrame:
     brand = df["name"].str.replace(r"\s*\S+店$", "", regex=True)
     df["chain"] = (branch & (brand.map(brand[branch].value_counts()).fillna(0) >= 3)) | (
         df["name"].map(df["name"].value_counts()) >= 6)
+    df["segment"] = [districts.segment(t, f) for t, f in zip(df["type"], df["fnb"])]
+    df["district"], df["district_jp"] = districts.assign(df["lat"], df["lng"], df["area_en"])
     return df
 
 
