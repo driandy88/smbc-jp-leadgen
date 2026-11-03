@@ -31,17 +31,23 @@ class RealPlaces:
         self.api = GoogleMapsAPI(field_mask=field_mask, api_key=api_key,
                                  language_code=language_code, region_code=region_code)
 
+    RETRIES = 3
+
     def search(self, keyword: str, bbox: tuple[float, float, float, float], page_token: str | None) -> SearchResult:
         min_lat, min_lng, max_lat, max_lng = bbox
         t0 = time.perf_counter()
-        # Raises PermissionError on a bad key / disabled API, which fails the run
-        res = self.api.text_search_api(text_query=keyword, min_lat=min_lat, min_lng=min_lng,
-                                       max_lat=max_lat, max_lng=max_lng, nextPageToken=page_token)
-        ms = int((time.perf_counter() - t0) * 1000)
-        # The module returns an empty DataFrame on transport/API errors
-        if isinstance(res, pd.DataFrame):
-            return SearchResult([], None, "ERROR", ms)
-        return SearchResult(res.get("places", []) or [], res.get("nextPageToken"), "OK", ms)
+        for attempt in range(self.RETRIES):
+            # Raises PermissionError on a bad key / disabled API, which fails the run
+            res = self.api.text_search_api(text_query=keyword, min_lat=min_lat, min_lng=min_lng,
+                                           max_lat=max_lat, max_lng=max_lng, nextPageToken=page_token)
+            # The module returns an empty DataFrame on transport/API errors, including rate limiting
+            # (429), so back off and retry instead of recording the cell as empty
+            if not isinstance(res, pd.DataFrame):
+                ms = int((time.perf_counter() - t0) * 1000)
+                return SearchResult(res.get("places", []) or [], res.get("nextPageToken"), "OK", ms)
+            if attempt < self.RETRIES - 1:
+                time.sleep((2 ** attempt) * (1 + random.random()))
+        return SearchResult([], None, "ERROR", int((time.perf_counter() - t0) * 1000))
 
 
 # ---------------------------------------------------------------------------------------------

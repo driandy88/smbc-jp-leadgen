@@ -15,7 +15,7 @@ export type AreaRef = { city: string; area: string };
 
 export type Estimate = {
   cells: number; keywords: number; tasks: number; min_calls: number; expected_calls: number; calls_per_task: number;
-  basis: "history" | "default"; expected_usd: number; expected_local: number; min_local: number; usd_per_call: number; sku: string;
+  basis: "history" | "default"; duration?: { workers: number; latency_s: number; minutes: number; minutes_sequential: number }; expected_usd: number; expected_local: number; min_local: number; usd_per_call: number; sku: string;
   by_res: { res: number; km2: number; cells: number | null }[];
 };
 

@@ -3,7 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Run
+from app.models import ApiCall, Run
 from app.settings import get_settings
 
 PLACES_SKU = "Text Search Enterprise + Atmosphere"
@@ -34,6 +34,29 @@ def calls_per_task(db: Session, base_res: int, max_res: int) -> tuple[float, str
     return DEFAULT_CALLS_PER_TASK.get(base_res, 2.0) * (1 + 0.15 * max(0, max_res - base_res - 1)), "default"
 
 
+DEFAULT_LATENCY_S = 1.2  # real Text Search, Enterprise + Atmosphere field mask, from Tokyo
+
+
+def call_latency_s(db: Session) -> float:
+    """Mean latency of recent successful real calls."""
+    recent = select(ApiCall.latency_ms).where(ApiCall.mock.is_(False), ApiCall.status == "OK",
+                                              ApiCall.api == "places.searchText").order_by(ApiCall.id.desc()).limit(500)
+    ms = db.scalar(select(func.avg(recent.subquery().c.latency_ms)))
+    return ms / 1000 if ms else DEFAULT_LATENCY_S
+
+
+def duration(db: Session, calls: int) -> dict:
+    """Wall time for a real run: workers in parallel, capped by the calls-per-second limit."""
+    s = get_settings()
+    lat = call_latency_s(db)
+    per_s = s.collect_workers / lat
+    if s.places_qps > 0:
+        per_s = min(per_s, s.places_qps)
+    return {"workers": s.collect_workers, "latency_s": round(lat, 2),
+            "minutes": round(calls / per_s / 60 + 0.25, 1),  # + job start-up
+            "minutes_sequential": round(calls * lat / 60, 1)}
+
+
 def estimate(db: Session, cells: int, keywords: int, base_res: int, max_res: int) -> dict:
     s = get_settings()
     tasks = cells * keywords
@@ -41,6 +64,7 @@ def estimate(db: Session, cells: int, keywords: int, base_res: int, max_res: int
     expected = round(tasks * per_task)
     usd = expected * places_call_usd()
     return {
+        "duration": duration(db, expected),
         "cells": cells, "keywords": keywords, "tasks": tasks,
         "min_calls": tasks, "expected_calls": expected, "calls_per_task": round(per_task, 2), "basis": source,
         "expected_usd": round(usd, 2), "expected_local": round(usd * s.usd_rate, 2),
