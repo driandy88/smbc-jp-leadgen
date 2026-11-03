@@ -71,6 +71,19 @@ const DIMS: { k: string; l: string; f: (r: Row) => string }[] = [
   { k: "rating", l: "Rating", f: rating },
   { k: "type", l: "Place type", f: (r) => r.type_label },
 ];
+/** Save merchants as a CSV call list (BOM so Excel reads the Japanese names). */
+function downloadCsv(rows: Row[], filename: string) {
+  const head = ["name", "segment", "type", "neighbourhood", "ward", "phone", "website", "address", "rating", "reviews", "payment", "google_maps"];
+  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = rows.map((r) => [r.name, r.segment, r.type_label, r.district, r.area_en, r.phone, r.web, r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri].map(q).join(","));
+  const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 const contactClass = (r: Row) => (r.phone && r.web ? "both" : r.phone ? "phone" : r.web ? "web" : "none");
 
 /** Slice the list by contact availability against any business dimension; download any cell as a call list. */
@@ -111,17 +124,7 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
     </button>
   );
 
-  const download = () => {
-    const head = ["name", "segment", "type", "neighbourhood", "ward", "phone", "website", "address", "rating", "reviews", "payment", "google_maps"];
-    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lines = picked.map((r) => [r.name, r.segment, r.type_label, r.district, r.area_en, r.phone, r.web, r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri].map(q).join(","));
-    const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `merchants_${(sel?.row || "all").replace(/\W+/g, "-")}_${sel?.cls || "any"}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
+  const download = () => downloadCsv(picked, `merchants_${(sel?.row || "all").replace(/\W+/g, "-")}_${sel?.cls || "any"}.csv`);
   const selLabel = sel ? [sel.row, sel.cls ? CLASSES.find((c) => c.k === sel.cls)!.l : null].filter(Boolean).join(" · ") || "All merchants" : "";
 
   return (
@@ -201,61 +204,90 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
   );
 }
 
-const PRICE = ["〜¥1,000", "¥1,000–2,000", "¥2,000–3,000", "¥3,000–5,000", "¥5,000+", "No price info"];
-const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+const BY = [
+  { k: "segment", l: "F&B segment", f: (r: Row) => r.segment },
+  { k: "type", l: "Place type", f: (r: Row) => r.type_label },
+] as const;
 
-/** The three biggest F&B merchants with every contact detail Google has, and whether we can reach them. */
-export function TopMerchants({ points }: { points: Points | null }) {
-  const [by, setBy] = useState<"reviews" | "rating">("reviews");
+/** The three categories with the most merchants we can reach, and how many in each we cannot. */
+export function TopCategories({ points }: { points: Points | null }) {
+  const [by, setBy] = useState<"segment" | "type">("segment");
   const top = useMemo(() => {
     if (!points) return [];
-    const rows: Row[] = points.rows.map((r) => Object.fromEntries(points.cols.map((c, i) => [c, r[i]])));
-    const op = rows.filter((r) => r.fnb !== "no" && r.status === "OPERATIONAL");
-    const key = by === "reviews"
-      ? (r: Row) => [r.reviews ?? -1, r.rating ?? 0]
-      : (r: Row) => [(r.reviews ?? 0) >= 50 ? r.rating ?? 0 : -1, r.reviews ?? 0];  // rating only counts with 50+ reviews
-    return op.sort((a, b) => { const [a1, a2] = key(a), [b1, b2] = key(b); return b1 - a1 || b2 - a2; }).slice(0, 3);
+    const f = BY.find((x) => x.k === by)!.f;
+    const groups = new Map<string, Row[]>();
+    for (const r of points.rows.map((row) => Object.fromEntries(points.cols.map((c, i) => [c, row[i]])))) {
+      if (r.fnb === "no") continue;
+      const k = f(r) ?? "—";
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(r);
+    }
+    return [...groups.entries()]
+      .map(([name, rows]) => {
+        const n: Record<string, number> = { both: 0, phone: 0, web: 0, none: 0 };
+        const types = new Map<string, number>();
+        for (const r of rows) {
+          n[contactClass(r)]++;
+          types.set(r.type_label, (types.get(r.type_label) || 0) + 1);
+        }
+        return { name, rows, n, reach: rows.length - n.none, cash: rows.filter((r) => r.pay === "cash" || r.pay === "none").length,
+                 types: [...types.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3) };
+      })
+      .sort((x, y) => y.reach - x.reach)
+      .slice(0, 3);
   }, [points, by]);
 
   return (
-    <Card title="Top 3 merchants · full contact details" meta="operational F&B merchants">
-      <div role="radiogroup" aria-label="Rank by" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <span className="lbl" style={{ color: "#5E5A52", marginRight: 4 }}>Rank by</span>
-        <button role="radio" className="chip" aria-checked={by === "reviews"} aria-pressed={by === "reviews"} onClick={() => setBy("reviews")}>Most reviewed</button>
-        <button role="radio" className="chip" aria-checked={by === "rating"} aria-pressed={by === "rating"} onClick={() => setBy("rating")}>Highest rated (50+ reviews)</button>
+    <Card title="Top 3 categories · most merchants we can reach" meta="F&B merchants · reachable = phone or website">
+      <div role="radiogroup" aria-label="Category" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <span className="lbl" style={{ color: "#5E5A52", marginRight: 4 }}>Category</span>
+        {BY.map((x) => <button key={x.k} role="radio" className="chip" aria-checked={by === x.k} aria-pressed={by === x.k} onClick={() => setBy(x.k)}>{x.l}</button>)}
       </div>
       {!points && <span style={{ fontSize: 12, color: "#5E5A52" }}>Loading merchants…</span>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 16 }}>
-        {top.map((r, i) => {
-          const reach = r.phone && r.web ? { t: "Reachable · phone + website", c: "#3F6B35" } : r.phone ? { t: "Reachable · phone only", c: "#3F6B35" }
-            : r.web ? { t: "Reachable · website only", c: "#6E685C" } : { t: "Not reachable · walk-in only", c: "#A8371F" };
-          const line = (label: string, v: React.ReactNode, missing = false) => (
-            <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: 8, fontSize: 12, alignItems: "baseline" }}>
-              <span className="m" style={{ fontSize: 10, color: "#8A8478" }}>{label}</span>
-              <span style={{ color: missing ? "#A8371F" : undefined, wordBreak: "break-word" }}>{v}</span>
-            </div>
-          );
+        {top.map((t, i) => {
+          const total = t.rows.length;
+          const share = (v: number) => (100 * v) / Math.max(1, total);
+          const file = t.name.replace(/\W+/g, "-");
           return (
-            <div key={r.maps_uri || r.name} style={{ border: "1px solid #D8D3C7", padding: 16, display: "flex", flexDirection: "column", gap: 10, background: "#FBFAF6" }}>
+            <div key={t.name} style={{ border: "1px solid #D8D3C7", padding: 16, display: "flex", flexDirection: "column", gap: 12, background: "#FBFAF6" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <span className="m" style={{ display: "inline-grid", placeItems: "center", flex: "0 0 auto", width: 24, height: 24, borderRadius: "50%", background: "#1E1E1C", color: "#F8F6F0", fontSize: 12 }}>{i + 1}</span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                  <span className="jp" style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{r.name}</span>
-                  <span style={{ fontSize: 12, color: "#5E5A52" }}>{r.type_label} · {r.segment}</span>
+                  <span style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{t.name}</span>
+                  <span style={{ fontSize: 12, color: "#5E5A52" }}>{fmt(total)} merchants{by === "segment" ? ` · ${t.types.map(([k, v]) => `${k} ${fmt(v)}`).join(" · ")}` : ""}</span>
                 </div>
               </div>
-              <span style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 600, color: reach.c, border: `1px solid ${reach.c}`, padding: "2px 8px" }}>{reach.t}</span>
-              <div style={{ display: "flex", gap: 16, borderTop: "1px solid #E2DDD1", borderBottom: "1px solid #E2DDD1", padding: "8px 0" }}>
-                <span><span className="m" style={{ fontSize: 18 }}>★{r.rating ?? "—"}</span></span>
-                <span><span className="m" style={{ fontSize: 18 }}>{fmt(r.reviews)}</span> <span style={{ fontSize: 11, color: "#5E5A52" }}>reviews</span></span>
-                <span style={{ fontSize: 12, color: "#5E5A52", alignSelf: "center" }}>{PRICE[r.price] ?? ""}</span>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: "1px solid #E2DDD1", borderBottom: "1px solid #E2DDD1" }}>
+                <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span className="m" style={{ fontSize: 26, color: "#3F6B35" }}>{fmt(t.reach)}</span>
+                  <span style={{ fontSize: 12 }}>reachable <span className="m" style={{ color: "#5E5A52" }}>{pct(share(t.reach), 0)}</span></span>
+                </div>
+                <div style={{ padding: "10px 0 10px 12px", borderLeft: "1px solid #E2DDD1", display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span className="m" style={{ fontSize: 26, color: "#A8371F" }}>{fmt(t.n.none)}</span>
+                  <span style={{ fontSize: 12 }}>not reachable <span className="m" style={{ color: "#5E5A52" }}>{pct(share(t.n.none), 0)}</span></span>
+                </div>
               </div>
-              {line("PHONE", r.phone ? <a className="m" href={`tel:${r.phone}`}>{r.phone}</a> : "No phone listed", !r.phone)}
-              {line("WEBSITE", r.web ? <a href={r.web} target="_blank" rel="noreferrer">{host(r.web)} ↗</a> : "No website", !r.web)}
-              {line("ADDRESS", <span className="jp">{r.address || "—"}</span>)}
-              {line("AREA", `${r.district} · ${r.area_en}`)}
-              {line("PAYMENT", PAY[r.pay] || r.pay)}
-              {r.maps_uri && <a className="btn2" href={r.maps_uri} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", textDecoration: "none", fontSize: 12 }}>Open in Google Maps ↗</a>}
+
+              <div style={{ display: "flex", height: 10, gap: 1 }}>
+                {CLASSES.map((c) => <span key={c.k} title={`${c.l} · ${t.n[c.k]}`} style={{ width: `${share(t.n[c.k])}%`, background: c.c, minWidth: t.n[c.k] ? 2 : 0 }} />)}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {CLASSES.map((c) => (
+                  <div key={c.k} style={{ display: "grid", gridTemplateColumns: "12px 1fr 52px 40px", gap: 8, alignItems: "center", fontSize: 12 }}>
+                    <span style={{ width: 9, height: 9, background: c.c }} /><span>{c.l}</span>
+                    <span className="m" style={{ textAlign: "right" }}>{fmt(t.n[c.k])}</span>
+                    <span className="m" style={{ textAlign: "right", color: "#8A8478", fontSize: 11 }}>{pct(share(t.n[c.k]), 0)}</span>
+                  </div>
+                ))}
+              </div>
+              <span style={{ fontSize: 12, color: "#5E5A52" }}>{pct(share(t.cash), 0)} cash-only or no card info</span>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn2" style={{ fontSize: 12 }} disabled={!t.reach} onClick={() => downloadCsv(t.rows.filter((r) => contactClass(r) !== "none"), `${file}_reachable.csv`)}>Download reachable</button>
+                <button className="btn2" style={{ fontSize: 12 }} disabled={!t.n.none} onClick={() => downloadCsv(t.rows.filter((r) => contactClass(r) === "none"), `${file}_not-reachable.csv`)}>Download not reachable</button>
+              </div>
             </div>
           );
         })}
