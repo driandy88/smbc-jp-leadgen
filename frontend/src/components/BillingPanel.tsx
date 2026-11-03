@@ -10,7 +10,7 @@ type Summary = {
   by_sku: { api: string; sku: string; mock: boolean; calls: number; usd: number; local: number; avg_ms: number }[];
   by_run: { run_id: number | null; mock: boolean; calls: number; usd: number; local: number }[];
   by_day: { day: string; mock: boolean; calls: number; local: number }[];
-  pricing: { places_usd_per_1000: number; field_mask: string; claude_model: string; claude_usd_per_mtok: number[] };
+  pricing: { places_usd_per_1000: number; field_mask: string; llm_model: string; llm_usd_per_mtok: number[] };
 };
 type Call = {
   id: number; ts: string; run_id: number | null; version_id: number | null; api: string; sku: string; mock: boolean;
@@ -111,7 +111,7 @@ export function BillingPanel({ onClose }: { onClose: () => void }) {
                   rows={sum.by_run.map((r) => [r.run_id == null ? "—" : `run ${r.run_id}`, r.mock ? "mock" : "real", fmt(r.calls), `$${r.usd.toFixed(2)}`, money(r.local)])}
                   onRow={(i) => { const r = sum.by_run[i]; if (r.run_id != null) { setFilter({ ...filter, run: String(r.run_id) }); setPage(0); } }} />
                 <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>
-                  Rates: Places ${sum.pricing.places_usd_per_1000}/1k calls (field mask "{sum.pricing.field_mask}") · {sum.pricing.claude_model} ${sum.pricing.claude_usd_per_mtok[0]}/${sum.pricing.claude_usd_per_mtok[1]} per MTok · {sum.currency} {sum.usd_rate}/USD. List prices; Google's monthly free tier is not deducted.
+                  Rates: Places ${sum.pricing.places_usd_per_1000}/1k calls (field mask "{sum.pricing.field_mask}") · {sum.pricing.llm_model} ${sum.pricing.llm_usd_per_mtok[0]}/${sum.pricing.llm_usd_per_mtok[1]} per MTok · {sum.currency} {sum.usd_rate}/USD. List prices; Google's monthly free tier is not deducted.
                 </span>
               </>
             )}
@@ -120,7 +120,7 @@ export function BillingPanel({ onClose }: { onClose: () => void }) {
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                 <span className="lbl" style={{ marginRight: "auto" }}>Every call · {fmt(calls?.total)}</span>
                 <select className="in" value={filter.api} onChange={(e) => { setFilter({ ...filter, api: e.target.value }); setPage(0); }} aria-label="API">
-                  <option value="">All APIs</option><option value="places.searchText">Places Text Search</option><option value="vertex.claude">Vertex Claude</option>
+                  <option value="">All APIs</option><option value="places.searchText">Places Text Search</option><option value="vertex.gemini">Vertex Gemini</option><option value="vertex.claude">Vertex Claude</option>
                 </select>
                 <select className="in" value={filter.mock} onChange={(e) => { setFilter({ ...filter, mock: e.target.value }); setPage(0); }} aria-label="Mode">
                   <option value="">Real + mock</option><option value="false">Real only</option><option value="true">Mock only</option>

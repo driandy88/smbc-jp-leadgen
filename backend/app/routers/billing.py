@@ -76,8 +76,7 @@ def summary(db: Session = Depends(get_db), _: str = Depends(billing_access)):
         "mock_total": total.get(True, {"calls": 0, "usd": 0, "local": 0}),
         "by_sku": by_sku, "by_run": list(reversed(by_run)), "by_day": by_day, "errors": errors,
         "pricing": {"places_usd_per_1000": s.places_usd_per_1000, "field_mask": s.places_field_mask,
-                    "claude_model": s.claude_model, "claude_usd_per_mtok": [s.claude_usd_per_mtok_in,
-                                                                            s.claude_usd_per_mtok_out]},
+                    "llm_model": s.llm_model, "llm_usd_per_mtok": list(s.llm_usd_per_mtok)},
     }
 
 

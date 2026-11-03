@@ -257,11 +257,11 @@ def explain_run(run_id: int, filters: dict | None = None, db: Session = Depends(
         call = {"mock": False, "status": f"ERROR:{type(e).__name__}", "tokens_in": 0, "tokens_out": 0,
                 "latency_ms": 0, "cost_usd": 0.0}
     if not call["mock"]:
-        db.add(ApiCall(run_id=run.id, api="vertex.claude", sku=get_settings().claude_model, mock=False,
+        db.add(ApiCall(run_id=run.id, api=get_settings().llm_api, sku=get_settings().llm_model, mock=False,
                        status=call["status"], latency_ms=call["latency_ms"], cost_usd=call["cost_usd"],
                        tokens_in=call["tokens_in"], tokens_out=call["tokens_out"]))
         db.commit()
-    if not out["source"].startswith("rules (Vertex error"):
+    if run.mock or not out["source"].startswith("rules ("):  # retry the model next time if it failed
         _EXPLAINED[key] = out
     return out
 

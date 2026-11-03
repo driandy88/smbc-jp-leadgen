@@ -205,3 +205,40 @@ def test_summary_explanation(client, auth):
     assert e["headline"] and e["summary"] and 1 <= len(e["points"]) <= 5
     assert all(p["topic"] and p["text"] for p in e["points"])
     assert client.post(f"/api/runs/{done['id']}/explain", headers=auth, json={}).json() == e  # cached
+
+
+def test_gemini_call_shape(monkeypatch):
+    # Gemini on Vertex: schema converted to Vertex's format, thinking parts skipped, tokens billed incl. thinking
+    import json as _json
+
+    from app.services import summary
+
+    sent = {}
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+                {"text": "thinking...", "thought": True}, {"text": _json.dumps({"headline": "h", "summary": "s", "points": []})}]}}],
+                "usageMetadata": {"promptTokenCount": 1000, "candidatesTokenCount": 100, "thoughtsTokenCount": 400}}
+
+    class Session:
+        def __init__(self, creds):
+            pass
+
+        def post(self, url, json, timeout):
+            sent.update(url=url, body=json)
+            return Resp()
+
+    import google.auth
+    import google.auth.transport.requests as gtr
+    monkeypatch.setattr(google.auth, "default", lambda scopes: (None, "p"))
+    monkeypatch.setattr(gtr, "AuthorizedSession", Session)
+    out, call = summary._gemini(summary.EXPLAIN_SYSTEM, summary.EXPLAIN_SCHEMA, {"rows": 1}, 1500, "low")
+    assert out["headline"] == "h" and call["tokens_out"] == 500 and call["cost_usd"] > 0
+    schema = sent["body"]["generationConfig"]["responseSchema"]
+    assert schema["type"] == "OBJECT" and "additionalProperties" not in schema
+    assert schema["properties"]["points"]["items"]["properties"]["topic"]["type"] == "STRING"
+    assert sent["url"].endswith("/publishers/google/models/gemini-3.5-flash:generateContent")

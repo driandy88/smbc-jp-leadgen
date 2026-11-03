@@ -17,9 +17,10 @@ def places_call_usd() -> float:
     return get_settings().places_usd_per_1000 / 1000
 
 
-def claude_usd(tokens_in: int, tokens_out: int) -> float:
-    s = get_settings()
-    return tokens_in / 1e6 * s.claude_usd_per_mtok_in + tokens_out / 1e6 * s.claude_usd_per_mtok_out
+def llm_usd(tokens_in: int, tokens_out: int) -> float:
+    """Cost of one AI summary call with the configured provider."""
+    rate_in, rate_out = get_settings().llm_usd_per_mtok
+    return tokens_in / 1e6 * rate_in + tokens_out / 1e6 * rate_out
 
 
 def calls_per_task(db: Session, base_res: int, max_res: int) -> tuple[float, str]:
