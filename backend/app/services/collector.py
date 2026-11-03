@@ -60,6 +60,9 @@ class Collector:
         try:
             with session_scope() as db:
                 run = db.get(Run, self.run_id)
+                if run.status == "cancelling":  # cancelled while the job was starting
+                    run.status, run.finished_at = "cancelled", datetime.now(timezone.utc)
+                    log(db, run.id, "cancelled by user", "warn")
                 if run.status not in ("queued", "running"):
                     return
                 run.status = "running"
@@ -91,6 +94,8 @@ class Collector:
                     run.status = "cancelled"
                     run.finished_at = datetime.now(timezone.utc)
                     log(db, run.id, "cancelled by user", "warn")
+                    return
+                if run.status != "running":  # force-stopped from the UI
                     return
                 # Depth-first: split children get higher ids but are taken before the next base cell
                 cell = db.scalars(select(RunCell).where(RunCell.run_id == run.id, RunCell.status == "queued")
