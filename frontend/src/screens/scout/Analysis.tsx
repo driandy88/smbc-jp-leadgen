@@ -7,6 +7,7 @@ import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
 import { FnbCheck, KeywordInsight } from "./Breakdown";
 import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
+import { ContactSlicer, FnbSegments, Hotspots } from "./Business";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
 
@@ -124,12 +125,15 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
 
       <Insights p={p} />
 
-      <Card title="Merchant map · every place in this version" meta={`hexes at res ${p.run.base_res}`}>
-        <PlaceMap points={points} outline={outline} res={p.run.base_res} />
+      <Card title="Merchant map · every place in this version" meta="red circles = densest neighbourhoods">
+        <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
       </Card>
 
+      <Hotspots p={p} />
+      <FnbSegments p={p} />
       <MerchantMix p={p} />
       <Contactability p={p} />
+      <ContactSlicer points={points} />
       <KeywordInsight p={p} />
       <FnbCheck p={p} />
 

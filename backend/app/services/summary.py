@@ -25,11 +25,11 @@ Rules:
 - Pitch lines must be concrete and fit the segment (e.g. cash-only izakaya → low-fee terminal + QR).
 - Don't restate definitions or describe the charts. No filler like "it is important to".
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
-- Use the hex data: name the 1-2 hexes (by ward + hex id) a rep should walk first, and say how
-  concentrated venues are (share of places in the top 10% of hexes).
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
   and the duplicate rate (raw hits per unique place). Mention the F&B share if non-F&B hits are material.
+- Use hotspots (named districts, merchants per km² at the core) for where to send reps, not hex ids.
+  Use fnb_segments to say which kinds of F&B dominate and which are most cash-reliant.
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
   merchants have a phone (the call list), and how many websites are social pages or portals rather than
   the merchant's own. There is no email in Google data; never claim email reach.
@@ -72,17 +72,14 @@ def _prompt_payload(p: dict) -> dict:
     out["keywords"] = p.get("keywords")
     out["kw_en"] = p.get("kw_en")
     out["type_mix"] = p.get("type_mix")
+    out["fnb_segments"] = [{k: v for k, v in s_.items() if k != "types"} | {"types": s_["types"][:5]}
+                           for s_ in p.get("fnb_segments") or []]
+    out["hotspots"] = [{k: v for k, v in h.items() if k not in ("lat", "lng")} for h in p.get("hotspots") or []]
     if p.get("contact"):
         out["contact"] = {k: v for k, v in p["contact"].items() if k != "email"}
     out["insights"] = p.get("insights")
     if p.get("keyword_set"):
         out["keyword_set"] = {k: v for k, v in p["keyword_set"].items() if k != "per_place_terms"}
-    if p.get("hexes"):
-        h = p["hexes"]
-        out["hexes"] = {k: h.get(k) for k in ("cells", "median", "p90", "max", "top10_share", "top10_cells",
-                                               "fnb_median", "fnb_half_cells", "fnb_80_cells", "no_fnb_cells", "dist")}
-        out["hexes"]["densest"] = h["rows"][:8]
-        out["hexes"]["most_leads"] = h["by_leads"]
     return out
 
 
@@ -136,8 +133,8 @@ def rule_based(p: dict) -> dict:
     bv = p.get("best_visit")
     peak = p["open_peak"]
     lead_share = round(100 * top["priority_leads"] / max(1, seg["priority"]["n"])) if top else 0
-    hx = p.get("hexes") or {}
-    best_hex = (hx.get("by_leads") or [None])[0]
+    spots = p.get("hotspots") or []
+    best_spot = max(spots, key=lambda h: h["leads"], default=None)
     fnb = p.get("fnb") or {}
     kws = p.get("keywords") or []
     weak_kw = [k for k in kws if k["places"] >= 10 and k["only_pct"] < 10]
@@ -169,8 +166,8 @@ def rule_based(p: dict) -> dict:
         "when": {"window": f"Weekdays {bv['hour']}:00–{bv['hour'] + 1}:00" if bv else "—",
                  "why": (f"{round(bv['open_share'] * 100)}% of venues are open and past the lunch rush; "
                          f"avoid {peak['day']} {peak['hour']}:00, the busiest hour.") if bv else ""},
-        "actions": ([f"Walk hex {best_hex['h']} ({best_hex['area']}) first: {best_hex['leads']} priority leads among "
-                     f"{best_hex['places']} merchants."] if best_hex and best_hex["leads"] else [])
+        "actions": ([f"Walk {best_spot['name']} ({best_spot['ward']}) first: {best_spot['leads']} priority leads among "
+                     f"{best_spot['n']} merchants within 400 m."] if best_spot and best_spot["leads"] else [])
                    + ([f"Next run, drop {', '.join(kw_name(p, d['keyword']) for d in drop[:4])}: together they add "
                        f"{drop_total['places_lost']:,} places for {drop_total['calls']:,} calls (≈ {get_settings().currency} {drop_total['saves_local']:,.0f})."]
                       if drop else [f"Drop or merge {', '.join(kw_name(p, k['keyword']) for k in weak_kw[:3])}: under 10% of their places "
@@ -183,8 +180,9 @@ def rule_based(p: dict) -> dict:
                     *([f"{round(100 - fnb['core']['pct'], 1)}% of hits are not core F&B "
                        f"(e.g. {', '.join(t['type'] for t in fnb['non_core_types'][:3])}); use the F&B check filter."]
                       if fnb and fnb["core"]["pct"] < 98 else []),
-                    *([f"Venues are concentrated: the top {hx['top10_cells']} hexes (10%) hold {hx['top10_share']}% of places."]
-                      if hx else []),
+                    *([f"Venues are concentrated: {', '.join(h['name'] for h in spots[:3])} hold "
+                       f"{round(sum(h['share'] for h in spots[:3]))}% of places within 400 m of their cores."]
+                      if spots else []),
                     *([f"{ks['terms_for_pct']['95']} of {ks['terms']} terms already cover 95% of the list; "
                        f"each place came back {ks['hits_per_unique']}× on average ({ks['dupe_pct']}% of hits were duplicates)."]
                       if ks.get("hits_per_unique") else []),

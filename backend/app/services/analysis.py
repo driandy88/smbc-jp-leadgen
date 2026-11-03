@@ -12,7 +12,7 @@ import h3
 import numpy as np
 import pandas as pd
 
-from app.services import regions
+from app.services import districts, regions
 from app.services.keywords import english_for
 from app.services.records import DAYS, PAY, PRICE_BANDS, open_at
 
@@ -42,7 +42,7 @@ def _priority(op: pd.DataFrame) -> pd.Series:
             & (op["rating"].fillna(0) >= 3.5) & op["phone"].notna())
 
 
-POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "area_en", "hex_id",
+POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "hex_id",
               "maps_uri", "address", "phone", "web", "status", "lead"]
 
 
@@ -174,6 +174,8 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
         "top_types": top_type_names,
         "fnb": _fnb(df),
         "type_mix": _type_rows(df, 15),
+        "fnb_segments": _fnb_segments(df, op),
+        "hotspots": _hotspots(df, op),
         "contact": _contact(df, op),
         "kw_en": {k: english_for(k) or k for k in run.get("keywords") or []},
         "keywords": _keywords(df, kw_stats or {}, run),
@@ -270,6 +272,49 @@ def _contact(df: pd.DataFrame, op: pd.DataFrame) -> dict:
     }
 
 
+def _rate(g: pd.DataFrame) -> dict:
+    """Business KPIs for a slice of merchants."""
+    n = len(g)
+    gop = g[g["status"] == "OPERATIONAL"]
+    reach = g["phone"].notna() | g["web"].notna()
+    return {"n": n, "reach_pct": _pct(reach.sum(), n), "phone_pct": _pct(g["phone"].notna().sum(), n),
+            "cash_pct": _pct(gop["pay"].isin(["cash", "none"]).sum(), len(gop)),
+            "median_rating": _median(gop["rating"]), "median_reviews": _median(gop["reviews"]),
+            "chains": int(g["chain"].sum())}
+
+
+def _fnb_segments(df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
+    """What kind of F&B is out there: business segments with their types, reach and cash share."""
+    lead = set(op[_priority(op)]["pk"])
+    rows = []
+    for seg, g in df[df["fnb"] != "no"].groupby("segment"):
+        rows.append({"segment": seg, **_rate(g), "pct": _pct(len(g), len(df)), "leads": int(g["pk"].isin(lead).sum()),
+                     "types": [{"t": t, "n": int(c)} for t, c in g["type_label"].value_counts().items()]})
+    return sorted(rows, key=lambda r: (r["segment"].startswith("F&B-related"), -r["n"]))
+
+
+def _hotspots(df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
+    """Densest neighbourhoods as merchants per km² in a 300 m circle (no grid), named by district."""
+    spots = districts.hotspots(df["lat"], df["lng"])
+    if not spots:
+        return []
+    lead = set(op[_priority(op)]["pk"])
+    lat0 = float(df["lat"].mean())
+    x, y = districts._xy(df["lat"], df["lng"], lat0)
+    out = []
+    for h in spots:
+        near = df[((x - h["_x"]) ** 2 + (y - h["_y"]) ** 2) <= 400 ** 2]
+        name = near["district"].mode().iloc[0] if len(near) else df.iloc[h["row"]]["district"]
+        jp = near.loc[near["district"] == name, "district_jp"].iloc[0] if len(near) else ""
+        out.append({"name": name, "jp": jp, "ward": near["area_en"].mode().iloc[0] if len(near) else "",
+                    "lat": round(h["lat"], 6), "lng": round(h["lng"], 6), "density_km2": h["density_km2"],
+                    "core": h["core"], "radius_m": 400, **_rate(near), "fnb": int((near["fnb"] == "core").sum()),
+                    "share": _pct(len(near), len(df)), "leads": int(near["pk"].isin(lead).sum()),
+                    "top_segments": [{"s": k, "n": int(v)} for k, v in
+                                     near.loc[near["fnb"] != "no", "segment"].value_counts().head(3).items()]})
+    return out
+
+
 def _type_rows(g: pd.DataFrame, top: int) -> list[dict]:
     """Merchant types with how many of each are F&B, F&B-related or not; the tail is folded into 'Other'."""
     n = len(g)
@@ -287,10 +332,10 @@ def _type_rows(g: pd.DataFrame, top: int) -> list[dict]:
 
 
 def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
-    """Plain-language findings from the merchant mix, hexes and contact data."""
+    """Plain-language findings from the merchant mix, hotspots and contact data."""
     out = []
     n = p["rows"]
-    f, c, hx = p["fnb"], p["contact"], p["hexes"]
+    f, c = p["fnb"], p["contact"]
     areas = [a for a in p["areas"] if a["code"] != "outside" and a["places"] >= 10]
 
     noise = [t for t in p["type_mix"] if t["no"] and not t.get("other")]
@@ -299,6 +344,25 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
         top = max(noise, key=lambda t: t["no"])
         msg += f" {f['no']['n']:,} are not F&B, mostly {top['t']} ({top['no']:,}); filter them out before outreach."
     out.append({"k": "Mix", "t": msg})
+
+    hs = p.get("hotspots") or []
+    if hs:
+        top = hs[0]
+        t = (f"Densest spot: {top['name']} ({top['ward']}), {top['density_km2']:,} merchants per km² at its core and "
+             f"{top['n']:,} within 400 m, {pct_s(top['reach_pct'])} reachable by phone or web.")
+        if len(hs) > 1:
+            t += (f" Next: {', '.join(h['name'] for h in hs[1:3])}. The top {min(3, len(hs))} spots hold "
+                  f"{pct_s(sum(h['share'] for h in hs[:3]))} of all merchants.")
+        out.append({"k": "Hotspot", "t": t})
+
+    segs = [s_ for s_ in p.get("fnb_segments") or [] if not s_["segment"].startswith("F&B-related")]
+    if len(segs) > 1:
+        big_s = segs[0]
+        cashy = max((s_ for s_ in segs if s_["n"] >= 20), key=lambda s_: s_["cash_pct"], default=None)
+        t = f"Biggest F&B segment: {big_s['segment']} ({big_s['n']:,}, {pct_s(big_s['pct'])} of the list)."
+        if cashy and cashy is not big_s:
+            t += f" Most cash-reliant: {cashy['segment']}, {pct_s(cashy['cash_pct'])} cash-only or no card info."
+        out.append({"k": "Segments", "t": t})
 
     if areas:
         big = max(areas, key=lambda a: a["places"])
@@ -317,13 +381,6 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
             t += (f" Hardest to reach: {lo['en']}, only {pct_s(rate(lo, lo['contact']['either']))} have a phone or "
                   f"website, against {pct_s(rate(hi_r, hi_r['contact']['either']))} in {hi_r['en']}.")
         out.append({"k": "Areas", "t": t})
-
-    if hx.get("fnb_half_cells"):
-        out.append({"k": "Route", "t": (
-            f"Half of all F&B merchants sit in {hx['fnb_half_cells']} of {hx['cells']} hexes "
-            f"({pct_s(_pct(hx['fnb_half_cells'], hx['cells']))}); 80% in {hx['fnb_80_cells']}. "
-            "A rep covering those hexes on foot reaches most of the market."
-            + (f" {hx['no_fnb_cells']} hexes have merchants but no F&B." if hx["no_fnb_cells"] else ""))})
 
     cc = c["cash_callable"]
     out.append({"k": "Contact", "t": (

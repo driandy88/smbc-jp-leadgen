@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.db import session_scope
 from app.models import Place, Run
-from app.services import regions
+from app.services import districts, regions
 
 PRICE_BANDS = ["〜¥1,000", "¥1,000–2,000", "¥2,000–3,000", "¥3,000–5,000", "¥5,000+", "No info"]
 PRICE_LEVEL_BAND = {"PRICE_LEVEL_INEXPENSIVE": 0, "PRICE_LEVEL_MODERATE": 1, "PRICE_LEVEL_EXPENSIVE": 3,
@@ -146,6 +146,8 @@ def _frame(run_id: int, unique_places: int) -> pd.DataFrame:
     brand = df["name"].str.replace(r"\s*\S+店$", "", regex=True)
     df["chain"] = (branch & (brand.map(brand[branch].value_counts()).fillna(0) >= 3)) | (
         df["name"].map(df["name"].value_counts()) >= 6)
+    df["segment"] = [districts.segment(t, f) for t, f in zip(df["type"], df["fnb"])]
+    df["district"], df["district_jp"] = districts.assign(df["lat"], df["lng"], df["area_en"])
     return df
 
 

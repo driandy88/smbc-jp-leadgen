@@ -96,7 +96,14 @@ def test_mock_run_end_to_end(client, auth):
     assert len(hx["rows"]) == hx["cells"] and sum(d["merchants"] for d in hx["dist"]) == hx["cells"]
     assert sum(r["fnb"] for r in hx["rows"]) == prof["fnb"]["core"]["n"]
     assert 0 < hx["fnb_half_cells"] <= hx["fnb_80_cells"] <= hx["cells"]
-    assert {i["k"] for i in prof["insights"]} >= {"Mix", "Contact", "Route"}
+    assert {i["k"] for i in prof["insights"]} >= {"Mix", "Contact", "Hotspot", "Segments"}
+
+    # Business view: F&B segments add up to the F&B list, hotspots are named and ranked by density
+    fnb_n = prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"]
+    assert sum(s_["n"] for s_ in prof["fnb_segments"]) == fnb_n
+    hs = prof["hotspots"]
+    assert hs and all(h["name"] and h["density_km2"] > 0 for h in hs)
+    assert [h["density_km2"] for h in hs] == sorted((h["density_km2"] for h in hs), reverse=True)
 
     # Keyword selection: duplicates split into same-term repeats and cross-term overlap, cover curve reaches 100%
     ks = prof["keyword_set"]
@@ -176,3 +183,14 @@ def test_type_labels_are_english():
     assert records.type_en("ramen_restaurant") == "Ramen restaurant"
     assert records.type_en("japanese_izakaya_restaurant") == "Izakaya"
     assert records.type_en(None) == "Other"
+
+
+def test_segments_and_districts():
+    from app.services import districts
+    assert districts.segment("barbecue_restaurant", "core") == "Yakiniku & grill"
+    assert districts.segment("steak_house", "core") == "Yakiniku & grill"
+    assert districts.segment("japanese_izakaya_restaurant", "core") == "Izakaya & bars"
+    assert districts.segment("coffee_shop", "core") == "Cafe, bakery & sweets"
+    assert districts.segment("hotel", "no") == "Not F&B"
+    en, jp = districts.assign([34.7025, 34.6687, 34.80], [135.4959, 135.5013, 135.60], ["Kita", "Chuo", "Kita"])
+    assert en == ["Umeda", "Dotonbori", "Kita · other"] and jp[0] == "梅田"
