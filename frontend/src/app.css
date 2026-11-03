@@ -77,3 +77,15 @@ button:disabled { cursor: not-allowed; }
 .hex-row:hover { background: #EEEAE0; }
 .type-chip { font-size: 11px; border: 1px solid #D8D3C7; border-radius: 2px; padding: 1px 6px; background: #F3F0E8; }
 .type-chip .m { color: #8A8478; font-size: 10px; }
+
+/* Interactive merchant map (Leaflet) */
+.pm-map{border:1px solid #D8D3C7;background:#E6E1D5;z-index:0}
+.pm-map .leaflet-popup-content-wrapper,.pm-map .leaflet-tooltip{border-radius:2px;font-family:'Inter Tight','Noto Sans JP',sans-serif;color:#1E1E1C}
+.pm-map .leaflet-popup-content-wrapper{background:#F8F6F0;box-shadow:0 4px 18px rgba(30,30,28,.18)}
+.pm-map .leaflet-popup-content{margin:12px 14px}
+.pm-pop{display:flex;flex-direction:column;gap:4px;font-size:12px;line-height:1.45}
+.pm-pop b{font-size:14px;font-weight:600}
+.pm-pop a{color:#C8442B}
+.pm-map .pm-tip{font-size:12px;padding:3px 7px}
+.seg.pm-seg{grid-template-columns:repeat(3,auto)}
+.seg.pm-seg button{font-size:12px;min-height:32px;padding:0 14px}

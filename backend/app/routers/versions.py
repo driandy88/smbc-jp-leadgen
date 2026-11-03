@@ -15,7 +15,7 @@ from app.db import get_db
 from app.models import ApiCall, Run, Version
 from app.routers.scout import _run_out, kw_calls
 from app.services import records
-from app.services.analysis import profile
+from app.services.analysis import points, profile
 from app.services.storage import Storage
 from app.services.summary import summarize
 from app.settings import get_settings
@@ -92,6 +92,12 @@ def export(version_id: int, db: Session = Depends(get_db)):
     _export_frame(df).to_csv(buf, index=False)
     return StreamingResponse(iter([buf.getvalue().encode("utf-8-sig")]), media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="{v.name}.csv"'})
+
+
+@router.get("/{version_id}/points")
+def version_points(version_id: int, db: Session = Depends(get_db)):
+    v = db.get(Version, version_id) or _404()
+    return points(_version_frame(v))
 
 
 @router.get("/{version_id}/analysis")

@@ -13,7 +13,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.models import ApiCall, Run, RunCell, RunLog
 from app.services import executor, keywords, pricing, records, regions
-from app.services.analysis import profile
+from app.services.analysis import points, profile
 from app.services.collector import queue_run
 from app.settings import get_settings
 
@@ -202,6 +202,15 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
                        "cash_or_unknown_pct": round(100 * g["pay"].isin(["cash", "none"]).mean(), 1),
                        "median_rating": _med(g["rating"]), "median_reviews": _med(g["reviews"])})
     return {"count": len(kept), "profile": p, "cities": cities, "run": _run_out(run)}
+
+
+@router.post("/runs/{run_id}/points")
+def run_points(run_id: int, filters: dict | None = None, db: Session = Depends(get_db)):
+    """Every merchant in the filtered set, for the interactive map."""
+    db.get(Run, run_id) or _404()
+    df = records.frame(run_id)
+    kept, _ = records.apply(df, records.default_filters(df) | (filters or {})) if not df.empty else (df, [])
+    return points(kept)
 
 
 def kw_calls(db: Session, run_id: int) -> dict[str, int]:

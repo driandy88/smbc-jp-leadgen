@@ -33,6 +33,29 @@ def _pct(n: int | float, d: int | float) -> float:
     return round(100 * n / d, 1) if d else 0.0
 
 
+def _priority(op: pd.DataFrame) -> pd.Series:
+    """Priority lead: operational, cash-only or no card info, well reviewed, rated 3.5+, has a phone."""
+    rev_med = op["reviews"].median() if len(op) else 0
+    return (op["pay"].isin(["cash", "none"]) & (op["reviews"].fillna(0) >= max(rev_med, 10))
+            & (op["rating"].fillna(0) >= 3.5) & op["phone"].notna())
+
+
+POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "area_jp", "hex_id",
+              "maps_uri", "address", "phone", "web", "status", "lead"]
+
+
+def points(df: pd.DataFrame) -> dict:
+    """One row per merchant for the interactive map, as columns plus row arrays to keep the payload small."""
+    if df.empty:
+        return {"cols": POINT_COLS, "rows": []}
+    op = df[df["status"] == "OPERATIONAL"]
+    out = df[df["lat"].notna() & df["lng"].notna()].copy()
+    out["lead"] = out["pk"].isin(set(op[_priority(op)]["pk"]))
+    out["lat"], out["lng"] = out["lat"].round(6), out["lng"].round(6)
+    out = out[POINT_COLS].astype(object).where(out[POINT_COLS].notna(), None)
+    return {"cols": POINT_COLS, "rows": out.values.tolist()}
+
+
 def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None) -> dict:
     """kw_calls: Places calls per keyword for the run (from the api_calls ledger), for cost per new place."""
     n = len(df)
@@ -45,8 +68,7 @@ def profile(df: pd.DataFrame, run: dict, kw_calls: dict[str, int] | None = None)
     # Lead segments (operational only)
     seg_card_gap = op[cashish & (op["reviews"].fillna(0) >= 20)]
     seg_digital_gap = op[op["phone"].notna() & op["web"].isna()]
-    seg_priority = op[cashish & (op["reviews"].fillna(0) >= max(rev_med, 10)) & (op["rating"].fillna(0) >= 3.5)
-                      & op["phone"].notna()]
+    seg_priority = op[_priority(op)]
     seg_new = op[op["reviews"].fillna(0) < 10]
 
     areas = []

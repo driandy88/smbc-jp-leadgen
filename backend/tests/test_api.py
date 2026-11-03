@@ -73,6 +73,13 @@ def test_mock_run_end_to_end(client, auth):
     assert {k["keyword"] for k in prof["keywords"]} == {"居酒屋", "焼き鳥"}
     assert prof["fnb"]["core"]["n"] + prof["fnb"]["related"]["n"] + prof["fnb"]["no"]["n"] == prof["rows"]
 
+    # Map points: one per merchant, filtered like the step they come from
+    pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
+    assert len(pts["rows"]) == v["rows"] and all(len(r) == len(pts["cols"]) for r in pts["rows"])
+    assert sum(r[pts["cols"].index("lead")] for r in pts["rows"]) == prof["segments"]["priority"]["n"]
+    cash = client.post(f"/api/runs/{run['id']}/points", headers=auth, json={"pay": ["cash"]}).json()
+    assert len(cash["rows"]) == f["count"]
+
     # Every Places call is in the ledger
     assert client.get("/api/billing/summary", headers=auth).status_code == 403
     tok = client.post("/api/billing/unlock", headers=auth, json={"passcode": "test12345"}).json()["token"]

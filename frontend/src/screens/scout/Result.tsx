@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../../api";
 import { HexMap, Outline } from "../../components/HexMap";
+import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
 import { FnbCheck, HexBreakdown, KeywordYield } from "./Breakdown";
@@ -17,6 +18,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
   const [hover, setHover] = useState<string | null>(null);
+  const [points, setPoints] = useState<Points | null>(null);
 
   useEffect(() => {
     api<ResultData>(`/api/runs/${runId}/result`, { body: filters }).then((d) => {
@@ -24,6 +26,8 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
       if (d.run) api<Outline>("/api/scout/geometry", { body: d.run.areas.map((a) => a.area) }).then(setOutline);
     });
     api<{ name: string }>(`/api/versions/next-name?run_id=${runId}`).then((r) => setName(r.name));
+    setPoints(null);
+    api<Points>(`/api/runs/${runId}/points`, { body: filters }).then(setPoints);
   }, [runId, filters]);
 
   const p = data?.profile;
@@ -72,6 +76,11 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
             <span className="m" style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5, wordBreak: "break-all" }}>{s.s}</span>
           </div>
         ))}
+      </div>
+
+      <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>hexes at res {run.base_res}</span></div>
+        <PlaceMap points={points} outline={outline} res={run.base_res} highlight={hover} />
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
