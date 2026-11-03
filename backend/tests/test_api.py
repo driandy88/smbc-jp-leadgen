@@ -122,3 +122,26 @@ def test_fnb_class_on_real_shapes():
     assert records.fnb_class(kakuuchi) == ("related", "types")
     assert records.fnb_class(karaoke) == ("related", "dining attributes")
     assert records.fnb_class(hotel) == ("no", "none")
+
+
+def test_cancel_before_job_starts_does_not_hang(client, auth, monkeypatch):
+    # Job mode: the run sits queued until the job boots, and the user may cancel in that gap
+    from app.services import collector, executor
+    monkeypatch.setattr(executor, "start", lambda run_id: "job")
+    run = client.post("/api/runs", headers=auth, json={"keywords": ["居酒屋"], "areas": AREAS, "mock": True}).json()
+    assert client.post(f"/api/runs/{run['id']}/cancel", headers=auth).json()["status"] == "cancelled"
+    collector.Collector(run["id"]).run()  # the late job must leave it alone
+    assert client.get(f"/api/runs/{run['id']}", headers=auth).json()["status"] == "cancelled"
+
+    # A run stuck in cancelling (job died) is closed by the job if it boots late, or by a second cancel
+    run = client.post("/api/runs", headers=auth, json={"keywords": ["居酒屋"], "areas": AREAS, "mock": True}).json()
+    from app.db import session_scope
+    from app.models import Run
+    with session_scope() as db:
+        db.get(Run, run["id"]).status = "cancelling"
+    collector.Collector(run["id"]).run()
+    assert client.get(f"/api/runs/{run['id']}", headers=auth).json()["status"] == "cancelled"
+    run = client.post("/api/runs", headers=auth, json={"keywords": ["居酒屋"], "areas": AREAS, "mock": True}).json()
+    with session_scope() as db:
+        db.get(Run, run["id"]).status = "cancelling"
+    assert client.post(f"/api/runs/{run['id']}/cancel", headers=auth).json()["status"] == "cancelled"

@@ -14,7 +14,7 @@ from app.db import get_db
 from app.models import ApiCall, Place, Run, RunCell, RunLog
 from app.services import executor, keywords, pricing, records, regions
 from app.services.analysis import points, profile
-from app.services.collector import queue_run
+from app.services.collector import log, queue_run
 from app.settings import get_settings
 
 router = APIRouter(prefix="/api", tags=["scout"], dependencies=[Depends(current_user)])
@@ -162,7 +162,13 @@ def run_cells(run_id: int, db: Session = Depends(get_db)):
 @router.post("/runs/{run_id}/cancel")
 def cancel_run(run_id: int, db: Session = Depends(get_db)):
     run = db.get(Run, run_id) or _404()
-    if run.status in ("queued", "running"):
+    # Queued: the job hasn't picked it up, so stop it now. Cancelling again: force-stop a run whose job died.
+    if run.status in ("queued", "cancelling"):
+        forced = run.status == "cancelling"
+        run.status, run.finished_at = "cancelled", datetime.now(timezone.utc)
+        log(db, run.id, "force-stopped by user" if forced else "cancelled before start", "warn")
+        db.commit()
+    elif run.status == "running":
         run.status = "cancelling"
         db.commit()
     return {"status": run.status}

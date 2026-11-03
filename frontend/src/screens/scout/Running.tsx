@@ -78,7 +78,7 @@ export function Running({ runId, onFilter, onBack, onUpdate }: { runId: number; 
           {stats.map((s) => <div key={s.l} style={{ display: "flex", flexDirection: "column", gap: 2 }}><span className="lbl">{s.l}</span><span className="m" style={{ fontSize: 20 }}>{s.v}</span></div>)}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {live && <button className="btn2" disabled={run.status === "cancelling"} onClick={() => api(`/api/runs/${runId}/cancel`, { method: "POST" })}>Cancel</button>}
+          {live && <button className="btn2" title={run.status === "cancelling" ? "Mark the run as stopped now, even if the job hasn't confirmed" : undefined} onClick={() => api(`/api/runs/${runId}/cancel`, { method: "POST" })}>{run.status === "cancelling" ? "Force stop" : "Cancel"}</button>}
           {!live && <button className="btn2" onClick={onBack}>← New search</button>}
           {done && <button className="btn" onClick={onFilter}>Continue to Filter →</button>}
         </div>
