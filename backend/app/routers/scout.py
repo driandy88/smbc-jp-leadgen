@@ -168,8 +168,31 @@ def cancel_run(run_id: int, db: Session = Depends(get_db)):
     return {"status": run.status}
 
 
+# Preview sort keys → (column, ascending by default). Missing values always sort last.
+PREVIEW_SORT = {"reviews": ("reviews", False), "rating": ("rating", False), "name": ("name", True),
+                "area": ("area_jp", True), "type": ("type_label", True), "price": ("price", True),
+                "pay": ("pay_rank", True), "contact": ("contact", False)}
+PAY_RANK = {"cash": 0, "none": 1, "card": 2, "nfc": 3}
+
+
+def _sorted_preview(kept: pd.DataFrame, sort: str, desc: bool | None, n: int) -> list[dict]:
+    col, asc = PREVIEW_SORT.get(sort, PREVIEW_SORT["reviews"])
+    if desc is not None:
+        asc = not desc
+    d = kept.assign(
+        pay_rank=kept["pay"].map(PAY_RANK),
+        contact=kept["phone"].notna().astype(int) + kept["web"].notna().astype(int),
+        # band 5 is "unknown price": treat as missing so it sorts last
+        price=kept["price"].where(kept["price"] < 5),
+    )
+    # Ties fall back to most reviewed
+    d = d.sort_values([col, "reviews"], ascending=[asc, False], na_position="last", kind="stable")
+    return [_preview_row(r) for _, r in kept.loc[d.index[:n]].iterrows()]
+
+
 @router.post("/runs/{run_id}/filter")
-def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, db: Session = Depends(get_db)):
+def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, sort: str = "reviews",
+               desc: bool | None = None, db: Session = Depends(get_db)):
     db.get(Run, run_id) or _404()
     df = records.frame(run_id)
     if df.empty:
@@ -180,8 +203,8 @@ def filter_run(run_id: int, filters: dict | None = None, preview: int = 40, db: 
         "total": len(df), "count": len(kept), "funnel": funnel, "filters": f,
         "defaults": records.default_filters(df),
         "options": _options(df),
-        "preview": [_preview_row(r) for _, r in kept.sort_values("reviews", ascending=False, na_position="last")
-                    .head(preview).iterrows()],
+        "sort": sort if sort in PREVIEW_SORT else "reviews",
+        "preview": _sorted_preview(kept, sort, desc, preview),
     }
 
 
@@ -267,7 +290,8 @@ def _preview_row(r) -> dict:
             "rating": None if pd.isna(r["rating"]) else r["rating"],
             "reviews": None if pd.isna(r["reviews"]) else int(r["reviews"]),
             "price": records.PRICE_BANDS[int(r["price"])], "pay": r["pay"], "pay_label": records.PAY[r["pay"]],
-            "today": hours, "maps_uri": r["maps_uri"], "status": r["status"]}
+            "today": hours, "maps_uri": r["maps_uri"], "status": r["status"],
+            "phone": r["phone"] if pd.notna(r["phone"]) else None, "web": r["web"] if pd.notna(r["web"]) else None}
 
 
 def _404():

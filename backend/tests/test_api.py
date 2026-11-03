@@ -63,6 +63,16 @@ def test_mock_run_end_to_end(client, auth):
     f = client.post(f"/api/runs/{run['id']}/filter", headers=auth, json={"pay": ["cash"]}).json()
     assert 0 < f["count"] < f["total"]
     assert f["funnel"][-1]["n"] == f["count"]
+    assert {"phone", "web"} <= f["preview"][0].keys()
+    revs = [r["reviews"] for r in f["preview"] if r["reviews"] is not None]
+    assert revs == sorted(revs, reverse=True)  # default: most reviewed first
+    by = lambda sort, **q: client.post(f"/api/runs/{run['id']}/filter", headers=auth, params={"sort": sort, **q}, json={}).json()["preview"]  # noqa: E731
+    rated = [r["rating"] for r in by("rating", desc=False) if r["rating"] is not None]
+    assert rated == sorted(rated)
+    names = [r["name"] for r in by("name")]
+    assert names == sorted(names)
+    contact = [(r["phone"] is not None) + (r["web"] is not None) for r in by("contact")]
+    assert contact == sorted(contact, reverse=True)
 
     v = client.post("/api/versions", headers=auth, json={"run_id": run["id"], "name": "test_v1", "filters": {}}).json()
     assert v["rows"] > 0
