@@ -22,7 +22,7 @@ from app.settings import get_settings
 
 router = APIRouter(prefix="/api/versions", tags=["versions"], dependencies=[Depends(current_user)])
 
-EXPORT_COLS = ["place_id", "name", "address", "area_jp", "area_en", "type_label", "status", "rating", "reviews",
+EXPORT_COLS = ["place_id", "name", "address", "area_jp", "area_en", "type_label", "type_label_jp", "status", "rating", "reviews",
                "pay", "phone", "web", "photos", "lat", "lng", "hex_id", "maps_uri", "keywords", "chain"]
 
 

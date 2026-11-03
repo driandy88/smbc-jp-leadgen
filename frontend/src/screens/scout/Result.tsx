@@ -4,7 +4,7 @@ import { HexMap, Outline } from "../../components/HexMap";
 import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct } from "../../lib/format";
-import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { FnbCheck, KeywordInsight } from "./Breakdown";
 import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
 import { binLayers, CAT_COLORS, DENSITY, Legend, quantileCuts } from "./charts";
 import { Filters, Profile, Run, Version } from "./types";
@@ -18,7 +18,6 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState<Version | null>(null);
   const [err, setErr] = useState("");
-  const [hover, setHover] = useState<string | null>(null);
   const [points, setPoints] = useState<Points | null>(null);
 
   useEffect(() => {
@@ -83,17 +82,16 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
 
       <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Merchant map · every place after filtering</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>hexes at res {run.base_res}</span></div>
-        <PlaceMap points={points} outline={outline} res={run.base_res} highlight={hover} />
+        <PlaceMap points={points} outline={outline} res={run.base_res} />
       </div>
 
       <MerchantMix p={p} />
-      <HexBreakdown p={p} res={run.base_res} onHover={setHover} />
       <Contactability p={p} />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch" }}>
         <div className="card" style={{ flex: "1 1 420px", minWidth: 0, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span className="lbl">Place density · res {run.base_res}</span><span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{p.areas.length} areas</span></div>
-          <HexMap outline={outline} layers={layers} height={440} ariaLabel="Hex map of place density" highlight={hover ? { cell: hover, text: `${p.hexes?.rows.find((r: { h: string }) => r.h === hover)?.places ?? ""}` } : p.top_cell ? { cell: p.top_cell.h, text: `${p.top_cell.n}` } : null} />
+          <HexMap outline={outline} layers={layers} height={440} ariaLabel="Hex map of place density" highlight={p.top_cell ? { cell: p.top_cell.h, text: `${p.top_cell.n}` } : null} />
           <Legend title="places / cell" colors={DENSITY} labels={`0 · ${cuts.map((c) => Math.round(c)).join(" · ")}+`} />
         </div>
 

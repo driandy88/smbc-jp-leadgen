@@ -5,7 +5,7 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, pct, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { FnbCheck, HexBreakdown, KeywordInsight } from "./Breakdown";
+import { FnbCheck, KeywordInsight } from "./Breakdown";
 import { Contactability, Insights, MerchantMix } from "./MerchantSummary";
 import { binLayers, CASH, CAT_COLORS, Legend, PRICE_COLORS, VBars } from "./charts";
 import { Profile, Version } from "./types";
@@ -102,7 +102,6 @@ export function Analysis({ onDataChip }: { onDataChip: (s: string) => void }) {
 
 function Report({ a, versionId, name, outline }: { a: Analysis; versionId: number; name: string; outline: Outline | null }) {
   const [points, setPoints] = useState<Points | null>(null);
-  const [hover, setHover] = useState<string | null>(null);
   useEffect(() => { api<Points>(`/api/versions/${versionId}/points`).then(setPoints); }, [versionId]);
   const p = a.profile;
   const s = a.summary;
@@ -126,11 +125,10 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
       <Insights p={p} />
 
       <Card title="Merchant map · every place in this version" meta={`hexes at res ${p.run.base_res}`}>
-        <PlaceMap points={points} outline={outline} res={p.run.base_res} highlight={hover} />
+        <PlaceMap points={points} outline={outline} res={p.run.base_res} />
       </Card>
 
       <MerchantMix p={p} />
-      <HexBreakdown p={p} res={p.run.base_res} onHover={setHover} />
       <Contactability p={p} />
       <KeywordInsight p={p} />
       <FnbCheck p={p} />

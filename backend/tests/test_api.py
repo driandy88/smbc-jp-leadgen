@@ -168,3 +168,9 @@ def test_web_kind():
     assert web_kind("https://beauty.hotpepper.jp/slnH0001/") == "portal"
     assert web_kind("https://izakaya-x.jp/") == "own"
     assert web_kind(None) is None
+
+
+def test_type_labels_are_english():
+    assert records.type_en("ramen_restaurant") == "Ramen restaurant"
+    assert records.type_en("japanese_izakaya_restaurant") == "Izakaya"
+    assert records.type_en(None) == "Other"

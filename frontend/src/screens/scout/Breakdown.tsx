@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { fmt, money, pct } from "../../lib/format";
 import { Profile } from "./types";
 
@@ -73,97 +72,6 @@ export function KeywordYield({ p }: { p: Profile }) {
         </div>
       </div>
       <span style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5 }}>A term with a low "only this" share mostly re-finds places other terms already cover; dropping it saves calls.</span>
-    </Card>
-  );
-}
-
-const HEX_SORT = [
-  { k: "places", l: "MERCHANTS" }, { k: "fnb", l: "F&B" }, { k: "related", l: "RELATED" }, { k: "contact", l: "CONTACTABLE" }, { k: "leads", l: "LEADS" },
-] as const;
-
-/** Merchants and F&B merchants per hex at the base resolution, every hex, sortable. */
-export function HexBreakdown({ p, res, onHover }: { p: Profile; res: number; onHover?: (h: string | null) => void }) {
-  const [sort, setSort] = useState<string>("places");
-  const hx = p.hexes;
-  if (!hx) return null;
-  const rows = [...hx.rows].sort((x: any, y: any) => (y[sort] ?? 0) - (x[sort] ?? 0) || y.places - x.places);
-  const fnbTotal = p.fnb?.core?.n ?? 0;
-  const stats = [
-    { v: fmt(hx.cells), l: "hexes with merchants" },
-    { v: hx.median.toFixed(hx.median % 1 ? 1 : 0), l: "merchants per hex · median", s: `p90 ${fmt(hx.p90)} · max ${fmt(hx.max)}` },
-    ...(hx.fnb_half_cells != null ? [
-      { v: hx.fnb_median.toFixed(hx.fnb_median % 1 ? 1 : 0), l: "F&B per hex · median", s: `max ${fmt(hx.fnb_max)} · ${fmt(hx.no_fnb_cells)} hexes with none` },
-      { v: fmt(hx.fnb_half_cells), l: "hexes hold 50% of F&B", s: `${fmt(hx.fnb_80_cells)} hexes hold 80% of ${fmt(fnbTotal)}`, accent: true },
-    ] : []),
-    { v: pct(hx.top10_share, 0), l: `of merchants in top ${hx.top10_cells} hexes (10%)` },
-  ];
-  const dist: any[] = hx.dist || [];
-  const maxD = Math.max(1, ...dist.flatMap((d) => [d.merchants, d.fnb]));
-
-  return (
-    <Card title={`Merchants per hex · res ${res}`} meta={`all ${fmt(hx.cells)} hexes · click a column to sort · hover to locate`}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", borderTop: "1px solid #1E1E1C", borderBottom: "1px solid #D8D3C7" }}>
-        {stats.map((s, i) => (
-          <div key={s.l} style={{ padding: "10px 10px 10px 0", paddingLeft: i ? 10 : 0, borderLeft: i ? "1px solid #E2DDD1" : undefined, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span className="m" style={{ fontSize: 20, color: (s as any).accent ? "#C8442B" : undefined }}>{s.v}</span><span style={{ fontSize: 11 }}>{s.l}</span>
-            {(s as any).s && <span style={{ fontSize: 10.5, color: "#5E5A52" }}>{(s as any).s}</span>}
-          </div>
-        ))}
-      </div>
-
-      {dist.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <span className="lbl" style={{ color: "#5E5A52" }}>How many hexes hold … merchants</span>
-            <span style={{ display: "flex", gap: 14, fontSize: 11, color: "#5E5A52" }}>
-              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ width: 9, height: 9, background: "#A39B88" }} />all merchants</span>
-              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ width: 9, height: 9, background: "#1E1E1C" }} />F&B merchants</span>
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 96, borderBottom: "1px solid #1E1E1C" }}>
-            {dist.map((d) => (
-              <div key={d.l} style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 2, height: "100%" }}>
-                {[["merchants", "#A39B88"], ["fnb", "#1E1E1C"]].map(([k, c]) => (
-                  <div key={k} title={`${d[k]} hexes with ${d.l} ${k === "fnb" ? "F&B " : ""}merchants`} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 2, height: "100%" }}>
-                    <span className="m" style={{ fontSize: 9, color: "#5E5A52" }}>{d[k] || ""}</span>
-                    <span style={{ width: "100%", height: `${(100 * d[k]) / maxD}%`, background: c, minHeight: d[k] ? 1 : 0 }} />
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>{dist.map((d) => <span key={d.l} className="m" style={{ flex: 1, textAlign: "center", fontSize: 9.5, color: "#5E5A52" }}>{d.l}</span>)}</div>
-        </div>
-      )}
-
-      <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 960, maxHeight: 460, overflowY: "auto" }}>
-          <div className="m hex-grid" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0", position: "sticky", top: 0, background: "#F8F6F0", zIndex: 1 }}>
-            <span>HEX</span><span>AREA</span>
-            {HEX_SORT.slice(0, 4).map((c) => (
-              <button key={c.k} className="th-sort" aria-sort={sort === c.k ? "descending" : "none"} onClick={() => setSort(c.k)}>{c.l}{sort === c.k ? " ↓" : ""}</button>
-            ))}
-            <span>MERCHANT TYPES</span><span>CASH/NONE</span><span>★</span>
-            <button className="th-sort" aria-sort={sort === "leads" ? "descending" : "none"} onClick={() => setSort("leads")}>LEADS{sort === "leads" ? " ↓" : ""}</button>
-          </div>
-          {rows.map((r: any) => (
-            <div key={r.h} className="hex-grid hex-row" onMouseEnter={() => onHover?.(r.h)} onMouseLeave={() => onHover?.(null)}>
-              <span className="m" style={{ fontSize: 10.5 }}>{r.h}</span>
-              <span className="jp">{r.area}</span>
-              <span className="m">{fmt(r.places)}</span>
-              <span className="m">{fmt(r.fnb)} <span style={{ color: "#8A8478", fontSize: 10 }}>{Math.round((100 * r.fnb) / r.places)}%</span></span>
-              <span className="m" style={{ color: r.related ? "#A8371F" : "#8A8478" }}>{r.related != null ? fmt(r.related) : "—"}</span>
-              <span className="m">{r.contact != null ? <>{fmt(r.contact)} <span style={{ color: "#8A8478", fontSize: 10 }}>{Math.round((100 * r.contact) / r.places)}%</span></> : "—"}</span>
-              <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {r.types.map((t: { t: string; n: number }) => <span key={t.t} className="jp type-chip">{t.t} <span className="m">{t.n}</span></span>)}
-              </span>
-              <span className="m">{pct(r.cash_pct, 0)}</span>
-              <span className="m">{r.median_rating ?? "—"}</span>
-              <span className="m" style={{ color: r.leads ? "#C8442B" : "#8A8478" }}>{fmt(r.leads)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </Card>
   );
 }
