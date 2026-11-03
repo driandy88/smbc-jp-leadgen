@@ -37,6 +37,7 @@ GROUPS = [
         ("担々麺", "Tantanmen", ""),
     ]),
     ("washoku", "Washoku", [
+        ("和食", "Washoku", "Japanese restaurant, umbrella"),
         ("寿司", "Sushi", ""),
         ("回転寿司", "Kaiten sushi", "conveyor, chains"),
         ("天ぷら", "Tempura", ""),
@@ -68,6 +69,7 @@ GROUPS = [
         ("ケーキ", "Cake shop", "patisserie"),
         ("和菓子", "Wagashi", "Japanese sweets"),
         ("甘味処", "Kanmidokoro", "tea & sweets"),
+        ("抹茶", "Matcha", "matcha cafes & tea stands"),
         ("かき氷", "Kakigori", "shaved ice"),
         ("クレープ", "Crepe", "takeaway stand"),
     ]),
@@ -100,6 +102,9 @@ GROUPS = [
 
 # Quick packs: one click selects the set
 PACKS = [
+    ("core", "Core categories", "One umbrella term per category; each pulls in its sub-genres "
+     "(e.g. 居酒屋 → yakitori, standing bars, kushikatsu; 和食 → soba, tempura, kappo)",
+     ["レストラン", "居酒屋", "バー", "スナック", "カフェ", "ラーメン", "和食", "焼肉", "寿司", "抹茶", "パン屋"]),
     ("nightlife", "Nightlife core", "Evening drinking venues: high card-terminal intent",
      ["居酒屋", "大衆酒場", "立ち飲み", "焼き鳥", "串カツ", "バー", "スナック", "ホルモン"]),
     ("osaka", "Osaka staples", "Konamon and kushikatsu counters, often cash-only",
