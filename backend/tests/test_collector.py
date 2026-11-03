@@ -130,3 +130,19 @@ def test_real_client_retries_errors(monkeypatch):
 
     replies[:] = [pd.DataFrame()] * 3
     assert rp.search("居酒屋", (34.6, 135.4, 34.7, 135.5), None).status == "ERROR"
+
+
+def test_estimate_is_json_safe_with_postgres_decimals():
+    # Postgres AVG() returns Decimal; the estimate is stored in a JSON column on the run
+    import json
+    from decimal import Decimal
+
+    from app.services import pricing
+
+    class Db:
+        def scalar(self, q):
+            return Decimal("1234.5678")
+
+    d = pricing.duration(Db(), 700)
+    json.dumps(d)
+    assert d["latency_s"] == 1.23 and d["minutes"] > 0

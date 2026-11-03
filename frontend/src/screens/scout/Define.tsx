@@ -105,8 +105,8 @@ export function Define({ cfg, lastRun, onStarted, onOpenRun }: { cfg: ScoutConfi
       const r = await api<{ id: number }>("/api/runs", { body: { keywords: d.kw, areas: selected, base_res: d.baseRes, max_res: maxRes, mock: d.mock } });
       onStarted(r.id);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Could not start the run");
-      setConfirm(false);
+      // Keep the dialog open so the reason is seen where the button was pressed
+      setErr(`${e instanceof ApiError ? e.message : "Could not start the run"}. Nothing was run or billed.`);
     } finally {
       setBusy(false);
     }
@@ -385,8 +385,9 @@ export function Define({ cfg, lastRun, onStarted, onOpenRun }: { cfg: ScoutConfi
               {est.duration && <> Takes about <b className="m">{mins(est.duration.minutes)}</b> with {est.duration.workers} searches in parallel (one at a time: {mins(est.duration.minutes_sequential)}).</>}
             </div>
             <span style={{ fontSize: 12, color: "#5E5A52" }}>Every call is logged in the billing ledger. You can cancel at any time; calls already made are billed.</span>
+            {err && <span role="alert" style={{ fontSize: 13, color: "#B33A3A", border: "1px solid #B33A3A", padding: "8px 10px" }}>{err}</span>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button className="btn2" onClick={() => setConfirm(false)}>Back</button>
+              <button className="btn2" onClick={() => { setConfirm(false); setErr(""); }}>Back</button>
               <button className="btn" onClick={start} disabled={busy}>Run for ≈ {money(est.expected_local)}</button>
             </div>
           </div>
