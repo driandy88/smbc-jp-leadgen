@@ -195,3 +195,13 @@ def test_segments_and_districts():
     assert districts.segment("hotel", "no") == "Not F&B"
     en, jp = districts.assign([34.7025, 34.6687, 34.80], [135.4959, 135.5013, 135.60], ["Kita", "Chuo", "Kita"])
     assert en == ["Umeda", "Dotonbori", "Kita · other"] and jp[0] == "梅田"
+
+
+def test_summary_explanation(client, auth):
+    # The Summary step's AI read: rule-based on mock runs, same shape as the model's output
+    runs = client.get("/api/runs", headers=auth).json()
+    done = next(r for r in runs if r["status"] == "done")
+    e = client.post(f"/api/runs/{done['id']}/explain", headers=auth, json={}).json()
+    assert e["headline"] and e["summary"] and 1 <= len(e["points"]) <= 5
+    assert all(p["topic"] and p["text"] for p in e["points"])
+    assert client.post(f"/api/runs/{done['id']}/explain", headers=auth, json={}).json() == e  # cached

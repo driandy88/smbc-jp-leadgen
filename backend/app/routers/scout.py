@@ -1,5 +1,6 @@
 """Scout: define a retrieval, run it, filter the result."""
 
+import json
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import current_user
 from app.db import get_db
 from app.models import ApiCall, Place, Run, RunCell, RunLog
-from app.services import executor, keywords, pricing, records, regions
+from app.services import executor, keywords, pricing, records, regions, summary
 from app.services.analysis import points, profile
 from app.services.collector import log, queue_run
 from app.settings import get_settings
@@ -231,6 +232,38 @@ def run_result(run_id: int, filters: dict | None = None, db: Session = Depends(g
                        "cash_or_unknown_pct": round(100 * g["pay"].isin(["cash", "none"]).mean(), 1),
                        "median_rating": _med(g["rating"]), "median_reviews": _med(g["reviews"])})
     return {"count": len(kept), "profile": p, "cities": cities, "run": _run_out(run)}
+
+
+# One explanation per run and filter set, so revisiting the Summary step does not pay again
+_EXPLAINED: dict[str, dict] = {}
+
+
+@router.post("/runs/{run_id}/explain")
+def explain_run(run_id: int, filters: dict | None = None, db: Session = Depends(get_db)):
+    """AI read of the filtered set for the Summary step (rule-based for mock runs)."""
+    run = db.get(Run, run_id) or _404()
+    key = f"{run_id}:{json.dumps(filters or {}, sort_keys=True, default=str)}"
+    if key in _EXPLAINED:
+        return _EXPLAINED[key]
+    df = records.frame(run_id)
+    kept, _ = records.apply(df, records.default_filters(df) | (filters or {})) if not df.empty else (df, [])
+    if kept.empty:
+        raise HTTPException(422, "No places left after filtering")
+    p = json.loads(json.dumps(profile(kept, _run_out(run), kw_stats(db, run_id)), default=str))
+    try:
+        out, call = summary.explain(p, mock=run.mock)
+    except Exception as e:  # noqa: BLE001  the numbers still stand without the narrative
+        out = summary.explain_rules(p) | {"source": f"rules (Vertex error: {type(e).__name__})"}
+        call = {"mock": False, "status": f"ERROR:{type(e).__name__}", "tokens_in": 0, "tokens_out": 0,
+                "latency_ms": 0, "cost_usd": 0.0}
+    if not call["mock"]:
+        db.add(ApiCall(run_id=run.id, api="vertex.claude", sku=get_settings().claude_model, mock=False,
+                       status=call["status"], latency_ms=call["latency_ms"], cost_usd=call["cost_usd"],
+                       tokens_in=call["tokens_in"], tokens_out=call["tokens_out"]))
+        db.commit()
+    if not out["source"].startswith("rules (Vertex error"):
+        _EXPLAINED[key] = out
+    return out
 
 
 @router.post("/runs/{run_id}/points")

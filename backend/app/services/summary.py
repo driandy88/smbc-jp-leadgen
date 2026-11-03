@@ -1,8 +1,8 @@
 """AI summary of a version profile: Claude Sonnet on Vertex AI, or a rule-based brief in mock mode.
 
 Both produce the same structured brief (headline, key numbers, where / who / when, actions,
-watch-outs) so the UI renders one layout. Only aggregate statistics are sent (plus the top-lead
-names already shown in the UI), never raw place JSON.
+watch-outs) so the UI renders one layout; `explain` is the short read shown on the Summary step.
+Only aggregate statistics are sent, never raw place JSON.
 """
 
 import json
@@ -87,11 +87,8 @@ def _prompt_payload(p: dict) -> dict:
     return out
 
 
-def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
-    """Returns (summary, call record for billing)."""
-    if mock:
-        return rule_based(profile), {"mock": True, "status": "OK", "tokens_in": 0, "tokens_out": 0,
-                                     "latency_ms": 0, "cost_usd": 0.0}
+def _claude(system: str, schema: dict, payload: dict, max_tokens: int, effort: str) -> tuple[dict | None, dict]:
+    """One structured Claude call on Vertex. Returns (parsed JSON or None if refused, call record for billing)."""
     s = get_settings()
     from anthropic import AnthropicVertex
 
@@ -99,20 +96,83 @@ def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
     t0 = time.perf_counter()
     msg = client.messages.create(
         model=s.claude_model,
-        max_tokens=4000,
-        system=SYSTEM,
-        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-        messages=[{"role": "user", "content":
-                   "Profile statistics (JSON):\n" + json.dumps(_prompt_payload(profile), ensure_ascii=False)}],
+        max_tokens=max_tokens,
+        system=system,
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+        messages=[{"role": "user", "content": "Profile statistics (JSON):\n" + json.dumps(payload, ensure_ascii=False)}],
     )
     call = {"mock": False, "status": msg.stop_reason, "tokens_in": msg.usage.input_tokens,
             "tokens_out": msg.usage.output_tokens, "latency_ms": int((time.perf_counter() - t0) * 1000),
             "cost_usd": claude_usd(msg.usage.input_tokens, msg.usage.output_tokens)}
     if msg.stop_reason == "refusal":
-        logger.warning("summary refused: %s", msg.stop_details)
+        logger.warning("model declined: %s", msg.stop_details)
+        return None, call
+    return json.loads(next((b.text for b in msg.content if b.type == "text"), "{}")), call
+
+
+MOCK_CALL = {"mock": True, "status": "OK", "tokens_in": 0, "tokens_out": 0, "latency_ms": 0, "cost_usd": 0.0}
+
+
+def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
+    """Returns (summary, call record for billing)."""
+    if mock:
+        return rule_based(profile), MOCK_CALL
+    out, call = _claude(SYSTEM, SCHEMA, _prompt_payload(profile), 4000, "medium")
+    if out is None:
         return rule_based(profile) | {"source": "rules (model declined)"}, call
-    text = next((b.text for b in msg.content if b.type == "text"), "{}")
-    return json.loads(text) | {"source": s.claude_model}, call
+    return out | {"source": get_settings().claude_model}, call
+
+
+EXPLAIN_SYSTEM = """You brief a sales manager at a Japanese bank's merchant-acquiring team (card terminals, \
+QR/IC payments) on a list of food & beverage merchants pulled from Google Maps, before it is saved.
+Write a short, plain-English read of the numbers: what is in the list, how reachable it is, how
+cash-heavy it is, where it is concentrated, and whether the search was efficient.
+
+Rules:
+- Every sentence cites a number from the data. No adjectives without a number.
+- Use English ward, district and type names. Name a search term in English with the Japanese term in
+  brackets (kw_en). Do not use "priority leads" or any lead score.
+- Payment info is self-reported and often missing; say "cash-only or no card info".
+- There is no email in Google data; never claim email reach.
+- Short sentences. No filler, no restating definitions."""
+
+EXPLAIN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["headline", "summary", "points"],
+    "properties": {
+        "headline": {"type": "string", "description": "≤ 14 words, the single most useful finding"},
+        "summary": {"type": "string", "description": "2-3 sentences: what this list is and what it means for sales"},
+        "points": {"type": "array", "description": "3-5 findings, most useful first", "items": {
+            "type": "object", "additionalProperties": False, "required": ["topic", "text"],
+            "properties": {"topic": {"type": "string", "description": "1-2 words, e.g. Reach, Cash, Density, Mix, Search"},
+                           "text": {"type": "string"}}}},
+    },
+}
+
+
+def explain(profile: dict, mock: bool) -> tuple[dict, dict]:
+    """Short narrative for the Summary step. Returns (explanation, call record for billing)."""
+    if mock:
+        return explain_rules(profile), MOCK_CALL
+    out, call = _claude(EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, _prompt_payload(profile), 1500, "low")
+    if out is None:
+        return explain_rules(profile) | {"source": "rules (model declined)"}, call
+    return out | {"source": get_settings().claude_model}, call
+
+
+def explain_rules(p: dict) -> dict:
+    """The same shape from the rule-based insights, for mock runs and when the model is unavailable."""
+    ins = p.get("insights") or []
+    fnb, c = p.get("fnb") or {}, p.get("contact") or {}
+    n_fnb = fnb.get("core", {}).get("n", 0) + fnb.get("related", {}).get("n", 0)
+    return {
+        "headline": f"{n_fnb:,} F&B merchants, {c.get('either_pct', 0):.0f}% reachable by phone or web",
+        "summary": f"{p['overview']['cash_or_unknown_pct']}% of operational merchants are cash-only or show no card info; "
+                   f"{(c.get('cash_callable') or {}).get('n', 0):,} of them list a phone number.",
+        "points": [{"topic": i["k"], "text": i["t"]} for i in ins[:5]],
+        "source": "rules (mock)",
+    }
 
 
 PITCH = {

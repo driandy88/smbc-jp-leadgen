@@ -20,58 +20,6 @@ const Bar = ({ v, max, c = "#1E1E1C" }: { v: number; max: number; c?: string }) 
   <span style={{ height: 6, background: "#E2DDD1", display: "block" }}><span style={{ display: "block", height: 6, width: `${(100 * v) / Math.max(1, max)}%`, background: c }} /></span>
 );
 
-/** What kind of F&B is out there, in business segments, with reach and cash share per segment. */
-export function FnbSegments({ p }: { p: Profile }) {
-  const [open, setOpen] = useState<string | null>(null);
-  const segs: any[] = p.fnb_segments || [];
-  if (!segs.length) return null;
-  const core = segs.filter((s) => !s.segment.startsWith("F&B-related"));
-  const total = core.reduce((a, s) => a + s.n, 0);
-  const max = Math.max(...segs.map((s) => s.n));
-
-  return (
-    <Card title="F&B landscape · what kind of venues, and how many" meta={`${fmt(total)} F&B merchants · click a segment for its types`}>
-      <div style={{ display: "flex", height: 20, gap: 2 }}>
-        {core.map((s, i) => <span key={s.segment} title={`${s.segment} · ${fmt(s.n)}`} style={{ width: `${(100 * s.n) / Math.max(1, total)}%`, background: SEG_C[i % SEG_C.length], minWidth: 3 }} />)}
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 900 }}>
-          <div className="m seg-grid" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}>
-            <span>SEGMENT</span><span>MERCHANTS</span><span>SHARE</span><span title="phone or website">REACHABLE</span><span title="operational, cash-only or no card info">CASH / NO CARD</span><span>★ MEDIAN</span><span>CHAINS</span><span>MAIN TYPES</span>
-          </div>
-          {segs.map((s, i) => {
-            const isOpen = open === s.segment;
-            const related = s.segment.startsWith("F&B-related");
-            return (
-              <Fragment key={s.segment}>
-                <button className="seg-grid mix-row" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : s.segment)} style={{ opacity: related ? 0.7 : 1 }}>
-                  <span style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-                    <span style={{ width: 9, height: 9, flex: "0 0 auto", background: related ? "#C9C2B2" : SEG_C[i % SEG_C.length] }} />{isOpen ? "▾" : "▸"} {s.segment}
-                  </span>
-                  <span style={{ display: "flex", flexDirection: "column", gap: 3 }}><span className="m">{fmt(s.n)}</span><Bar v={s.n} max={max} /></span>
-                  <span className="m">{pct(s.pct, 0)}</span>
-                  <span className="m" style={{ color: s.reach_pct < 80 ? "#A8371F" : undefined }}>{pct(s.reach_pct, 0)}</span>
-                  <span className="m" style={{ color: s.cash_pct >= 60 ? "#C8442B" : undefined }}>{pct(s.cash_pct, 0)}</span>
-                  <span className="m">{s.median_rating ?? "—"}</span>
-                  <span className="m" style={{ color: "#5E5A52" }}>{fmt(s.chains)}</span>
-                  <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{s.types.slice(0, 3).map((t: any) => <span key={t.t} className="type-chip">{t.t} <span className="m">{t.n}</span></span>)}</span>
-                </button>
-                {isOpen && (
-                  <div style={{ padding: "10px 0 14px 18px", background: "#F3F0E8", borderBottom: "1px solid #E2DDD1", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {s.types.map((t: any) => <span key={t.t} className="type-chip" style={{ fontSize: 12 }}>{t.t} <span className="m">{t.n}</span></span>)}
-                  </div>
-                )}
-              </Fragment>
-            );
-          })}
-        </div>
-      </div>
-      <span style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5 }}>Segments group Google's place types into how a sales team sells. Cash / no card counts operational merchants that are cash-only or list no card payment.</span>
-    </Card>
-  );
-}
-const SEG_C = ["#1E1E1C", "#C8442B", "#6E685C", "#A39B88", "#5E7D4A", "#3E5A63", "#D48E78", "#8E9EA3", "#C9C2B2"];
-
 /** The densest neighbourhoods, named, as merchants per km² (no hexes). */
 export function Hotspots({ p }: { p: Profile }) {
   const hs: any[] = p.hotspots || [];
