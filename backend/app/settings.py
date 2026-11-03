@@ -48,6 +48,13 @@ class Settings:
     monthly_budget: float = field(default_factory=lambda: float(_env("MONTHLY_BUDGET", "1300")))
 
     vertex_region: str = field(default_factory=lambda: _env("VERTEX_REGION", "global"))
+    # AI summaries: "gemini" (Google's model on Vertex, on by default) or "claude" (needs Model Garden enablement)
+    ai_provider: str = field(default_factory=lambda: _env("AI_PROVIDER", "gemini"))
+    gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.5-flash"))
+    gemini_region: str = field(default_factory=lambda: _env("GEMINI_REGION", "global"))
+    # List price per million tokens; thinking tokens bill as output. Check the Vertex pricing page.
+    gemini_usd_per_mtok_in: float = field(default_factory=lambda: float(_env("GEMINI_USD_PER_MTOK_IN", "0.3")))
+    gemini_usd_per_mtok_out: float = field(default_factory=lambda: float(_env("GEMINI_USD_PER_MTOK_OUT", "2.5")))
     claude_model: str = field(default_factory=lambda: _env("CLAUDE_MODEL", "claude-sonnet-5-5"))
     # Sonnet 5.5 on Vertex, per 1M tokens
     claude_usd_per_mtok_in: float = field(default_factory=lambda: float(_env("CLAUDE_USD_PER_MTOK_IN", "2")))
@@ -74,6 +81,21 @@ class Settings:
                 f"?host=/cloudsql/{self.cloudsql_instance}"
             )
         return f"sqlite:///{REPO_ROOT / 'hexline.db'}"
+
+    @property
+    def llm_model(self) -> str:
+        return self.gemini_model if self.ai_provider == "gemini" else self.claude_model
+
+    @property
+    def llm_api(self) -> str:
+        """Ledger name for AI calls."""
+        return f"vertex.{self.ai_provider}"
+
+    @property
+    def llm_usd_per_mtok(self) -> tuple[float, float]:
+        if self.ai_provider == "gemini":
+            return self.gemini_usd_per_mtok_in, self.gemini_usd_per_mtok_out
+        return self.claude_usd_per_mtok_in, self.claude_usd_per_mtok_out
 
 
 @lru_cache

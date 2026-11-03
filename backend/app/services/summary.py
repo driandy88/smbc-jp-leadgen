@@ -1,4 +1,4 @@
-"""AI summary of a version profile: Claude Sonnet on Vertex AI, or a rule-based brief in mock mode.
+"""AI summary of a version profile: Gemini (default) or Claude on Vertex AI, or a rule-based brief in mock mode.
 
 Both produce the same structured brief (headline, key numbers, where / who / when, actions,
 watch-outs) so the UI renders one layout; `explain` is the short read shown on the Summary step.
@@ -9,7 +9,7 @@ import json
 import logging
 import time
 
-from app.services.pricing import claude_usd
+from app.services.pricing import llm_usd
 from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ Rules:
 - Rank, don't list: put the highest-yield area / segment first and say why it wins.
 - Pitch lines must be concrete and fit the segment (e.g. cash-only izakaya → low-fee terminal + QR).
 - Don't restate definitions or describe the charts. No filler like "it is important to".
-- Do not use "priority leads" or any lead score. Count plain things: F&B merchants, merchants reachable
+- Do not use "priority leads", any lead score, or the word "leads"; say merchants or prospects. Count plain things: F&B merchants, merchants reachable
   by phone or website, cash-only / no-card merchants, and cash / no-card merchants with a phone
   (areas[].callable, contact.cash_callable) as the call list.
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
@@ -87,8 +87,57 @@ def _prompt_payload(p: dict) -> dict:
     return out
 
 
+def _llm(system: str, schema: dict, payload: dict, max_tokens: int, effort: str) -> tuple[dict | None, dict]:
+    """One structured call to the configured model. Returns (parsed JSON or None if declined, call record)."""
+    return (_gemini if get_settings().ai_provider == "gemini" else _claude)(system, schema, payload, max_tokens, effort)
+
+
+def _vertex_schema(schema: dict) -> dict:
+    """JSON schema → Vertex's OpenAPI-style schema (upper-case types, no additionalProperties)."""
+    out = {k: v for k, v in schema.items() if k not in ("additionalProperties", "type", "properties", "items")}
+    if "type" in schema:
+        out["type"] = schema["type"].upper()
+    if "properties" in schema:
+        out["properties"] = {k: _vertex_schema(v) for k, v in schema["properties"].items()}
+    if "items" in schema:
+        out["items"] = _vertex_schema(schema["items"])
+    return out
+
+
+def _gemini(system: str, schema: dict, payload: dict, max_tokens: int, effort: str) -> tuple[dict | None, dict]:
+    s = get_settings()
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    host = "aiplatform.googleapis.com" if s.gemini_region == "global" else f"{s.gemini_region}-aiplatform.googleapis.com"
+    url = (f"https://{host}/v1/projects/{s.gcp_project}/locations/{s.gemini_region}"
+           f"/publishers/google/models/{s.gemini_model}:generateContent")
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": "Profile statistics (JSON):\n" + json.dumps(payload, ensure_ascii=False)}]}],
+        # The model thinks before answering and thinking counts against maxOutputTokens, so leave room
+        "generationConfig": {"maxOutputTokens": max_tokens * 4, "temperature": 0.3,
+                             "responseMimeType": "application/json", "responseSchema": _vertex_schema(schema)},
+    }
+    t0 = time.perf_counter()
+    r = AuthorizedSession(creds).post(url, json=body, timeout=180)
+    r.raise_for_status()
+    d = r.json()
+    u = d.get("usageMetadata") or {}
+    tokens_out = u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0)
+    cand = (d.get("candidates") or [{}])[0]
+    reason = cand.get("finishReason", "NONE")
+    call = {"mock": False, "status": reason, "tokens_in": u.get("promptTokenCount", 0), "tokens_out": tokens_out,
+            "latency_ms": int((time.perf_counter() - t0) * 1000), "cost_usd": llm_usd(u.get("promptTokenCount", 0), tokens_out)}
+    text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []) if not p.get("thought"))
+    if reason != "STOP" or not text:
+        logger.warning("gemini returned no answer: %s", reason)
+        return None, call
+    return json.loads(text), call
+
+
 def _claude(system: str, schema: dict, payload: dict, max_tokens: int, effort: str) -> tuple[dict | None, dict]:
-    """One structured Claude call on Vertex. Returns (parsed JSON or None if refused, call record for billing)."""
     s = get_settings()
     from anthropic import AnthropicVertex
 
@@ -103,7 +152,7 @@ def _claude(system: str, schema: dict, payload: dict, max_tokens: int, effort: s
     )
     call = {"mock": False, "status": msg.stop_reason, "tokens_in": msg.usage.input_tokens,
             "tokens_out": msg.usage.output_tokens, "latency_ms": int((time.perf_counter() - t0) * 1000),
-            "cost_usd": claude_usd(msg.usage.input_tokens, msg.usage.output_tokens)}
+            "cost_usd": llm_usd(msg.usage.input_tokens, msg.usage.output_tokens)}
     if msg.stop_reason == "refusal":
         logger.warning("model declined: %s", msg.stop_details)
         return None, call
@@ -117,10 +166,10 @@ def summarize(profile: dict, mock: bool) -> tuple[dict, dict]:
     """Returns (summary, call record for billing)."""
     if mock:
         return rule_based(profile), MOCK_CALL
-    out, call = _claude(SYSTEM, SCHEMA, _prompt_payload(profile), 4000, "medium")
+    out, call = _llm(SYSTEM, SCHEMA, _prompt_payload(profile), 4000, "medium")
     if out is None:
-        return rule_based(profile) | {"source": "rules (model declined)"}, call
-    return out | {"source": get_settings().claude_model}, call
+        return rule_based(profile) | {"source": "rules (model gave no answer)"}, call
+    return out | {"source": get_settings().llm_model}, call
 
 
 EXPLAIN_SYSTEM = """You brief a sales manager at a Japanese bank's merchant-acquiring team (card terminals, \
@@ -131,7 +180,7 @@ cash-heavy it is, where it is concentrated, and whether the search was efficient
 Rules:
 - Every sentence cites a number from the data. No adjectives without a number.
 - Use English ward, district and type names. Name a search term in English with the Japanese term in
-  brackets (kw_en). Do not use "priority leads" or any lead score.
+  brackets (kw_en). Do not use "priority leads", any lead score, or the word "leads".
 - Payment info is self-reported and often missing; say "cash-only or no card info".
 - There is no email in Google data; never claim email reach.
 - Short sentences. No filler, no restating definitions."""
@@ -155,10 +204,10 @@ def explain(profile: dict, mock: bool) -> tuple[dict, dict]:
     """Short narrative for the Summary step. Returns (explanation, call record for billing)."""
     if mock:
         return explain_rules(profile), MOCK_CALL
-    out, call = _claude(EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, _prompt_payload(profile), 1500, "low")
+    out, call = _llm(EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, _prompt_payload(profile), 1500, "low")
     if out is None:
-        return explain_rules(profile) | {"source": "rules (model declined)"}, call
-    return out | {"source": get_settings().claude_model}, call
+        return explain_rules(profile) | {"source": "rules (model gave no answer)"}, call
+    return out | {"source": get_settings().llm_model}, call
 
 
 def explain_rules(p: dict) -> dict:

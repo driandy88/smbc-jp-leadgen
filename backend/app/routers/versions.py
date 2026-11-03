@@ -122,7 +122,7 @@ def analyze(version_id: int, db: Session = Depends(get_db)):
         summary = rule_based(p) | {"source": f"rules (Vertex error: {type(e).__name__})"}
         call = {"mock": False, "status": f"ERROR:{type(e).__name__}", "tokens_in": 0, "tokens_out": 0,
                 "latency_ms": 0, "cost_usd": 0.0}
-    db.add(ApiCall(version_id=v.id, run_id=run.id, api="vertex.claude", sku=get_settings().claude_model,
+    db.add(ApiCall(version_id=v.id, run_id=run.id, api=get_settings().llm_api, sku=get_settings().llm_model,
                    mock=call["mock"], status=call["status"], latency_ms=call["latency_ms"],
                    cost_usd=call["cost_usd"], tokens_in=call["tokens_in"], tokens_out=call["tokens_out"]))
     v.analysis = {"profile": p, "summary": summary}

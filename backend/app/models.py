@@ -117,7 +117,7 @@ class ApiCall(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     run_id: Mapped[int | None] = mapped_column(Integer, index=True)
     version_id: Mapped[int | None] = mapped_column(Integer)
-    # places.searchText | vertex.claude
+    # places.searchText | vertex.gemini | vertex.claude
     api: Mapped[str] = mapped_column(String(40))
     sku: Mapped[str] = mapped_column(String(80))
     mock: Mapped[bool] = mapped_column(Boolean)

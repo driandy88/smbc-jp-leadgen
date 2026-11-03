@@ -89,7 +89,7 @@ export function Analysis({ onDataChip }: { onDataChip: (s: string) => void }) {
 
       {busy && (
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "40px 0", justifyContent: "center" }}>
-          <Squiggle w={160} /><span style={{ fontSize: 13, color: "#5E5A52" }}>Profiling {fmt(v?.rows)} rows{v?.mock ? "" : " and asking Claude"}…</span>
+          <Squiggle w={160} /><span style={{ fontSize: 13, color: "#5E5A52" }}>Profiling {fmt(v?.rows)} rows{v?.mock ? "" : " and asking the AI"}…</span>
         </div>
       )}
 
