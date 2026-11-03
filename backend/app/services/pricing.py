@@ -42,7 +42,8 @@ def call_latency_s(db: Session) -> float:
     recent = select(ApiCall.latency_ms).where(ApiCall.mock.is_(False), ApiCall.status == "OK",
                                               ApiCall.api == "places.searchText").order_by(ApiCall.id.desc()).limit(500)
     ms = db.scalar(select(func.avg(recent.subquery().c.latency_ms)))
-    return ms / 1000 if ms else DEFAULT_LATENCY_S
+    # Postgres returns AVG as Decimal, which the run's JSON estimate column cannot store
+    return float(ms) / 1000 if ms else DEFAULT_LATENCY_S
 
 
 def duration(db: Session, calls: int) -> dict:
