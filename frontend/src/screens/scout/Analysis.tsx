@@ -5,7 +5,7 @@ import { PlaceMap, Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { Hotspots, MainOverview, TopCategories } from "./Business";
+import { AreaView, MainOverview } from "./Business";
 import { Profile, Version } from "./types";
 
 type Analysis = { profile: Profile; summary: Brief };
@@ -192,14 +192,13 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
       <Section n="01" t="Main" />
       <MainOverview p={p} points={points} />
 
-      <Section n="02" t="Map & density" />
-      <Card title="Merchant map · every place in this version" meta="red circles = densest F&B neighbourhoods">
+      <Section n="02" t="Map" />
+      <Card title="F&B merchant map · every merchant in this version" meta="red circles = busiest neighbourhoods">
         <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
       </Card>
-      <Hotspots p={p} />
 
-      <Section n="03" t="Top categories" />
-      <TopCategories points={points} />
+      <Section n="03" t="Areas · density & top segments" />
+      <AreaView p={p} points={points} />
     </div>
   );
 }

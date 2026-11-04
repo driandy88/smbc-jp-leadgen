@@ -147,7 +147,15 @@ def _frame(run_id: int, unique_places: int) -> pd.DataFrame:
     df["chain"] = (branch & (brand.map(brand[branch].value_counts()).fillna(0) >= 3)) | (
         df["name"].map(df["name"].value_counts()) >= 6)
     df["segment"] = [districts.segment(t, f) for t, f in zip(df["type"], df["fnb"])]
-    df["district"], df["district_jp"] = districts.assign(df["lat"], df["lng"], df["area_en"])
+    # The ward a place really lies in. Searches spill over the edge of the selected wards, so places
+    # outside the selection get their own ward (e.g. Namba -> Chuo) instead of "Outside"
+    out = df["area"] == "outside"
+    df["ward"] = df["area"]
+    if out.any():
+        df.loc[out, "ward"] = regions.locate_many(df.loc[out, "lat"].tolist(), df.loc[out, "lng"].tolist())
+    df["ward_en"] = [a if not o else regions.area_name(w) for a, o, w in zip(df["area_en"], out, df["ward"])]
+    df["ward_selected"] = ~out
+    df["district"], df["district_jp"] = districts.assign(df["lat"], df["lng"], df["ward_en"])
     return df
 
 
@@ -166,7 +174,7 @@ def default_filters(df: pd.DataFrame) -> dict:
         "price": list(range(6)), "pay": list(PAY), "types": [], "svc": [], "qual": [],
         # Places from border cells that fall outside every selected area start excluded
         "areas": sorted(a for a in df["area"].unique().tolist() if a != "outside") if not df.empty else [],
-        "fnb": ["core", "related", "no"],
+        "fnb": ["core", "related"],
     }
 
 
@@ -204,7 +212,8 @@ def steps(f: dict) -> list[tuple[str, callable]]:
     min_rev = REVIEW_STEPS[min(f.get("revIdx", 0), len(REVIEW_STEPS) - 1)]
     return [
         ("Business status", lambda df: df["status"].isin(f.get("status", []))),
-        ("F&B check", lambda df: df["fnb"].isin(f.get("fnb", ["core", "related", "no"]))),
+        # Every list is F&B only: places that are not F&B are always dropped here
+        ("F&B check", lambda df: df["fnb"].isin([k for k in f.get("fnb", ["core", "related"]) if k != "no"])),
         ("Area", lambda df: df["area"].isin(f.get("areas", []))),
         ("Rating", lambda df: np.where(df["rating"].isna(), bool(f.get("unrated", True)),
                                        df["rating"].fillna(0) >= f.get("minRating", 0))),

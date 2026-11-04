@@ -71,3 +71,7 @@ input[type=range]{accent-color:#C8442B}
 .hx-in{animation:hxFade .5s ease-out both}
 .hx-stamp{animation:hxStamp .55s cubic-bezier(.2,.8,.2,1) both}
 .hx-ink{animation:hxInk .7s ease-out both}
+.area-row{display:grid;grid-template-columns:minmax(220px,1fr) 3fr;gap:20px;padding:16px 0;border-top:1px solid #E2DDD1}
+.area-row:first-of-type{border-top:1px solid #1E1E1C}
+.area-segs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.area-row{grid-template-columns:1fr}.area-segs{grid-template-columns:1fr}}

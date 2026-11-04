@@ -30,7 +30,11 @@ Rules:
 - Payment info is self-reported and often missing; treat "no payment info" as a lead to verify, not proof of cash-only.
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
-  and the duplicate rate (raw hits per unique place). Mention the F&B share if non-F&B hits are material.
+  and the duplicate rate (raw hits per unique place).
+- Every merchant in the data is F&B (restaurants, bars, cafés, plus F&B-related venues such as karaoke and
+  liquor shops). "Merchants" and "F&B merchants" are the same number; never contrast them.
+- areas[] are wards. Wards with selected=false were only searched along the border of the chosen wards:
+  give their counts, never a density, and say they are partly covered.
 - Use hotspots (named districts, merchants per km² at the core) for where to send reps, not hex ids.
   Use fnb_segments to say which kinds of F&B dominate and which are most cash-reliant.
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
@@ -183,6 +187,7 @@ Rules:
   brackets (kw_en). Do not use "priority leads", any lead score, or the word "leads".
 - Payment info is self-reported and often missing; say "cash-only or no card info".
 - There is no email in Google data; never claim email reach.
+- Every merchant in the list is F&B (incl. F&B-related venues); never contrast "merchants" with "F&B merchants".
 - Short sentences. No filler, no restating definitions."""
 
 EXPLAIN_SCHEMA = {
@@ -239,7 +244,8 @@ def kw_name(p: dict, kw: str) -> str:
 
 def rule_based(p: dict) -> dict:
     o, seg, q, pay = p["overview"], p["segments"], p["quality"], p["payment"]
-    areas = sorted([a for a in p["areas"] if a["code"] != "outside"], key=lambda a: -a.get("fnb_n", a["places"]))[:4]
+    areas = sorted([a for a in p["areas"] if a.get("selected", a["code"] != "outside")],
+                   key=lambda a: -a.get("fnb_n", a["places"]))[:4]
     top = areas[0] if areas else None
     bv = p.get("best_visit")
     peak = p["open_peak"]
@@ -262,7 +268,8 @@ def rule_based(p: dict) -> dict:
                      f"Start in {where_go}, where F&B is densest, and pitch card + QR acceptance." if where_go
                      else "Not enough data to rank areas."),
         "kpis": [
-            {"label": "F&B merchants", "value": f"{fnb_n:,}", "context": f"of {p['rows']:,} places found"},
+            {"label": "F&B merchants", "value": f"{fnb_n:,}",
+             "context": f"incl. {fnb.get('related', {}).get('n', 0):,} F&B-related venues"},
             {"label": "Cash-only / no card info", "value": f"{o['cash_or_unknown_pct']}%",
              "context": f"{pay['cash']['pct']}% explicit cash-only"},
             {"label": "Reachable by phone or web", "value": f"{contact.get('either_pct', o['phone_pct'])}%",
@@ -293,9 +300,6 @@ def rule_based(p: dict) -> dict:
                       "to book visits.",
                       f"Verify payment status on the {pay['none']['n']:,} venues with no payment info during visits."],
         "caveats": [f"{pay['none']['pct']}% have no payment info on Google; confirm on site.",
-                    *([f"{round(100 - fnb['core']['pct'], 1)}% of hits are not core F&B "
-                       f"(e.g. {', '.join(t['type'] for t in fnb['non_core_types'][:3])}); use the F&B check filter."]
-                      if fnb and fnb["core"]["pct"] < 98 else []),
                     *([f"Venues are concentrated: {', '.join(h['name'] for h in spots[:3])} hold "
                        f"{round(sum(h['share'] for h in spots[:3]))}% of places within 400 m of their cores."]
                       if spots else []),

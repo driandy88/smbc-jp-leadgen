@@ -9,13 +9,13 @@ import { Outline } from "./HexMap";
 export type Points = { cols: string[]; rows: unknown[][] };
 type Place = {
   lat: number; lng: number; name: string; type_label: string; rating: number | null; reviews: number | null;
-  pay: string; fnb: string; area_en: string; maps_uri: string | null; address: string; phone: string | null;
+  pay: string; fnb: string; area_en: string; ward_en?: string; maps_uri: string | null; address: string; phone: string | null;
   web: string | null; status: string; segment: string; district: string;
 };
 /** Densest neighbourhoods from the profile: merchants per km² in a 300 m circle, named by district. */
 export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number };
 
-type Mode = "contact" | "pay" | "fnb";
+type Mode = "contact" | "pay";
 const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [string, string, string][] }> = {
   contact: {
     label: "Contact", key: (p) => (p.phone && p.web ? "both" : p.phone ? "phone" : p.web ? "web" : "none"),
@@ -24,10 +24,6 @@ const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [s
   pay: {
     label: "Payment", key: (p) => p.pay,
     keys: [["cash", "Cash only", "#8F2D1B"], ["none", "No payment info", "#D48E78"], ["card", "Card", "#6E685C"], ["nfc", "Card + NFC / IC", "#3E5A63"]],
-  },
-  fnb: {
-    label: "F&B check", key: (p) => p.fnb,
-    keys: [["core", "F&B", "#1E1E1C"], ["related", "F&B-related", "#C8442B"], ["no", "Not F&B", "#C9C2B2"]],
   },
 };
 const PAY_LABEL: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
@@ -38,7 +34,7 @@ function popup(p: Place) {
   const link = (href: string | null, text: string) => (href && /^https?:\/\//.test(href) ? `<a href="${esc(href)}" target="_blank" rel="noreferrer">${text}</a>` : "");
   return `<div class="pm-pop">
     <b class="jp">${esc(p.name)}</b>
-    <span>${esc(p.type_label)} · ${esc(p.district || p.area_en)}</span>
+    <span>${esc(p.type_label)} · ${esc(p.district || p.ward_en || p.area_en)}</span>
     <span class="m">${p.rating != null ? `★${p.rating}` : "unrated"} · ${fmt(p.reviews)} reviews</span>
     <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
     ${p.address ? `<span class="jp" style="color:#5E5A52">${esc(p.address)}</span>` : ""}

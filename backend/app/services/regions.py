@@ -11,6 +11,7 @@ import math
 from functools import lru_cache
 
 import h3
+from shapely import STRtree, points
 from shapely.geometry import Point, mapping, shape
 from shapely.prepared import prep
 
@@ -137,6 +138,28 @@ class AreaLocator:
             if geom.contains(pt):
                 return code
         return None
+
+
+@lru_cache
+def _tree() -> tuple[list[str], STRtree]:
+    data = _load()
+    codes = list(data["areas"])
+    return codes, STRtree([data["areas"][c]["geom"] for c in codes])
+
+
+def locate_many(lat, lng) -> list[str]:
+    """The ward / municipality each point lies in, from every boundary we hold; 'outside' if none."""
+    codes, tree = _tree()
+    out = ["outside"] * len(lat)
+    pts = points([[x if x == x else 0.0, y if y == y else 0.0] for x, y in zip(lng, lat)])
+    for i, j in zip(*tree.query(pts, predicate="within")):
+        out[i] = codes[j]
+    return out
+
+
+def area_name(code: str) -> str:
+    a = _load()["areas"].get(code)
+    return (a["en"] or a["jp"]) if a else "Outside"
 
 
 def _km2(geom) -> float:

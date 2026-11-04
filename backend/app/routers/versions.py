@@ -188,7 +188,7 @@ def analyze(version_id: int, db: Session = Depends(get_db)):
 
 def _frames(run_ids: list[int]) -> pd.DataFrame:
     parts = [records.frame(i).assign(run_id=i) for i in run_ids]
-    parts = [d for d in parts if not d.empty]
+    parts = [d[d["fnb"] != "no"] for d in parts if not d.empty]  # versions saved before F&B-only kept them
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
 
 

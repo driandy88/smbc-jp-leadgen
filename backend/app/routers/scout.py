@@ -297,7 +297,7 @@ def _options(df) -> dict:
     types = df.groupby(["type", "type_label"]).size().sort_values(ascending=False)
     return {
         "status": [{"k": k, "l": l, "n": int((df["status"] == k).sum())} for k, l in records.STATUS.items()],
-        "fnb": [{"k": k, "l": l, "n": int((df["fnb"] == k).sum())} for k, l in records.FNB_LABEL.items()],
+        "fnb": [{"k": k, "l": l, "n": int((df["fnb"] == k).sum())} for k, l in records.FNB_LABEL.items() if k != "no"],
         "price": [{"k": i, "l": l, "n": int((df["price"] == i).sum())} for i, l in enumerate(records.PRICE_BANDS)],
         "pay": [{"k": k, "l": l, "n": int((df["pay"] == k).sum())} for k, l in records.PAY.items()],
         "types": [{"k": t, "l": l, "n": int(n)} for (t, l), n in types.head(16).items()],

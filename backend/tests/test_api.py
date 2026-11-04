@@ -282,3 +282,32 @@ def test_combine_versions_dedupes_and_keeps_sources(client, auth):
     # A combined version can itself be combined
     cc = client.post("/api/versions/combine", headers=auth, json={"version_ids": [c["id"], va["id"]], "name": "combo_abc"}).json()
     assert cc["rows"] == c["rows"] and cc["duplicates"] == va["rows"]
+
+
+def test_lists_are_fnb_only_and_spillover_gets_its_real_ward(client, auth):
+    run = client.post("/api/runs", headers=auth, json={"keywords": ["居酒屋", "カフェ"], "areas": AREAS,
+                                                       "base_res": 8, "max_res": 9, "mock": True}).json()
+    for _ in range(300):
+        if client.get(f"/api/runs/{run['id']}", headers=auth).json()["status"] not in ("queued", "running"):
+            break
+        time.sleep(0.5)
+    df = records.frame(run["id"])
+    out = df[df["area"] == "outside"]
+    assert len(out) and (out["ward"] != "27128").all() and (out["ward_en"] != "Outside").any()
+    assert (df.loc[df["area"] != "outside", "ward_en"] == "Chuo").all()
+
+    # Asking for non-F&B still returns F&B only, and the option is not offered
+    f = client.post(f"/api/runs/{run['id']}/filter", headers=auth,
+                    json={"fnb": ["core", "related", "no"], "areas": ["27128", "outside"]}).json()
+    assert "no" not in {o["k"] for o in f["options"]["fnb"]}
+    v = client.post("/api/versions", headers=auth, json={"run_id": run["id"], "name": "fnb_only_v",
+                                                         "filters": {"fnb": ["core", "related", "no"], "areas": ["27128", "outside"]}}).json()
+    pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
+    fnb = pts["cols"].index("fnb")
+    assert len(pts["rows"]) == v["rows"] and all(r[fnb] != "no" for r in pts["rows"])
+
+    p = client.post(f"/api/versions/{v['id']}/analyze", headers=auth).json()["profile"]
+    assert p["fnb"]["no"]["n"] == 0 and sum(a["places"] for a in p["areas"]) == p["rows"]
+    chuo = next(a for a in p["areas"] if a["en"] == "Chuo")
+    assert chuo["selected"] and chuo["per_km2"]
+    assert all(a["per_km2"] is None for a in p["areas"] if not a["selected"])

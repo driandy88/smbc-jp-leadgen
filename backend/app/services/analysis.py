@@ -42,7 +42,7 @@ def _priority(op: pd.DataFrame) -> pd.Series:
             & (op["rating"].fillna(0) >= 3.5) & op["phone"].notna())
 
 
-POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "hex_id",
+POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "ward_en", "hex_id",
               "maps_uri", "address", "phone", "web", "status", "price"]
 
 
@@ -73,12 +73,15 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
     seg_new = op[op["reviews"].fillna(0) < 10]
 
     areas = []
-    for code, g in df.groupby("area"):
-        km2 = regions.area(code)["geom"] if code != "outside" else None
-        km2 = regions._km2(km2) if km2 is not None else None
+    # By the ward each place lies in. Wards outside the selection were only searched along the border,
+    # so they get counts but no density
+    for code, g in df.groupby("ward"):
+        selected = bool(g["ward_selected"].all())
+        km2 = regions._km2(regions.area(code)["geom"]) if selected and code != "outside" else None
         gop = g[g["status"] == "OPERATIONAL"]
         areas.append({
-            "code": code, "jp": g["area_jp"].iloc[0], "en": g["area_en"].iloc[0], "places": len(g),
+            "code": code, "jp": regions.area(code)["jp"] if code != "outside" else "範囲外", "en": g["ward_en"].iloc[0],
+            "places": len(g), "selected": selected, "km2": round(km2, 2) if km2 else None,
             "per_km2": round(len(g) / km2, 1) if km2 else None,
             "cash_or_unknown_pct": _pct(gop["pay"].isin(["cash", "none"]).sum(), len(gop)),
             "cash_only_pct": _pct((gop["pay"] == "cash").sum(), len(gop)),
@@ -143,7 +146,7 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "perm_closed": int((df["status"] == "CLOSED_PERMANENTLY").sum()),
             "median_rating": _median(op["rating"]), "median_reviews": _median(op["reviews"]),
             "p75_reviews": round(float(op["reviews"].quantile(0.75)), 1) if op["reviews"].notna().any() else None,
-            "unrated": int(df["rating"].isna().sum()), "areas": int(df["area"].nunique()),
+            "unrated": int(df["rating"].isna().sum()), "areas": int(df["ward"].nunique()),
             "types": int(df["type"].nunique()),
             "phone_pct": _pct(op["phone"].notna().sum(), len(op)),
             "no_website_pct": _pct(op["web"].isna().sum(), len(op)),
@@ -304,7 +307,7 @@ def _hotspots(df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
         near = f[((x - h["_x"]) ** 2 + (y - h["_y"]) ** 2) <= 400 ** 2]
         name = near["district"].mode().iloc[0] if len(near) else f.iloc[h["row"]]["district"]
         jp = near.loc[near["district"] == name, "district_jp"].iloc[0] if len(near) else ""
-        out.append({"name": name, "jp": jp, "ward": near["area_en"].mode().iloc[0] if len(near) else "",
+        out.append({"name": name, "jp": jp, "ward": near["ward_en"].mode().iloc[0] if len(near) else "",
                     "lat": round(h["lat"], 6), "lng": round(h["lng"], 6), "density_km2": h["density_km2"],
                     "core": h["core"], "radius_m": 400, **_rate(near), "share": _pct(len(near), len(f)),
                     "top_segments": [{"s": k, "n": int(v)} for k, v in near["segment"].value_counts().head(3).items()]})
@@ -332,14 +335,10 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
     out = []
     n = p["rows"]
     f, c = p["fnb"], p["contact"]
-    areas = [a for a in p["areas"] if a["code"] != "outside" and a["places"] >= 10]
+    areas = [a for a in p["areas"] if a.get("selected", a["code"] != "outside") and a["places"] >= 10]
 
-    noise = [t for t in p["type_mix"] if t["no"] and not t.get("other")]
-    msg = f"{pct_s(f['core']['pct'])} of the {n:,} merchants are core F&B and {pct_s(f['related']['pct'])} F&B-related."
-    if f["no"]["n"] and noise:
-        top = max(noise, key=lambda t: t["no"])
-        msg += f" {f['no']['n']:,} are not F&B, mostly {top['t']} ({top['no']:,}); filter them out before outreach."
-    out.append({"k": "Mix", "t": msg})
+    out.append({"k": "Mix", "t": f"{n:,} F&B merchants: {pct_s(f['core']['pct'])} restaurants, bars and cafés, "
+                                 f"{pct_s(f['related']['pct'])} F&B-related venues (karaoke, liquor shops, event spaces)."})
 
     hs = p.get("hotspots") or []
     if hs:
