@@ -2,16 +2,18 @@
 whose listing has no website."""
 
 from datetime import datetime
+from urllib.parse import quote
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
-from app.models import Run, Version, WebFind, WebSearch
+from app.models import AgentPrompt, Run, Version, WebFind, WebSearch
 from app.routers.versions import _run_ids, _version_frame
 from app.services import gsheets, records, webagent, websites
 from app.services.gsheets import Block, Link, Pivot, Report, Table
@@ -77,9 +79,32 @@ def _merchant_rows(g: pd.DataFrame, extra=None) -> tuple[list[str], list[list], 
     return header, rows, widths
 
 
+def _deliver(name: str, tabs: list, xlsx_path: str) -> dict:
+    """A Google Sheet when Drive will hold it; otherwise tell the page to download the same workbook as .xlsx."""
+    try:
+        return {"url": gsheets.create(name, tabs)}
+    except gsheets.Unavailable as e:
+        return {"xlsx": xlsx_path, "filename": f"{name.replace(' · ', '_').replace(' ', '-').replace(':', '')}.xlsx", "reason": str(e)}
+
+
+def _xlsx(name: str, tabs: list) -> StreamingResponse:
+    fn = f"{name.replace(' · ', '_').replace(' ', '-').replace(':', '')}.xlsx"
+    return StreamingResponse(iter([gsheets.to_xlsx(tabs)]), headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}"},
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @router.post("/versions/{vid}/sheets/web/{kind}")
 def web_sheet(vid: int, kind: str, db: Session = Depends(get_db)):
     """One website class as a Google Sheet: summary pivots, the merchant list, and a live pivot."""
+    return _deliver(*_web_tabs(db, vid, kind), f"/api/versions/{vid}/sheets/web/{kind}.xlsx")
+
+
+@router.get("/versions/{vid}/sheets/web/{kind}.xlsx")
+def web_xlsx(vid: int, kind: str, db: Session = Depends(get_db)):
+    return _xlsx(*_web_tabs(db, vid, kind))
+
+
+def _web_tabs(db: Session, vid: int, kind: str) -> tuple[str, list]:
     if kind not in KIND_LABEL:
         raise HTTPException(404, "Unknown website class")
     v = _v(db, vid)
@@ -130,8 +155,7 @@ def web_sheet(vid: int, kind: str, db: Session = Depends(get_db)):
     tabs = [Report(f"{label} · {v.name}", MEANS[kind], blocks, kpis),
             Table("Merchants", header, rows, widths),
             Pivot("Pivot", "Merchants", "Area", "Segment", "Name", note="Live pivot of the Merchants tab: merchants by area × segment. Edit it in the pivot editor.")]
-    url = gsheets.create(f"Hexline · {v.name} · {label} · {datetime.now():%Y-%m-%d %H:%M}", tabs)
-    return {"url": url}
+    return f"Hexline · {v.name} · {label} · {datetime.now():%Y-%m-%d %H:%M}", tabs
 
 
 # ---------------------------------------------------------------- website-finder agent
@@ -167,6 +191,7 @@ def _search_out(db: Session, ws: WebSearch) -> dict:
     s = get_settings()
     return {"id": ws.id, "status": ws.status, "error": ws.error, "created_at": ws.created_at, "finished_at": ws.finished_at,
             "author": ws.author, "mock": ws.mock, "workers": ws.workers, "area": ws.area, "total": ws.total,
+            "prompt_version": ws.prompt_version,
             "done": counts.get("done", 0) + counts.get("error", 0) + counts.get("skipped", 0), "errors": counts.get("error", 0),
             "searching": counts.get("searching", 0), "found": found, "cost_local": round(ws.cost_usd * s.usd_rate, 2)}
 
@@ -199,7 +224,8 @@ def start_websearch(vid: int, body: NewSearch, db: Session = Depends(get_db), us
     cand = _candidates(db, v, body.area).head(body.limit)
     if cand.empty:
         raise HTTPException(422, "Every merchant without a website here has been searched already")
-    ws = WebSearch(version_id=vid, author=user, mock=_mock(db, v), workers=body.workers, area=body.area, total=len(cand))
+    ws = WebSearch(version_id=vid, author=user, mock=_mock(db, v), workers=body.workers, area=body.area, total=len(cand),
+                   prompt_version=webagent.active_prompt(db)[0])
     db.add(ws)
     db.flush()
     db.add_all([WebFind(search_id=ws.id, version_id=vid, place_id=r["place_id"], name=r["name"]) for r in cand.to_dict("records")])
@@ -230,6 +256,15 @@ def cancel_websearch(sid: int, db: Session = Depends(get_db)):
 @router.post("/versions/{vid}/sheets/websearch")
 def websearch_sheet(vid: int, db: Session = Depends(get_db)):
     """Everything the agent has answered for this version, as a Google Sheet."""
+    return _deliver(*_finder_tabs(db, vid), f"/api/versions/{vid}/sheets/websearch.xlsx")
+
+
+@router.get("/versions/{vid}/sheets/websearch.xlsx")
+def websearch_xlsx(vid: int, db: Session = Depends(get_db)):
+    return _xlsx(*_finder_tabs(db, vid))
+
+
+def _finder_tabs(db: Session, vid: int) -> tuple[str, list]:
     v = _v(db, vid)
     finds = {f.place_id: f for f in db.scalars(select(WebFind).where(WebFind.version_id == vid, WebFind.status == "done"))}
     if not finds:
@@ -258,21 +293,56 @@ def websearch_sheet(vid: int, db: Session = Depends(get_db)):
         Block("Confidence of the websites found", ["Confidence", "Merchants", "Share"],
               [[k.title(), int(conf.get(k, 0)), conf.get(k, 0) / max(1, yes)] for k in ("high", "medium", "low")], pct_cols=(2,)),
     ]
+    prompt_of = dict(db.execute(select(WebSearch.id, WebSearch.prompt_version).where(WebSearch.version_id == vid)).all())
     order = g.sort_values(["found", "callable", "reviews"], ascending=[False, False, False])
     header = ["Name", "Website exists", "Website", "Site type", "Social", "Confidence", "Evidence", "On call list", "Segment",
-              "Area", "Neighbourhood", "Address", "Phone", "Google Maps", "Searches the agent ran"]
-    widths = [220, 100, 240, 80, 200, 90, 360, 90, 150, 90, 130, 260, 120, 100, 300]
+              "Area", "Neighbourhood", "Address", "Phone", "Google Maps", "Searches the agent ran", "Prompt version"]
+    widths = [220, 100, 240, 80, 200, 90, 360, 90, 150, 90, 130, 260, 120, 100, 300, 90]
     rows = []
     for r in order.to_dict("records"):
         f = finds[r["place_id"]]
         rows.append([r["name"], "Yes" if f.exists else "No", Link(f.website) if f.website else None, f.site_type,
                      Link(f.social) if f.social else None, (f.confidence or "").title(), f.reason, bool(r["callable"]),
                      r["segment"], r["area"], r["district"], r["address"], r["phone"],
-                     Link(r["maps_uri"], "Open ↗") if isinstance(r["maps_uri"], str) else None, " · ".join(f.queries or [])])
+                     Link(r["maps_uri"], "Open ↗") if isinstance(r["maps_uri"], str) else None, " · ".join(f.queries or []),
+                     f"v{prompt_of.get(f.search_id, 0)}"])
     tabs = [Report(f"Website finder · {v.name}",
                    "Merchants whose Google Maps listing shows no website, searched by the AI agent with Google Search. "
                    "Yes = a site that really belongs to the merchant (own or its chain's branch page); portals and social pages don't count.",
                    blocks, kpis),
             Table("Agent results", header, rows, widths),
             Pivot("Pivot", "Agent results", "Area", "Website exists", "Name", note="Live pivot: merchants by area × website found.")]
-    return {"url": gsheets.create(f"Hexline · {v.name} · Website finder · {datetime.now():%Y-%m-%d %H:%M}", tabs)}
+    return f"Hexline · {v.name} · Website finder · {datetime.now():%Y-%m-%d %H:%M}", tabs
+
+
+# ---------------------------------------------------------------- agent system prompt, versioned
+
+class NewPrompt(BaseModel):
+    text: str = Field(min_length=50, max_length=20000)
+    note: str = Field("", max_length=300)
+
+
+def _prompt_out(p: AgentPrompt) -> dict:
+    return {"version": p.version, "text": p.text, "note": p.note, "author": p.author, "created_at": p.created_at}
+
+
+@router.get("/agent/prompt")
+def get_prompt(db: Session = Depends(get_db)):
+    """The prompt new runs use, every saved version (newest first), the built-in default and the fixed output rules."""
+    version, text = webagent.active_prompt(db)
+    rows = db.scalars(select(AgentPrompt).order_by(AgentPrompt.version.desc())).all()
+    return {"version": version, "text": text, "default": webagent.DEFAULT_PROMPT, "output_rules": webagent.OUTPUT_RULES,
+            "versions": [_prompt_out(p) for p in rows]}
+
+
+@router.post("/agent/prompt")
+def save_prompt(body: NewPrompt, db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Save an edit as the next version; it is used from the next run on. Older versions stay for history and restore."""
+    current = webagent.active_prompt(db)[1]
+    if body.text.strip() == current.strip():
+        raise HTTPException(422, "No changes to save")
+    nxt = (db.scalar(select(func.max(AgentPrompt.version))) or 0) + 1
+    p = AgentPrompt(version=nxt, text=body.text.strip(), note=body.note.strip(), author=user)
+    db.add(p)
+    db.commit()
+    return _prompt_out(p)

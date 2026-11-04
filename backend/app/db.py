@@ -33,9 +33,10 @@ def init_db() -> None:
 
     Base.metadata.create_all(engine)
     # create_all does not add columns to existing tables; small additive changes go here
-    if "sources" not in {c["name"] for c in inspect(engine).get_columns("versions")}:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE versions ADD COLUMN sources JSON"))
+    for table, col, ddl in (("versions", "sources", "JSON"), ("web_searches", "prompt_version", "INTEGER DEFAULT 0")):
+        if col not in {c["name"] for c in inspect(engine).get_columns(table)}:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
 
 def get_db() -> Iterator[Session]:

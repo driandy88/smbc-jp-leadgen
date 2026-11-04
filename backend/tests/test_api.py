@@ -428,8 +428,17 @@ def test_website_agent_answer_rules(monkeypatch):
 def test_web_class_sheet(client, auth, monkeypatch):
     from app.services import gsheets
     v = _mock_version(client, auth, "sheet_v")
-    # Not set up: a clear message, not a crash
-    assert client.post(f"/api/versions/{v['id']}/sheets/web/none", headers=auth).status_code == 503
+    # Google can't hold it (no Shared Drive folder): the page is told to download the same workbook as .xlsx
+    fb = client.post(f"/api/versions/{v['id']}/sheets/web/none", headers=auth).json()
+    assert fb["xlsx"] == f"/api/versions/{v['id']}/sheets/web/none.xlsx" and fb["filename"].endswith(".xlsx")
+    x = client.get(fb["xlsx"], headers=auth)
+    assert x.status_code == 200 and x.content[:2] == b"PK" and "spreadsheetml" in x.headers["content-type"]
+    import io
+
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(x.content))
+    assert wb.sheetnames == ["Summary", "Merchants", "Pivot"]
+    assert wb["Merchants"]["A1"].value == "Name" and wb["Merchants"].freeze_panes == "B2"
     made = {}
     monkeypatch.setattr(gsheets, "create", lambda name, tabs: made.update(name=name, tabs=tabs) or "https://docs.google.com/x")
     pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
@@ -450,3 +459,29 @@ def test_sheet_cells_are_typed():
     assert _cell("+81 6-1234")["userEnteredValue"] == {"stringValue": "+81 6-1234"}
     assert _cell(Link('https://a.jp/?q="x"', "a"))["userEnteredValue"]["formulaValue"] == '=HYPERLINK("https://a.jp/?q=""x""","a")'
     assert _cell(0.25, pct=True)["userEnteredFormat"]["numberFormat"]["type"] == "PERCENT"
+
+
+def test_agent_prompt_is_versioned_and_runs_record_it(client, auth, monkeypatch):
+    from app.services import webagent
+    seen = []
+    monkeypatch.setattr(webagent, "mock_one", lambda m, prompt: (seen.append(prompt), ({"exists": False, "website": None, "site_type": None,
+        "social": None, "confidence": "low", "reason": "r", "queries": [], "sources": []},
+        {"status": "STOP", "tokens_in": 0, "tokens_out": 0, "latency_ms": 0, "cost_usd": 0.0}))[1])
+    p0 = client.get("/api/agent/prompt", headers=auth).json()
+    assert p0["text"] == p0["default"] and "## Output" in p0["output_rules"] and "## Output" not in p0["text"]
+    assert client.post("/api/agent/prompt", headers=auth, json={"text": p0["text"]}).status_code == 422  # unchanged
+    edited = p0["text"] + "\n- Also treat ramen chains' franchise pages as group sites."
+    v1 = client.post("/api/agent/prompt", headers=auth, json={"text": edited, "note": "franchise rule"}).json()
+    assert v1["version"] == p0["version"] + 1
+    cur = client.get("/api/agent/prompt", headers=auth).json()
+    assert cur["version"] == v1["version"] and cur["text"] == edited and cur["versions"][0]["note"] == "franchise rule"
+    # A run uses the prompt that was current when it started
+    v = _mock_version(client, auth, "prompt_v")
+    ws = client.post(f"/api/versions/{v['id']}/websearch", headers=auth, json={"limit": 2, "workers": 2}).json()
+    assert ws["prompt_version"] == v1["version"]
+    for _ in range(100):
+        if client.get(f"/api/websearch/{ws['id']}", headers=auth).json()["status"] not in ("queued", "running"):
+            break
+        time.sleep(0.2)
+    assert seen and all(x == edited for x in seen)
+    assert webagent.system_text(edited).endswith(webagent.OUTPUT_RULES)
