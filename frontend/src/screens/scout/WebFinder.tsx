@@ -9,7 +9,7 @@ type Row = Record<string, any>;
 type Find = { place_id: string; name: string; status: string; exists: boolean | null; website: string | null; site_type: string | null;
   social: string | null; confidence: string | null; reason: string | null; queries: string[] };
 type Run = { id: number; status: string; error: string | null; total: number; done: number; errors: number; searching: number; found: number;
-  workers: number; area: string | null; mock: boolean; cost_local: number; created_at: string; active?: string[]; recent?: Find[] };
+  workers: number; area: string | null; mock: boolean; cost_local: number; created_at: string; prompt_version: number; active?: string[]; recent?: Find[] };
 type State = { remaining: number; remaining_callable: number; mock: boolean; per_merchant_local: number; currency: string;
   workers_max: number; limit_max: number; finds: Find[]; runs: Run[] };
 
@@ -26,6 +26,9 @@ export function WebFinder({ p, points, versionId }: { p: Profile; points: Points
   const [err, setErr] = useState("");
   const [show, setShow] = useState<"all" | "yes" | "no">("all");
   const [more, setMore] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [promptV, setPromptV] = useState<number | null>(null);
+  useEffect(() => { api<{ version: number }>("/api/agent/prompt").then((x) => setPromptV(x.version)); }, []);
   const timer = useRef<number>();
 
   const areas: string[] = (p.areas || []).filter((a: Row) => a.selected ?? a.code !== "outside").map((a: Row) => a.en);
@@ -86,6 +89,13 @@ export function WebFinder({ p, points, versionId }: { p: Profile; points: Points
         address, and decides whether a website that <b>really belongs to it</b> exists. Portals (Tabelog, Hot Pepper…) and social pages don't
         count; a social account it finds is kept in its own column. Merchants already answered are never searched twice. Call-list merchants go first.
       </p>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <button className="btn2" aria-expanded={showPrompt} onClick={() => setShowPrompt(!showPrompt)} style={{ minHeight: 0, padding: "6px 10px", fontSize: 12 }}>
+          {showPrompt ? "Hide system prompt" : "View / edit system prompt"}
+        </button>
+        {promptV != null && <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>next run uses prompt v{promptV}{promptV === 0 ? " (default)" : ""}</span>}
+      </div>
+      {showPrompt && <PromptPanel onClose={() => setShowPrompt(false)} onSaved={setPromptV} />}
 
       {/* Parameters */}
       <div className="wf-params">
@@ -190,6 +200,7 @@ function LiveRun({ run }: { run: Run }) {
           {live && <span className="wf-dot" aria-hidden="true" />}
           <b>{live ? (run.status === "cancelling" ? "Stopping after the current searches…" : `${run.workers} agents searching`) : run.status === "done" ? "Done" : run.status === "cancelled" ? "Stopped" : "Failed"}</b>
           {run.mock && <span className="mock-tag">mock</span>}
+          <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>prompt v{run.prompt_version ?? 0}</span>
         </span>
         <span className="m" style={{ fontSize: 12, color: "#5E5A52" }}>
           {fmt(run.done)} / {fmt(run.total)} · {fmt(run.found)} websites found{run.errors ? ` · ${run.errors} errors` : ""} · {run.cost_local.toFixed(2)} spent
@@ -226,6 +237,87 @@ function LiveRun({ run }: { run: Run }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+type PromptVersion = { version: number; text: string; note: string; author: string; created_at: string };
+type PromptState = { version: number; text: string; default: string; output_rules: string; versions: PromptVersion[] };
+
+/** The agent's system prompt: read it, edit it, save each edit as a new version, load any older one back. */
+export function PromptPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (v: number) => void }) {
+  const [st, setSt] = useState<PromptState | null>(null);
+  const [text, setText] = useState("");
+  const [note, setNote] = useState("");
+  const [from, setFrom] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const load = () => api<PromptState>("/api/agent/prompt").then((s) => { setSt(s); setText(s.text); setFrom(`v${s.version}`); });
+  useEffect(() => { load(); }, []);
+
+  if (!st) return <div className="card wf-prompt"><span style={{ fontSize: 12, color: "#5E5A52" }}>Loading prompt…</span></div>;
+  const dirty = text.trim() !== st.text.trim();
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const p = await api<PromptVersion>("/api/agent/prompt", { body: { text, note } });
+      setNote("");
+      await load();
+      onSaved(p.version);
+      setMsg({ ok: true, t: `Saved as v${p.version}. New runs use it from now on.` });
+    } catch (e) { setMsg({ ok: false, t: e instanceof ApiError ? e.message : "Couldn't save" }); } finally { setBusy(false); }
+  };
+  const pick = (t: string, label: string) => { setText(t); setFrom(label); setMsg(null); };
+  const when = (s: string) => new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="card wf-prompt">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+          <span className="lbl">Agent system prompt</span>
+          <span className="m" style={{ fontSize: 12 }}>in use: v{st.version}{st.version === 0 ? " (built-in default)" : ""}</span>
+          {from !== `v${st.version}` && <span className="m" style={{ fontSize: 11, color: "#C8442B" }}>editing from {from}</span>}
+        </span>
+        <button className="btn2" onClick={onClose} style={{ minHeight: 0, padding: "4px 10px", fontSize: 12 }}>Close</button>
+      </div>
+      <div className="wf-prompt-grid">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+          <textarea className="wf-prompt-text m" value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label="System prompt" />
+          <details>
+            <summary style={{ fontSize: 12, color: "#5E5A52", cursor: "pointer" }}>Fixed output format (appended to every version, not editable: the app reads this JSON)</summary>
+            <pre className="wf-prompt-fixed m">{st.output_rules}</pre>
+          </details>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <input className="in" placeholder="What changed? e.g. stricter on namesakes" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: "1 1 240px", fontSize: 13 }} maxLength={300} />
+            <button className="btn2" disabled={!dirty || busy} onClick={() => pick(st.text, `v${st.version}`)}>Discard changes</button>
+            <button className="btn" disabled={!dirty || busy} onClick={save}>{busy ? "Saving…" : `Save as v${(st.versions[0]?.version ?? 0) + 1}`}</button>
+          </div>
+          {msg && <span role={msg.ok ? "status" : "alert"} style={{ fontSize: 12, color: msg.ok ? "#5E7D4A" : "#B33A3A" }}>{msg.t}</span>}
+          <span style={{ fontSize: 11, color: "#5E5A52" }}>A run keeps the version it started with; the results sheet shows which version answered each merchant.</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
+          <span className="lbl" style={{ marginBottom: 6 }}>Versions</span>
+          <div style={{ maxHeight: 420, overflow: "auto" }}>
+            {st.versions.map((p) => (
+              <div key={p.version} className="wf-ver" data-on={p.version === st.version}>
+                <span className="m" style={{ fontWeight: 600 }}>v{p.version}</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.note || <span style={{ color: "#8A8478" }}>no note</span>}</span>
+                  <span className="m" style={{ fontSize: 10, color: "#8A8478" }}>{when(p.created_at)} · {p.author.split("@")[0]}{p.version === st.version ? " · in use" : ""}</span>
+                </span>
+                <button className="chip" onClick={() => pick(p.text, `v${p.version}`)}>Load</button>
+              </div>
+            ))}
+            <div className="wf-ver" data-on={st.version === 0}>
+              <span className="m" style={{ fontWeight: 600 }}>v0</span>
+              <span><span style={{ display: "block" }}>Built-in default</span><span className="m" style={{ fontSize: 10, color: "#8A8478" }}>ships with the app{st.version === 0 ? " · in use" : ""}</span></span>
+              <button className="chip" onClick={() => pick(st.default, "v0")}>Load</button>
+            </div>
+          </div>
+          <span style={{ fontSize: 11, color: "#5E5A52", marginTop: 6 }}>Load an older version, then save it to make it the one in use again.</span>
+        </div>
+      </div>
     </div>
   );
 }

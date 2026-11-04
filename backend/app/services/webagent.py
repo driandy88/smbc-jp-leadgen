@@ -21,13 +21,14 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 
 from app.db import session_scope
-from app.models import ApiCall, WebFind, WebSearch
+from app.models import AgentPrompt, ApiCall, WebFind, WebSearch
 from app.services import websites
 from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM = """You are a meticulous web researcher working for a Japanese bank's merchant-acquiring team. \
+# The editable part; each saved edit is a new AgentPrompt version and the newest one is used
+DEFAULT_PROMPT = """You are a meticulous web researcher working for a Japanese bank's merchant-acquiring team. \
 For one food & beverage merchant in Japan, whose Google Maps listing shows no website, you find out \
 whether a website that really belongs to this merchant exists, using the Google Search tool.
 
@@ -63,14 +64,18 @@ whether a website that really belongs to this merchant exists, using the Google 
 - Only give a URL you saw in the search results. Never guess or construct a URL. Give the homepage or the \
   branch page, not a deep link to a menu image.
 - confidence: "high" when the phone number or full address matches on the site; "medium" when name and \
-  area match but nothing more; "low" otherwise. A YES with low confidence should usually be NO.
+  area match but nothing more; "low" otherwise. A YES with low confidence should usually be NO."""
 
-## Output
+# Fixed: the app parses this, so it is appended to every prompt version and is not editable
+OUTPUT_RULES = """## Output
 Answer with ONLY one JSON object, no prose and no code fences:
 {"exists": true|false, "website": "https://..." or "", "site_type": "own"|"group"|"", \
 "social": "https://..." or "", "confidence": "high"|"medium"|"low", \
 "reason": "one short English sentence citing the evidence, e.g. 'Own domain lists the same phone 06-…'"}
 When exists is false, website and site_type are empty strings."""
+
+# The prompts are wrapped in the source with "\" + indent; show them as plain text without the extra spaces
+DEFAULT_PROMPT, OUTPUT_RULES = (re.sub(r"(?<=\S) {2,}", " ", t) for t in (DEFAULT_PROMPT, OUTPUT_RULES))
 
 WORKER_MAX = 16
 LIMIT_MAX = 2000
@@ -109,7 +114,19 @@ def _clean(d: dict) -> dict:
             "confidence": conf, "reason": (d.get("reason") or "")[:500]}
 
 
-def search_one(m: dict) -> tuple[dict, dict]:
+def active_prompt(db) -> tuple[int, str]:
+    """(version, text) of the newest saved prompt; version 0 is the built-in default."""
+    from app.models import AgentPrompt
+
+    p = db.scalars(select(AgentPrompt).order_by(AgentPrompt.version.desc()).limit(1)).first()
+    return (p.version, p.text) if p else (0, DEFAULT_PROMPT)
+
+
+def system_text(prompt: str) -> str:
+    return prompt.rstrip() + "\n\n" + OUTPUT_RULES
+
+
+def search_one(m: dict, prompt: str = DEFAULT_PROMPT) -> tuple[dict, dict]:
     """Ask Gemini, with Google Search, about one merchant. Returns (answer, call record)."""
     s = get_settings()
     import google.auth
@@ -120,10 +137,10 @@ def search_one(m: dict) -> tuple[dict, dict]:
     url = (f"https://{host}/v1/projects/{s.gcp_project}/locations/{s.gemini_region}"
            f"/publishers/google/models/{s.gemini_model}:generateContent")
     body = {
-        "systemInstruction": {"parts": [{"text": SYSTEM}]},
+        "systemInstruction": {"parts": [{"text": system_text(prompt)}]},
         "contents": [{"role": "user", "parts": [{"text": _merchant_text(m)}]}],
         "tools": [{"googleSearch": {}}],
-        # Low thinking keeps it from re-searching to double-check; the budget rule in SYSTEM does the rest
+        # Low thinking keeps it from re-searching to double-check; the budget rule in the prompt does the rest
         "generationConfig": {"maxOutputTokens": 4096, "temperature": 0, "thinkingConfig": {"thinkingLevel": "LOW"}},
     }
     t0 = time.perf_counter()
@@ -148,7 +165,7 @@ def search_one(m: dict) -> tuple[dict, dict]:
     return _clean(_parse(text)) | {"queries": queries, "sources": sources[:8]}, call
 
 
-def mock_one(m: dict) -> tuple[dict, dict]:
+def mock_one(m: dict, prompt: str = DEFAULT_PROMPT) -> tuple[dict, dict]:
     """Same shape without calling anything, for mock versions and tests."""
     time.sleep(random.uniform(0.6, 1.8))
     rnd = random.Random(m.get("place_id"))
@@ -189,13 +206,13 @@ class Agent:
         df = df[cols].astype(object).where(df[cols].notna(), None)
         return {r["place_id"]: r for r in df.to_dict("records")}
 
-    def _one(self, find_id: int, m: dict, mock: bool, version_id: int) -> None:
+    def _one(self, find_id: int, m: dict, mock: bool, version_id: int, prompt: str) -> None:
         if self._stopped():
             return
         with session_scope() as db:
             db.execute(update(WebFind).where(WebFind.id == find_id).values(status="searching", updated_at=datetime.now(timezone.utc)))
         try:
-            ans, call = (mock_one if mock else search_one)(m)
+            ans, call = (mock_one if mock else search_one)(m, prompt)
             vals = {k: ans[k] for k in ("exists", "website", "site_type", "social", "confidence", "reason", "queries", "sources")}
             vals |= {"status": "done", "cost_usd": call["cost_usd"]}
         except Exception as e:  # noqa: BLE001  one merchant failing must not stop the rest
@@ -218,12 +235,14 @@ class Agent:
                     return
                 ws.status = "running"
                 version_id, mock, workers = ws.version_id, ws.mock, ws.workers
+                # The prompt version picked when the run was started, so a later edit doesn't change it mid-run
+                prompt = db.scalar(select(AgentPrompt.text).where(AgentPrompt.version == ws.prompt_version)) if ws.prompt_version else DEFAULT_PROMPT
                 todo = [(f.id, f.place_id) for f in db.scalars(select(WebFind).where(WebFind.search_id == self.id, WebFind.status == "queued")
                                                                 .order_by(WebFind.id))]
             listing = self.merchants or self._listing(version_id)
             with ThreadPoolExecutor(max_workers=max(1, min(WORKER_MAX, workers)), thread_name_prefix=f"websearch-{self.id}") as pool:
                 for fid, pid in todo:
-                    pool.submit(self._one, fid, listing.get(pid) or {"place_id": pid}, mock, version_id)
+                    pool.submit(self._one, fid, listing.get(pid) or {"place_id": pid}, mock, version_id, prompt)
             with session_scope() as db:
                 ws = db.get(WebSearch, self.id)
                 stopped = ws.status == "cancelling"

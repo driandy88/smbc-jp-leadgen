@@ -153,6 +153,8 @@ class WebSearch(Base):
     area: Mapped[str | None] = mapped_column(String(100))
     total: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    # AgentPrompt.version the run used; 0 = the built-in default
+    prompt_version: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class WebFind(Base):
@@ -179,3 +181,16 @@ class WebFind(Base):
     sources: Mapped[list | None] = mapped_column(JSON)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentPrompt(Base):
+    """A saved version of the website-finder agent's system prompt; the newest one is used for new runs."""
+
+    __tablename__ = "agent_prompts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, unique=True)
+    text: Mapped[str] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(String(300), default="")
+    author: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

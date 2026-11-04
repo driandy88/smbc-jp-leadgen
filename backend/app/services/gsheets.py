@@ -5,6 +5,8 @@ Shared Drive folder it is a Content manager of, then filled and formatted with o
 (chunked for long tables). Cells are typed explicitly, so a name starting with "=" or a "+81" phone is
 never read as a formula.
 
+When Google won't hold the file (see Unavailable), the same tabs are written as an .xlsx instead (to_xlsx).
+
 A workbook is a list of tabs:
 - Report(title, subtitle, blocks): a summary page; each Block is a small titled table (KPIs, pivots)
 - Table(title, header, rows, widths, link_cols, filter): a full data tab with frozen header and filter
@@ -43,6 +45,7 @@ class Report:
     subtitle: str
     blocks: list[Block]
     kpis: list[tuple[str, str, str]] = field(default_factory=list)  # (value, label, context)
+    tab: str = "Summary"
 
 
 @dataclass
@@ -62,6 +65,10 @@ class Pivot:
     cols: str
     value: str
     note: str = ""
+
+
+def _tab(t) -> str:
+    return t.tab if isinstance(t, Report) else t.title
 
 
 def _rgb(h: str) -> dict:
@@ -199,22 +206,32 @@ def _check(r, what: str):
     return r.json()
 
 
+class Unavailable(Exception):
+    """Google won't hold the file (no folder set, folder not in a Shared Drive, no access): fall back to .xlsx."""
+
+
 def create(name: str, tabs: list[Report | Table | Pivot]) -> str:
     """Create the workbook in the Shared Drive folder and return its URL."""
     folder = get_settings().sheets_folder_id
     if not folder:
-        raise HTTPException(503, "Google Sheets isn't set up yet: add the service account to a Shared Drive folder and set SHEETS_FOLDER_ID.")
+        raise Unavailable("SHEETS_FOLDER_ID is not set")
     gs = _session()
-    f = _check(gs.post("https://www.googleapis.com/drive/v3/files", params={"supportsAllDrives": "true", "fields": "id"},
-                       json={"name": name, "mimeType": "application/vnd.google-apps.spreadsheet", "parents": [folder]}, timeout=60), "Drive")
+    r = gs.post("https://www.googleapis.com/drive/v3/files", params={"supportsAllDrives": "true", "fields": "id"},
+                json={"name": name, "mimeType": "application/vnd.google-apps.spreadsheet", "parents": [folder]}, timeout=60)
+    if r.status_code in (403, 404):  # storage quota (My Drive folder), or the folder isn't shared with us
+        try:
+            raise Unavailable(r.json()["error"]["message"])
+        except (ValueError, KeyError):
+            raise Unavailable(r.text[:200]) from None
+    f = _check(r, "Drive")
     sid = f["id"]
     base = f"https://sheets.googleapis.com/v4/spreadsheets/{sid}:batchUpdate"
     first = _check(gs.get(f"https://sheets.googleapis.com/v4/spreadsheets/{sid}", params={"fields": "sheets.properties.sheetId"}, timeout=60), "Sheets")
     default = first["sheets"][0]["properties"]["sheetId"]
 
-    ids = {t.title: 100 + i for i, t in enumerate(tabs)}
+    ids = {_tab(t): 100 + i for i, t in enumerate(tabs)}
     size = lambda t: (len(t.rows) + 5, len(t.header) + 2) if isinstance(t, Table) else (200, 12)  # noqa: E731
-    setup = [{"addSheet": {"properties": {"sheetId": ids[t.title], "title": t.title, "index": i,
+    setup = [{"addSheet": {"properties": {"sheetId": ids[_tab(t)], "title": _tab(t), "index": i,
                                           "gridProperties": {"rowCount": size(t)[0], "columnCount": size(t)[1]}}}}
              for i, t in enumerate(tabs)]
     setup.append({"deleteSheet": {"sheetId": default}})
@@ -224,11 +241,11 @@ def create(name: str, tabs: list[Report | Table | Pivot]) -> str:
     reqs: list[dict] = []
     for t in tabs:
         if isinstance(t, Report):
-            reqs += _report(ids[t.title], t)
+            reqs += _report(ids[_tab(t)], t)
         elif isinstance(t, Table):
-            reqs += _table(ids[t.title], t)
+            reqs += _table(ids[_tab(t)], t)
         else:
-            reqs += _pivot(ids[t.title], t, tables)
+            reqs += _pivot(ids[_tab(t)], t, tables)
     # Big tables go in several calls to stay under the request size limit
     batch: list[dict] = []
     for q in reqs:
@@ -239,3 +256,99 @@ def create(name: str, tabs: list[Report | Table | Pivot]) -> str:
     if batch:
         _check(gs.post(base, json={"requests": batch}, timeout=300), "Sheets")
     return f"https://docs.google.com/spreadsheets/d/{sid}/edit"
+
+
+def to_xlsx(tabs: list[Report | Table | Pivot]) -> bytes:
+    """The same workbook as an Excel file: the summary page, the merchant table (frozen header, filter,
+    links) and the pivot as a fixed cross-tab. Opens as-is in Google Sheets."""
+    import io
+
+    import xlsxwriter
+
+    buf = io.BytesIO()
+    wb = xlsxwriter.Workbook(buf, {"in_memory": True, "strings_to_formulas": False, "strings_to_urls": False})
+    F = lambda **k: wb.add_format({"font_name": "Arial", "font_size": 10, "valign": "vcenter"} | k)  # noqa: E731
+    title, sub = F(bold=True, font_size=18, font_color=INK), F(italic=True, font_color=MUTED)
+    head = F(bold=True, font_color="#FFFFFF", bg_color=INK, border=0)
+    big, big_red = F(bold=True, font_size=20, font_color=INK), F(bold=True, font_size=20, font_color=RED)
+    lab, ctx = F(bold=True, text_wrap=True), F(font_color=MUTED, text_wrap=True)
+    blk, txt, num, pct = F(bold=True, font_size=12), F(), F(num_format="#,##0"), F(num_format="0%")
+    link = F(font_color="#3E5A63", underline=1)
+
+    def put(ws, r, c, v, fmt=txt, pct_col=False):
+        if isinstance(v, Link):
+            ws.write_url(r, c, v.url, link, v.label or v.url)
+        elif isinstance(v, bool):
+            ws.write_string(r, c, "Yes" if v else "No", fmt)
+        elif isinstance(v, (int, float)) and v == v:
+            ws.write_number(r, c, v, pct if pct_col else num)
+        elif v not in (None, ""):
+            ws.write_string(r, c, str(v), fmt)
+
+    tables = {t.title: t for t in tabs if isinstance(t, Table)}
+    for t in tabs:
+        ws = wb.add_worksheet(_tab(t)[:31])
+        if isinstance(t, Report):
+            ws.hide_gridlines(2)
+            ws.write(0, 0, t.title, title)
+            ws.write(1, 0, t.subtitle, sub)
+            r = 3
+            if t.kpis:
+                for i, (v, label, c) in enumerate(t.kpis):
+                    ws.write(r, i, v, big_red if i == 0 else big)
+                    ws.write(r + 1, i, label, lab)
+                    ws.write(r + 2, i, c, ctx)
+                ws.set_row(r + 2, 30)
+                r += 4
+            for b in t.blocks:
+                ws.write(r, 0, b.title, blk)
+                r += 1
+                if b.note:
+                    ws.write(r, 0, b.note, sub)
+                    r += 1
+                for j, h in enumerate(b.header):
+                    ws.write(r, j, h, head)
+                for i, vals in enumerate(b.rows):
+                    for j, v in enumerate(vals):
+                        put(ws, r + 1 + i, j, v, pct_col=j in b.pct_cols)
+                if b.bar_col is not None and b.rows:
+                    ws.conditional_format(r + 1, b.bar_col, r + len(b.rows), b.bar_col,
+                                          {"type": "data_bar", "bar_color": RED, "bar_solid": True})
+                r += len(b.rows) + 2
+            ws.set_column(0, 0, 30)
+            ws.set_column(1, 8, 18)
+        elif isinstance(t, Table):
+            for j, h in enumerate(t.header):
+                ws.write(0, j, h, head)
+            for i, vals in enumerate(t.rows):
+                for j, v in enumerate(vals):
+                    put(ws, i + 1, j, v, pct_col=j in t.pct_cols)
+            ws.freeze_panes(1, 1)
+            ws.autofilter(0, 0, len(t.rows), len(t.header) - 1)
+            for j, w in enumerate(t.widths or [160] * len(t.header)):
+                ws.set_column(j, j, w / 7)
+        else:  # pivot as a fixed cross-tab of the source table
+            src = tables[t.source]
+            ri, ci = src.header.index(t.rows), src.header.index(t.cols)
+            counts: dict = {}
+            for row in src.rows:
+                k = (row[ri] or "—", row[ci] or "—")
+                counts[k] = counts.get(k, 0) + 1
+            rows = sorted({k[0] for k in counts}, key=lambda x: -sum(v for (a, _), v in counts.items() if a == x))
+            cols = sorted({k[1] for k in counts}, key=str)
+            ws.write(0, 0, t.title, title)
+            ws.write(1, 0, t.note.replace("Live pivot", "Cross-tab").replace(" Edit it in the pivot editor.", ""), sub)
+            ws.write(3, 0, f"{t.rows} × {t.cols}", head)
+            for j, c in enumerate(cols):
+                ws.write(3, j + 1, str(c), head)
+            ws.write(3, len(cols) + 1, "Total", head)
+            for i, a in enumerate(rows):
+                ws.write(4 + i, 0, str(a), txt)
+                for j, c in enumerate(cols):
+                    if counts.get((a, c)):
+                        ws.write_number(4 + i, j + 1, counts[(a, c)], num)
+                ws.write_number(4 + i, len(cols) + 1, sum(counts.get((a, c), 0) for c in cols), F(bold=True, num_format="#,##0"))
+            ws.set_column(0, 0, 26)
+            ws.set_column(1, len(cols) + 1, 14)
+    wb.close()
+    return buf.getvalue()

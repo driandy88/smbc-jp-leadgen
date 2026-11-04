@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { api, ApiError } from "../../api";
+import { api, ApiError, download } from "../../api";
 import type { Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
 import { WEB_KINDS, webKind } from "../../lib/web";
@@ -22,15 +22,24 @@ const MEANS: Record<string, string> = {
 export function SheetButton({ path, label = "Open in Google Sheets", disabled, primary }: { path: string; label?: string; disabled?: boolean; primary?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
   const go = async () => {
     setBusy(true);
     setErr("");
+    setNote("");
     const tab = window.open("", "_blank");
     tab?.document.write('<p style="font:14px system-ui;color:#5E5A52;padding:24px">Building the Google Sheet…</p>');
     try {
-      const { url } = await api<{ url: string }>(path, { method: "POST" });
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank", "noopener");
+      const r = await api<{ url?: string; xlsx?: string; filename?: string }>(path, { method: "POST" });
+      if (r.url) {
+        if (tab) tab.location.href = r.url;
+        else window.open(r.url, "_blank", "noopener");
+      } else if (r.xlsx) {
+        // Google Drive won't hold it (no Shared Drive folder yet): the same workbook as an Excel file
+        tab?.close();
+        await download(r.xlsx, r.filename || "hexline.xlsx");
+        setNote("Downloaded as Excel: open it in Google Sheets with File → Import, or drag it into Drive.");
+      }
     } catch (e) {
       tab?.close();
       setErr(e instanceof ApiError ? e.message : "Couldn't create the sheet");
@@ -44,6 +53,7 @@ export function SheetButton({ path, label = "Open in Google Sheets", disabled, p
         {busy ? <><span className="wf-spin" aria-hidden="true" />Building sheet…</> : <>{label} ↗</>}
       </button>
       {err && <span role="alert" style={{ fontSize: 11, color: "#B33A3A", lineHeight: 1.4 }}>{err}</span>}
+      {note && <span role="status" style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.4 }}>{note}</span>}
     </span>
   );
 }
