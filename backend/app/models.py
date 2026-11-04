@@ -105,6 +105,8 @@ class Version(Base):
     rows: Mapped[int] = mapped_column(Integer)
     export_uri: Mapped[str | None] = mapped_column(String(500))
     analysis: Mapped[dict | None] = mapped_column(JSON)
+    # Set on a combined version: {"versions": [source ids], "runs": [every run its places come from]}
+    sources: Mapped[dict | None] = mapped_column(JSON)
 
 
 class ApiCall(Base):

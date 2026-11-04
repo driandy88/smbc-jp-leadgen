@@ -56,6 +56,8 @@ a{color:#1E1E1C}a:hover{color:#C8442B}
 .vrow{font:inherit;width:100%;display:grid;grid-template-columns:28px minmax(200px,2.4fr) 96px minmax(110px,1fr) 60px 48px 70px 80px 96px 100px;gap:12px;align-items:center;text-align:left;background:transparent;border:none;border-top:1px solid #D8D3C7;padding:12px 8px;cursor:pointer;color:#1E1E1C;font-size:13px;min-height:48px}
 .vrow:hover{background:#EEEAE0}
 .vrow[aria-pressed="true"]{background:#EAE5D9}
+.pick{width:16px;height:16px;border:1px solid #1E1E1C;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1;color:#F3F0E8}
+.vrow[aria-pressed="true"] .pick{background:#C8442B;border-color:#C8442B}
 .rad{width:12px;height:12px;border:1px solid #1E1E1C;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .hm{height:14px;border-radius:1px}
 input[type=range]{accent-color:#C8442B}

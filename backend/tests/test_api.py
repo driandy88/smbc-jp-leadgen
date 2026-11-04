@@ -242,3 +242,43 @@ def test_gemini_call_shape(monkeypatch):
     assert schema["type"] == "OBJECT" and "additionalProperties" not in schema
     assert schema["properties"]["points"]["items"]["properties"]["topic"]["type"] == "STRING"
     assert sent["url"].endswith("/publishers/google/models/gemini-3.5-flash:generateContent")
+
+
+def test_combine_versions_dedupes_and_keeps_sources(client, auth):
+    def run(keywords, areas):
+        r = client.post("/api/runs", headers=auth, json={"keywords": keywords, "areas": areas,
+                                                         "base_res": 8, "max_res": 9, "mock": True}).json()
+        for _ in range(300):
+            if client.get(f"/api/runs/{r['id']}", headers=auth).json()["status"] not in ("queued", "running"):
+                return r["id"]
+            time.sleep(0.5)
+
+    # Two runs over overlapping wards and keywords, so some places are in both
+    a = run(["居酒屋"], [{"city": "osaka-shi", "area": "27128"}])
+    b = run(["居酒屋", "カフェ"], [{"city": "osaka-shi", "area": "27128"}, {"city": "osaka-shi", "area": "27127"}])
+    va = client.post("/api/versions", headers=auth, json={"run_id": a, "name": "combo_a", "filters": {}}).json()
+    vb = client.post("/api/versions", headers=auth, json={"run_id": b, "name": "combo_b", "filters": {}}).json()
+
+    assert client.post("/api/versions/combine", headers=auth, json={"version_ids": [va["id"]], "name": "x"}).status_code == 422
+    pre = client.post("/api/versions/combine", headers=auth, json={"version_ids": [va["id"], vb["id"]], "dry_run": True}).json()
+    assert pre["rows_in"] == va["rows"] + vb["rows"] and pre["duplicates"] > 0
+    c = client.post("/api/versions/combine", headers=auth,
+                    json={"version_ids": [va["id"], vb["id"]], "name": "combo_ab", "notes": "Chuo + Kita"}).json()
+    assert c["rows"] == pre["rows"] == pre["rows_in"] - pre["duplicates"]
+    assert [s["name"] for s in c["sources"]] == ["combo_a", "combo_b"] and c["areas"] == 2 and c["keywords"] == 2
+    assert client.post("/api/versions/combine", headers=auth,
+                       json={"version_ids": [va["id"], vb["id"]], "name": "combo_ab"}).status_code == 409
+
+    # Sources untouched, the export has each place once, and the combined version analyses like any other
+    listed = {v["name"]: v for v in client.get("/api/versions", headers=auth).json()}
+    assert listed["combo_a"]["rows"] == va["rows"] and listed["combo_b"]["rows"] == vb["rows"] and listed["combo_a"]["sources"] is None
+    csv = client.get(f"/api/versions/{c['id']}/export.csv", headers=auth).content.decode("utf-8-sig").splitlines()
+    ids = [line.split(",")[0] for line in csv[1:]]
+    assert len(ids) == len(set(ids)) == c["rows"]
+    p = client.post(f"/api/versions/{c['id']}/analyze", headers=auth).json()["profile"]
+    assert p["rows"] == c["rows"] and len(p["run"]["areas"]) == 2
+    assert len(client.get(f"/api/versions/{c['id']}/points", headers=auth).json()["rows"]) == c["rows"]
+
+    # A combined version can itself be combined
+    cc = client.post("/api/versions/combine", headers=auth, json={"version_ids": [c["id"], va["id"]], "name": "combo_abc"}).json()
+    assert cc["rows"] == c["rows"] and cc["duplicates"] == va["rows"]
