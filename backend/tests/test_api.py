@@ -485,3 +485,9 @@ def test_agent_prompt_is_versioned_and_runs_record_it(client, auth, monkeypatch)
         time.sleep(0.2)
     assert seen and all(x == edited for x in seen)
     assert webagent.system_text(edited).endswith(webagent.OUTPUT_RULES)
+
+
+def test_xlsx_filename_is_safe():
+    from app.routers.websearch import _filename
+    assert _filename("Hexline · final keywords - 4 areas (Kita, Chuo) · Booking / gourmet portal · 2026-11-04 15:05") == \
+        "Hexline_final-keywords-4-areas-Kita-Chuo_Booking-gourmet-portal_2026-11-04-15-05.xlsx"

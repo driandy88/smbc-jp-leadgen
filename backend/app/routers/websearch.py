@@ -1,6 +1,7 @@
 """Websites deep dive: a Google Sheet per website class, and the website-finder agent for merchants
 whose listing has no website."""
 
+import re
 from datetime import datetime
 from urllib.parse import quote
 
@@ -79,16 +80,22 @@ def _merchant_rows(g: pd.DataFrame, extra=None) -> tuple[list[str], list[list], 
     return header, rows, widths
 
 
+def _filename(name: str) -> str:
+    """A safe .xlsx file name: no slashes, colons or brackets, words joined by dashes."""
+    s = re.sub(r"-{2,}", "-", re.sub(r"[^\w.-]+", "-", name.replace(" · ", "_")))
+    return re.sub(r"-?_-?", "_", s).strip("-_") + ".xlsx"
+
+
 def _deliver(name: str, tabs: list, xlsx_path: str) -> dict:
     """A Google Sheet when Drive will hold it; otherwise tell the page to download the same workbook as .xlsx."""
     try:
         return {"url": gsheets.create(name, tabs)}
     except gsheets.Unavailable as e:
-        return {"xlsx": xlsx_path, "filename": f"{name.replace(' · ', '_').replace(' ', '-').replace(':', '')}.xlsx", "reason": str(e)}
+        return {"xlsx": xlsx_path, "filename": _filename(name), "reason": str(e)}
 
 
 def _xlsx(name: str, tabs: list) -> StreamingResponse:
-    fn = f"{name.replace(' · ', '_').replace(' ', '-').replace(':', '')}.xlsx"
+    fn = _filename(name)
     return StreamingResponse(iter([gsheets.to_xlsx(tabs)]), headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}"},
                              media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
