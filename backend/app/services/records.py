@@ -108,7 +108,8 @@ def type_en(primary_type: str | None) -> str:
     return TYPE_EN.get(primary_type) or primary_type.replace("_", " ").capitalize()
 
 
-def flatten(row: Place) -> dict:
+def flatten(row) -> dict:
+    """One place as a flat record; `row` is a Place or a row with the same columns."""
     p = row.data
     a = regions.area(row.area) if row.area else None
     fnb, fnb_signal = fnb_class(p)
@@ -130,15 +131,17 @@ def flatten(row: Place) -> dict:
         "phone": p.get("nationalPhoneNumber") or p.get("internationalPhoneNumber"),
         "web": p.get("websiteUri"), "photos": len(p.get("photos") or []),
         "maps_uri": p.get("googleMapsUri"), "keywords": row.keywords, "hits": row.hits,
-        "_raw_fields": [k for k, v in p.items() if v not in (None, "", [], {})],
     }
 
 
 @lru_cache(maxsize=8)
 def _frame(run_id: int, unique_places: int) -> pd.DataFrame:
     with session_scope() as db:
-        rows = db.scalars(select(Place).where(Place.run_id == run_id)).all()
-        df = pd.DataFrame([flatten(r) for r in rows])
+        # Streamed in batches: a big run's full Google payloads (~30 KB each) don't fit in memory at once,
+        # and only the flattened fields are kept
+        q = select(Place.id, Place.place_id, Place.area, Place.hex_id, Place.lat, Place.lng, Place.keywords,
+                   Place.hits, Place.data).where(Place.run_id == run_id).execution_options(yield_per=500)
+        df = pd.DataFrame([flatten(r) for r in db.execute(q)])
     if df.empty:
         return df
     # Chains: a brand with 3+ branch names ("<brand> <branch>店"), or a name seen 6+ times
