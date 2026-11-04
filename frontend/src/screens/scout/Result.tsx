@@ -35,14 +35,13 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
   const o = p.overview;
   const run = data.run;
   const c = p.contact;
-  const spot = p.hotspots?.[0];
-  const fnbN = (p.fnb?.core?.n ?? 0) + (p.fnb?.related?.n ?? 0);
+  const dense = (p.areas || []).filter((a: any) => a.per_km2 != null).sort((a: any, b: any) => b.per_km2 - a.per_km2)[0];
   const stats = [
-    { v: fmt(data.count), l: "unique merchants", s: `${fmt(fnbN)} F&B · ${fmt(run.unique_places - data.count)} filtered out` },
+    { v: fmt(data.count), l: "F&B merchants", s: `incl. ${fmt(p.fnb?.related?.n)} F&B-related venues · ${fmt(run.unique_places - data.count)} places filtered out` },
     { v: c ? pct(c.either_pct, 0) : "—", l: "reachable by phone or web", s: c ? `${fmt(c.phone)} phone · ${fmt(c.web)} website · ${fmt(c.neither)} neither` : "" },
     { v: pct(o.cash_or_unknown_pct, 0), l: "cash-only or no card info", s: c ? `${fmt(c.cash_callable.n)} of them list a phone` : "" },
     { v: o.median_rating?.toFixed(1) ?? "—", l: "median rating", s: `median ${fmt(o.median_reviews)} reviews` },
-    { v: spot ? fmt(spot.density_km2) : "—", l: "F&B / km² in the densest spot", s: spot ? `${spot.name} (${spot.ward})` : "" },
+    { v: dense ? fmt(Math.round(dense.per_km2)) : "—", l: "F&B / km² in the densest area", s: dense ? dense.en : "" },
   ];
 
   const save = async () => {
@@ -84,7 +83,7 @@ export function Result({ runId, filters, onSaved, onNext, onBack }: { runId: num
                 </div>
               ))}
             </div>
-            <span style={{ fontSize: 11, color: "#8A8478" }}>From aggregate statistics only · {ai.source}. Save this version and open Analysis for the map, density, contact slicer and top merchants.</span>
+            <span style={{ fontSize: 11, color: "#8A8478" }}>From aggregate statistics only · {ai.source}. Save this version and open Analysis for the map, contact slicer, and density and top segments per area.</span>
           </>
         )}
       </section>
