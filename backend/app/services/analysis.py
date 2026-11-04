@@ -99,6 +99,7 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "hex": _area_hex(code, g) if selected and code != "outside" else None,
         })
     areas.sort(key=lambda a: -a["places"])
+    _hot_hexes([a["hex"] for a in areas if a["hex"]])
 
     # Hex maps at the run's base resolution
     base_res = run["base_res"]
@@ -565,6 +566,7 @@ def _area_hex(code: str, g: pd.DataFrame, res: int = AREA_HEX_RES) -> dict:
     dens = per / km2
     active = per[per > 0]
     cum = per.cumsum() / max(1, per.sum())
+    need = lambda q: int((cum < q).sum()) + 1 if len(active) else 0  # noqa: E731  fewest hexes holding q of them
     lo = [b for b, _ in DENSITY_BANDS]
     band = pd.cut(dens, bins=[-1, 0.5, *lo[2:], math.inf], labels=[l for _, l in DENSITY_BANDS]) if len(dens) else dens
     return {
@@ -573,8 +575,23 @@ def _area_hex(code: str, g: pd.DataFrame, res: int = AREA_HEX_RES) -> dict:
         "median_active": float(active.median()) if len(active) else 0,
         "max": int(per.max()) if len(per) else 0, "max_per_km2": round(float(dens.max()), 0) if len(dens) else 0,
         "top_cell": per.index[0] if len(active) else None,
-        "half_cells": int((cum < 0.5).sum()) + 1 if len(active) else 0,  # fewest hexes holding half the merchants
+        "half_cells": need(0.5),
+        "cover": {"50": need(0.5), "80": need(0.8), "90": need(0.9)},
         "dense_share": float(_pct(per[dens >= 1000].sum(), per.sum())),  # merchants in hexes at 1,000+/km²
         "bands": [{"l": l, "hexes": int((band == l).sum()), "merchants": int(per[band == l].sum())}
                   for _, l in DENSITY_BANDS],
+        "counts": per.tolist(),  # read by _hot_hexes, then dropped
     }
+
+
+def _hot_hexes(hexes: list[dict]) -> None:
+    """Hot hexes per area: hexes in the top 20% / 10% of all picked areas' hexes by merchants. One cutoff for
+    every area, so the counts compare areas (a cutoff inside one area always marks ~20% / 10% of its hexes)."""
+    every = pd.Series([n for h in hexes for n in h["counts"]], dtype=float)
+    for h in hexes:
+        c = pd.Series(h.pop("counts"), dtype=float)
+        h["hot"] = []
+        for top, q in (("20", 0.8), ("10", 0.9)):
+            cut = float(every.quantile(q)) if len(every) else 0
+            m = c >= max(cut, 1)
+            h["hot"].append({"top": top, "min": round(cut), "hexes": int(m.sum()), "share": _pct(c[m].sum(), c.sum())})

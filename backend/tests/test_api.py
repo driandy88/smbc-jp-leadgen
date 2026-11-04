@@ -93,6 +93,8 @@ def test_mock_run_end_to_end(client, auth):
         if a["selected"]:
             assert 0 < hx["active"] <= hx["hexes"] and 0 < hx["half_cells"] <= hx["active"]
             assert sum(b["merchants"] for b in hx["bands"]) == a["places"] and sum(b["hexes"] for b in hx["bands"]) == hx["hexes"]
+            assert hx["cover"]["50"] <= hx["cover"]["80"] <= hx["cover"]["90"] <= hx["active"]
+            assert [h["top"] for h in hx["hot"]] == ["20", "10"] and hx["hot"][1]["hexes"] <= hx["hot"][0]["hexes"]
         else:
             assert hx is None
     assert sum(t["n"] for t in prof["type_mix"]) == prof["rows"]

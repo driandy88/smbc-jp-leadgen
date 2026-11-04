@@ -183,7 +183,8 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
 
 const BAND_COLOR = ["#E2DDD1", "#D48E78", "#C8442B", "#8F2D1B", "#4A170E"];
 type Hex = { hexes: number; active: number; hex_km2: number; median_active: number; max: number; max_per_km2: number;
-             half_cells: number; dense_share: number; bands: { l: string; hexes: number; merchants: number }[] };
+             half_cells: number; dense_share: number; bands: { l: string; hexes: number; merchants: number }[];
+             cover?: Record<string, number>; hot?: { top: string; min: number; hexes: number; share: number }[] };
 
 /** How an area's merchants spread over its ~0.1 km² hexes: one bar of hexes by density, one of merchants. */
 function HexSpread({ h }: { h: Hex }) {
@@ -202,6 +203,18 @@ function HexSpread({ h }: { h: Hex }) {
         <span>hexes</span>{bar("hexes")}
         <span>merchants</span>{bar("merchants")}
       </span>
+      {h.cover && (
+        <span style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: "2px 10px", borderTop: "1px solid #E2DDD1", paddingTop: 5 }}>
+          <span title="Fewest hexes that together hold 50 / 80 / 90% of the area's merchants">Hexes holding</span>
+          {["50", "80", "90"].map((q) => <span key={q} className="m" style={{ textAlign: "right" }}><b style={{ color: "#1E1E1C" }}>{fmt(h.cover![q])}</b> → {q}%</span>)}
+          {(h.hot || []).map((x) => (
+            <Fragment key={x.top}>
+              <span title={`Hexes with ${x.min}+ merchants: the top ${x.top}% of hexes across all picked areas`}>Top {x.top}% · {fmt(x.min)}+</span>
+              <span className="m" style={{ textAlign: "right", gridColumn: "span 3" }}><b style={{ color: "#1E1E1C" }}>{fmt(x.hexes)}</b> hexes · hold {pct(x.share, 0)}</span>
+            </Fragment>
+          ))}
+        </span>
+      )}
       <span>Hex ≈ {h.hex_km2} km². Busiest {fmt(h.max)} merchants ({fmt(h.max_per_km2)}/km²) · {pct(h.dense_share, 0)} in dense hexes (1,000+/km²) · median {fmt(h.median_active)} per hex</span>
     </div>
   );

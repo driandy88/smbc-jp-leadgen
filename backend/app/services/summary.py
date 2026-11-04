@@ -39,7 +39,8 @@ Rules:
   give their counts, never a density, and say they are partly covered.
 - Use hotspots (named districts, merchants per km² at the core) for where to send reps, not hex ids.
 - areas[].hex says how merchants spread inside a ward: hexes (cells of hex_km2 each), active (hexes with any
-  merchant), half_cells (fewest hexes holding half of them), dense_share (share in hexes at 1,000+/km²) and
+  merchant), cover (fewest hexes holding 50 / 80 / 90% of them), hot (hexes in the top 20% / 10% of all
+  picked areas' hexes, min = merchants per hex to qualify, share = merchants they hold), dense_share (share in hexes at 1,000+/km²) and
   bands. Use it to say whether a ward is one tight cluster a rep can walk or spread thin; never cite hex ids.
   Use fnb_segments to say which kinds of F&B dominate and which are most cash-reliant.
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
