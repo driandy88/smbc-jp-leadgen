@@ -52,7 +52,7 @@ function popup(p: Place) {
 const DOT_ZOOM = 15;
 
 /** A shaded hex under the dots; clicking it calls onHex. */
-export type HexShade = { h: string; color: string; tip: string };
+export type HexShade = { h: string; color: string; tip: string; opacity?: number };
 
 export function PlaceMap({ points, outline, hotspots, highlight, height = 560, hexes, onHex, fitKey, dim }: {
   points: Points | null; outline: Outline | null; res?: number; hotspots?: Hotspot[]; highlight?: string | null; height?: number;
@@ -146,7 +146,7 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560, h
     if (!g) return;
     g.clearLayers();
     for (const x of hexes || []) {
-      L.polygon(cellToBoundary(x.h) as [number, number][], { color: "#1E1E1C", weight: 0.4, opacity: 0.5, fillColor: x.color, fillOpacity: 0.5 })
+      L.polygon(cellToBoundary(x.h) as [number, number][], { color: "#1E1E1C", weight: 0.4, opacity: 0.5, fillColor: x.color, fillOpacity: x.opacity ?? 0.5 })
         .bindTooltip(x.tip, { sticky: true, className: "pm-tip" })
         .on("click", () => onHexRef.current?.(x.h))
         .addTo(g);
