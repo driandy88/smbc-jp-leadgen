@@ -36,14 +36,13 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
   const hot10Held = picked.reduce((s, a) => s + (a.hex?.hot?.[1]?.cells || []).reduce((t: number, c: Row) => t + c.n, 0), 0);
   const inPicked = rows.filter((r) => names.has(r.area)).length;
 
-  // A. Funnel, on operating merchants
+  // A. Funnel, on operating merchants; each step says who drops out on the way to the next
   const fReach = ops.filter(reach), fCash = fReach.filter(cashish), fCall = fCash.filter((r) => !!r.phone);
   const funnel = [
-    { l: "F&B merchants found", n: rows.length },
-    { l: "Operating today", n: ops.length },
-    { l: "Reachable by phone or website", n: fReach.length },
-    { l: "…and cash-only or no card info", n: fCash.length, note: "the payment opportunity" },
-    { l: "…and list a phone: the call list", n: fCall.length, accent: true },
+    { l: "Operating F&B merchants", n: ops.length },
+    { l: "Reachable by phone or website", n: fReach.length, drop: "no phone or website: walk-in only" },
+    { l: "Cash-only or no card info", n: fCash.length, drop: "already take cards" },
+    { l: "Call list", n: fCall.length, drop: "no phone listed (website only)", accent: true },
   ];
 
   // B. Headline tiles
@@ -54,7 +53,7 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
     { v: pct(share(ops.filter(cashish).length, ops.length), 0), l: "cash-only or no card info", s: "of operating merchants" },
     { v: fmt(fCall.length), l: "call list", s: "cash / no card, with a phone", accent: true },
     { v: pct(100 - share(chains, rows.length), 0), l: "independents", s: `${fmt(chains)} chain branches` },
-    { v: fmt(rows.filter((r) => isInstagram(r.web)).length), l: "on Instagram", s: "Instagram is their website" },
+    { v: fmt(ops.filter((r) => r.pay === "cash").length), l: "confirmed cash-only", s: `say "cash only" on Google · ${fmt(fCall.filter((r) => r.pay === "cash").length)} on the call list` },
     { v: hot10 ? fmt(hot10) : "—", l: "dense blocks (top-10% hexes)", s: hot10 ? `hold ${pct(share(hot10Held, inPicked), 0)} of merchants` : "re-run Analyze" },
   ];
 
@@ -131,17 +130,25 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
       <div className="sum-two">
         {/* A. Funnel */}
         <SumBlock t="From everyone found to who to call">
-          {funnel.map((f) => (
-            <div key={f.l} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 70px 44px", gap: 10, alignItems: "center", fontSize: 13 }}>
-              <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={{ fontWeight: f.accent ? 600 : 400 }}>{f.l}{f.note && <span style={{ color: "#5E5A52", fontWeight: 400 }}> · {f.note}</span>}</span>
-                <span style={{ height: 10, width: `${share(f.n, rows.length)}%`, background: f.accent ? "#C8442B" : "#1E1E1C" }} />
-              </span>
-              <span className="m" style={{ textAlign: "right", fontWeight: f.accent ? 600 : 400, color: f.accent ? "#C8442B" : undefined }}>{fmt(f.n)}</span>
-              <span className="m" style={{ textAlign: "right", fontSize: 11, color: "#5E5A52" }}>{pct(share(f.n, rows.length), 0)}</span>
-            </div>
-          ))}
-          <span style={{ fontSize: 11, color: "#5E5A52" }}>Each step is a subset of the one above; % = share of all merchants found. {fmt(ops.length - fReach.length)} operating merchants have no phone or website: field visits only.</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+            {funnel.map((f, i) => (
+              <div key={f.l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                {i > 0 && (
+                  <span style={{ fontSize: 11, color: "#8A8478", padding: "5px 0" }}>
+                    ↓ <span className="m" style={{ color: "#A8371F" }}>−{fmt(funnel[i - 1].n - f.n)}</span> {f.drop}
+                  </span>
+                )}
+                <div className="funnel-step" style={{ width: `${Math.max(34, share(f.n, funnel[0].n))}%`, background: f.accent ? "#C8442B" : "#1E1E1C" }}>
+                  <span style={{ fontWeight: f.accent ? 600 : 400 }}>{f.l}</span>
+                  <span className="m" style={{ fontSize: 17, fontWeight: 600 }}>{fmt(f.n)}</span>
+                </div>
+                <span className="m" style={{ fontSize: 10, color: "#5E5A52", paddingTop: 3 }}>
+                  {pct(share(f.n, funnel[0].n), 0)} of all{i > 0 ? ` · ${pct(share(f.n, funnel[i - 1].n), 0)} of the step above` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <span style={{ fontSize: 11, color: "#5E5A52" }}>Call list = operating, cash-only or no card info, with a phone. Bar width = share of operating merchants.</span>
         </SumBlock>
 
         {/* F. What the website links really are */}
@@ -160,11 +167,13 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
           <span style={{ fontSize: 12, lineHeight: 1.45 }}>
             Only <b>{fmt(links[0].n)}</b> merchants ({pct(share(links[0].n, rows.length), 0)} of all) have a real website of their own. {fmt(rows.length - withWeb.length)} have no link at all.
           </span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6, borderTop: "1px solid #E2DDD1", paddingTop: 10 }}>
-            <span className="lbl" style={{ color: "#5E5A52" }}>Watch-outs</span>
-            {watch.map((w) => <span key={w} style={{ fontSize: 12, lineHeight: 1.45 }}>· {w}</span>)}
-          </div>
         </SumBlock>
+      </div>
+
+      {/* G. Watch-outs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: "8px 24px", borderTop: "1px solid #E2DDD1", borderBottom: "1px solid #E2DDD1", padding: "10px 0" }}>
+        <span className="lbl" style={{ color: "#5E5A52", gridColumn: "1 / -1" }}>Watch-outs</span>
+        {watch.map((w) => <span key={w} style={{ fontSize: 12, lineHeight: 1.45, borderLeft: "2px solid #C8442B", paddingLeft: 8 }}>{w}</span>)}
       </div>
 
       {/* C. Area scorecard */}
