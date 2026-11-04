@@ -181,11 +181,12 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
   const f = p.fnb;
   const c = p.contact;
   if (!f) return null;
+  const indie = p.rows - (p.areas || []).reduce((n: number, a: { chains?: number }) => n + (a.chains || 0), 0);
   const items = [
     { v: fmt(p.rows), l: "unique merchants", s: `${fmt(p.areas?.length)} areas · ${fmt(p.overview?.types)} types` },
     { v: fmt(f.core.n), l: "F&B", s: pct(f.core.pct), accent: true },
-    { v: fmt(f.related.n), l: "F&B-related", s: pct(f.related.pct) },
-    { v: fmt(f.no.n), l: "Not F&B", s: pct(f.no.pct) },
+    ...(c ? [{ v: pct(p.overview.cash_or_unknown_pct, 0), l: "cash-only or no card info", s: `${fmt(c.cash_callable.n)} of ${fmt(c.cash_callable.of)} list a phone` }] : []),
+    { v: pct(indie / p.rows * 100, 0), l: "independent (not a chain)", s: `${fmt(p.rows - indie)} chain branches` },
     ...(c ? [{ v: pct(c.either_pct, 0), l: "reachable by phone or web", s: `${fmt(c.either)} merchants · ${fmt(c.neither)} with neither` }] : []),
   ];
   return (
