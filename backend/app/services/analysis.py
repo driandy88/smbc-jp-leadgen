@@ -580,18 +580,21 @@ def _area_hex(code: str, g: pd.DataFrame, res: int = AREA_HEX_RES) -> dict:
         "dense_share": float(_pct(per[dens >= 1000].sum(), per.sum())),  # merchants in hexes at 1,000+/km²
         "bands": [{"l": l, "hexes": int((band == l).sum()), "merchants": int(per[band == l].sum())}
                   for _, l in DENSITY_BANDS],
-        "counts": per.tolist(),  # read by _hot_hexes, then dropped
+        "counts": [(c, int(n)) for c, n in per.items()],  # read by _hot_hexes, then dropped
     }
 
 
 def _hot_hexes(hexes: list[dict]) -> None:
     """Hot hexes per area: hexes in the top 20% / 10% of all picked areas' hexes by merchants. One cutoff for
     every area, so the counts compare areas (a cutoff inside one area always marks ~20% / 10% of its hexes)."""
-    every = pd.Series([n for h in hexes for n in h["counts"]], dtype=float)
+    every = pd.Series([n for h in hexes for _, n in h["counts"]], dtype=float)
     for h in hexes:
-        c = pd.Series(h.pop("counts"), dtype=float)
+        counts = h.pop("counts")
+        c = pd.Series([n for _, n in counts], index=[k for k, _ in counts], dtype=float)
         h["hot"] = []
         for top, q in (("20", 0.8), ("10", 0.9)):
             cut = float(every.quantile(q)) if len(every) else 0
             m = c >= max(cut, 1)
-            h["hot"].append({"top": top, "min": round(cut), "hexes": int(m.sum()), "share": _pct(c[m].sum(), c.sum())})
+            h["hot"].append({"top": top, "min": round(cut), "pool": len(every), "hexes": int(m.sum()),
+                             "share": _pct(c[m].sum(), c.sum()),
+                             "cells": [{"h": k, "n": int(n)} for k, n in c[m].items()]})  # busiest first

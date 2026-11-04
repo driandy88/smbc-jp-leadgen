@@ -88,6 +88,9 @@ button:disabled { cursor: not-allowed; }
 .pm-spot b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #C8442B; color: #F8F6F0; font-size: 10px; text-shadow: none; margin-right: 4px; }
 .pm-spot span { font: 500 10px 'IBM Plex Mono', ui-monospace, monospace; color: #A8371F; margin-left: 5px; }
 .slice-grid { display: grid; grid-template-columns: minmax(140px, 1.6fr) 82px repeat(4, 96px) 72px minmax(80px, 1fr); gap: 8px; }
+.hexlink { font: inherit; background: none; border: none; padding: 0; cursor: pointer; color: #C8442B; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.hexdlg-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 92px 120px 112px minmax(0, 1fr); gap: 10px; align-items: center; }
+@media (max-width: 760px) { .hexdlg-grid { grid-template-columns: 1fr !important; } }
 .slice-grid-web { grid-template-columns: minmax(140px, 1.6fr) 82px repeat(6, 92px) 72px minmax(80px, 1fr); }
 .slice-cell { font: inherit; background: none; border: 1px solid transparent; padding: 4px 6px; display: flex; gap: 6px; align-items: baseline; cursor: pointer; text-align: left; color: inherit; }
 .slice-cell:hover:not(:disabled) { border-color: #A39B88; }

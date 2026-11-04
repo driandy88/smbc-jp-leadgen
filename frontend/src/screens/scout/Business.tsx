@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import type { Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
 import { isInstagram, WEB_KINDS, WEB_LABEL, webKind } from "../../lib/web";
+import { HexDialog, HotHexes } from "./HexDialog";
 import { Profile } from "./types";
 
 const Card = ({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) => (
@@ -184,10 +185,11 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
 const BAND_COLOR = ["#E2DDD1", "#D48E78", "#C8442B", "#8F2D1B", "#4A170E"];
 type Hex = { hexes: number; active: number; hex_km2: number; median_active: number; max: number; max_per_km2: number;
              half_cells: number; dense_share: number; bands: { l: string; hexes: number; merchants: number }[];
-             cover?: Record<string, number>; hot?: { top: string; min: number; hexes: number; share: number }[] };
+             cover?: Record<string, number>; hot?: HotHexes[] };
 
 /** How an area's merchants spread over its ~0.1 km² hexes: one bar of hexes by density, one of merchants. */
-function HexSpread({ h }: { h: Hex }) {
+function HexSpread({ h, area, points }: { h: Hex; area: string; points: Points | null }) {
+  const [open, setOpen] = useState<HotHexes | null>(null);
   const bar = (k: "hexes" | "merchants") => {
     const tot = Math.max(1, h.bands.reduce((n, b) => n + b[k], 0));
     return (
@@ -210,11 +212,16 @@ function HexSpread({ h }: { h: Hex }) {
           {(h.hot || []).map((x) => (
             <Fragment key={x.top}>
               <span title={`Hexes with ${x.min}+ merchants: the top ${x.top}% of hexes across all picked areas`}>Top {x.top}% · {fmt(x.min)}+</span>
-              <span className="m" style={{ textAlign: "right", gridColumn: "span 3" }}><b style={{ color: "#1E1E1C" }}>{fmt(x.hexes)}</b> hexes · hold {pct(x.share, 0)}</span>
+              <span className="m" style={{ textAlign: "right", gridColumn: "span 3" }}>
+                {x.cells?.length && points
+                  ? <button className="hexlink" onClick={() => setOpen(x)} title="Show these hexes on a map">{fmt(x.hexes)} hexes ↗</button>
+                  : <b style={{ color: "#1E1E1C" }}>{fmt(x.hexes)} hexes</b>} · hold {pct(x.share, 0)}
+              </span>
             </Fragment>
           ))}
         </span>
       )}
+      {open && points && <HexDialog area={area} hot={open} hexKm2={h.hex_km2} points={points} onClose={() => setOpen(null)} />}
       <span>Hex ≈ {h.hex_km2} km². Busiest {fmt(h.max)} merchants ({fmt(h.max_per_km2)}/km²) · {pct(h.dense_share, 0)} in dense hexes (1,000+/km²) · median {fmt(h.median_active)} per hex</span>
     </div>
   );
@@ -258,6 +265,20 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
         <span>Hex density, F&B merchants per km²:</span>
         {["Empty", "under 200", "200–999", "1,000–2,999", "3,000+"].map((l, i) => <span key={l} className="legend"><span style={{ background: BAND_COLOR[i] }} />{l}</span>)}
       </div>
+      {(() => {
+        const h: Hex | undefined = areas.find((a: any) => a.hex?.hot)?.hex;
+        if (!h?.hot) return null;
+        const [t20, t10] = h.hot;
+        const km = (n: number) => fmt(Math.round(n / h.hex_km2));
+        return (
+          <div style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.5, borderLeft: "2px solid #C8442B", paddingLeft: 10 }}>
+            <b style={{ color: "#1E1E1C" }}>Hot hexes.</b> All {fmt(t20.pool)} hexes of the picked areas (≈{h.hex_km2} km² each, a ~350 m block) are ranked by F&B merchants.{" "}
+            <b style={{ color: "#1E1E1C" }}>Top 20%</b> = the busiest fifth: {fmt(t20.min)}+ merchants in one hex, ≈ {km(t20.min)}+ per km².{" "}
+            <b style={{ color: "#1E1E1C" }}>Top 10%</b> = the busiest tenth: {fmt(t10.min)}+ merchants, ≈ {km(t10.min)}+ per km².
+            The cutoff is the same for every area, so the counts compare areas. <b style={{ color: "#1E1E1C" }}>Hexes holding 50 / 80 / 90%</b> = the fewest hexes that together hold that share of the area's merchants. Click a hex count to see those hexes on a map.
+          </div>
+        );
+      })()}
       <div className="top3-grid">
         {areas.map((a: any) => (
           <div key={a.name} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
@@ -265,7 +286,7 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
               <span className="serif" style={{ fontSize: 22 }}>{a.name}</span>
               <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{fmt(a.n)} merchants · {fmt(Math.round(a.density))}/km²</span>
             </div>
-            {a.hex && <HexSpread h={a.hex} />}
+            {a.hex && <HexSpread h={a.hex} area={a.name} points={points} />}
             {a.top.map(([seg, t]: [string, { n: number; reach: number }], i: number) => (
               <div key={seg} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>

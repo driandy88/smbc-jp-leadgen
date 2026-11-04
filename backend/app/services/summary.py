@@ -82,7 +82,9 @@ def _prompt_payload(p: dict) -> dict:
             "visit_window", "completeness", "quality"]
     out = {k: p.get(k) for k in keep}
     out["run"] = {k: p["run"].get(k) for k in ("keywords", "base_res", "max_res", "saturated", "splits")}
-    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads")} for a in p.get("areas", [])[:24]]
+    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads", "hex")}
+                    | ({"hex": a["hex"] | {"hot": [{k: v for k, v in x.items() if k != "cells"} for x in a["hex"].get("hot", [])]}}
+                       if a.get("hex") else {}) for a in p.get("areas", [])[:24]]
     out["segments"] = {k: v for k, v in (p.get("segments") or {}).items() if k != "priority"}
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")
