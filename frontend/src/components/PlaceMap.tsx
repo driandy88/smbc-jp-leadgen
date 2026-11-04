@@ -49,14 +49,30 @@ function popup(p: Place) {
  * Every merchant as a dot over a street basemap, with the densest neighbourhoods circled and named.
  * Basemap: GSI 地理院タイル (pale), free and keyless, so it works on any page.
  */
-export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }: { points: Points | null; outline: Outline | null; res?: number; hotspots?: Hotspot[]; highlight?: string | null; height?: number }) {
+const DOT_ZOOM = 15;
+
+/** A shaded hex under the dots; clicking it calls onHex. */
+export type HexShade = { h: string; color: string; tip: string };
+
+export function PlaceMap({ points, outline, hotspots, highlight, height = 560, hexes, onHex, fitKey, dim }: {
+  points: Points | null; outline: Outline | null; res?: number; hotspots?: Hotspot[]; highlight?: string | null; height?: number;
+  hexes?: HexShade[]; onHex?: (h: string) => void;
+  /** Refit to the merchants only when this changes (e.g. the picked area), not on every filter */
+  fitKey?: string;
+  /** A hex layer is on: dots only from DOT_ZOOM in, smaller, so the hexes read at a glance */
+  dim?: boolean;
+}) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const dots = useRef<L.LayerGroup | null>(null);
+  const shades = useRef<L.LayerGroup | null>(null);
+  const onHexRef = useRef(onHex);
+  onHexRef.current = onHex;
   const spots = useRef<L.LayerGroup | null>(null);
   const hi = useRef<L.Polygon | null>(null);
   const [mode, setMode] = useState<Mode>("contact");
   const [showSpots, setShowSpots] = useState(true);
+  const [zoom, setZoom] = useState(11);
 
   const places = useMemo<Place[]>(() => {
     if (!points) return [];
@@ -73,6 +89,8 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
     // Wheel zoom only after the map is clicked, so the page still scrolls past it
     m.on("click", () => m.scrollWheelZoom.enable());
     m.on("mouseout", () => m.scrollWheelZoom.disable());
+    m.on("zoomend", () => setZoom(m.getZoom()));
+    shades.current = L.layerGroup().addTo(m);
     spots.current = L.layerGroup().addTo(m);
     dots.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -111,26 +129,41 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
     g.clearLayers();
     const s = SCHEMES[mode];
     const color = Object.fromEntries(s.keys.map(([k, , c]) => [k, c]));
+    if (dim && zoom < DOT_ZOOM) return;
     for (const p of shown) {
       L.circleMarker([p.lat, p.lng], {
-        radius: 4, weight: 0.8, color: "#F8F6F0", fillColor: color[s.key(p)] || "#8A8478", fillOpacity: 0.92,
+        radius: dim ? 2.5 : 4, weight: dim ? 0 : 0.8, color: "#F8F6F0", fillColor: color[s.key(p)] || "#8A8478", fillOpacity: dim ? 0.55 : 0.92,
       })
         .bindTooltip(esc(p.name), { direction: "top", offset: [0, -4], className: "pm-tip" })
         .bindPopup(() => popup(p), { maxWidth: 280 })
         .addTo(g);
     }
-  }, [shown, mode]);
+  }, [shown, mode, dim, zoom >= DOT_ZOOM]);
 
-  // Fit to the merchants once they arrive
+  // Hex shading under the dots
   useEffect(() => {
-    if (map.current && places.length) map.current.fitBounds(L.latLngBounds(places.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
-  }, [places]);
+    const g = shades.current;
+    if (!g) return;
+    g.clearLayers();
+    for (const x of hexes || []) {
+      L.polygon(cellToBoundary(x.h) as [number, number][], { color: "#1E1E1C", weight: 0.4, opacity: 0.5, fillColor: x.color, fillOpacity: 0.5 })
+        .bindTooltip(x.tip, { sticky: true, className: "pm-tip" })
+        .on("click", () => onHexRef.current?.(x.h))
+        .addTo(g);
+    }
+  }, [hexes]);
+
+  // Fit to the merchants once they arrive, when fitKey changes and when a hex is let go (not on every filter)
+  const hasPlaces = places.length > 0;
+  useEffect(() => {
+    if (map.current && hasPlaces && !highlight) map.current.fitBounds(L.latLngBounds(places.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
+  }, [hasPlaces, fitKey, highlight]);
 
   useEffect(() => {
     hi.current?.remove();
     if (!highlight || !map.current) return;
     hi.current = L.polygon(cellToBoundary(highlight) as [number, number][], { color: "#C8442B", weight: 2.4, fill: false, interactive: false }).addTo(map.current);
-    if (!map.current.getBounds().contains(hi.current.getBounds())) map.current.panTo(hi.current.getBounds().getCenter());
+    map.current.fitBounds(hi.current.getBounds(), { padding: [120, 120], maxZoom: 16 });
   }, [highlight]);
 
   const counts = useMemo(() => {
@@ -158,7 +191,7 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560 }:
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />{l} <span className="m">{fmt(counts[k] || 0)}</span>
           </span>
         ))}
-        <span style={{ marginLeft: "auto" }}>Hover a dot for the name, click for details · click the map to zoom with the wheel</span>
+        <span style={{ marginLeft: "auto" }}>{dim && zoom < DOT_ZOOM ? "Zoom in (or click a hex) to see the merchants as dots" : "Hover a dot for the name, click for details · click the map to zoom with the wheel"}</span>
       </div>
     </div>
   );
