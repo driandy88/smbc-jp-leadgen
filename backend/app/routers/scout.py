@@ -304,6 +304,8 @@ def _options(df) -> dict:
         "svc": [{"k": k, "l": l, "n": int(df[k].fillna(False).astype(bool).sum())} for k, l in records.SERVICES.items()],
         "qual": [{"k": "phone", "l": records.QUALITY["phone"], "n": int(df["phone"].notna().sum())},
                  {"k": "web", "l": records.QUALITY["web"], "n": int(df["web"].notna().sum())},
+                 {"k": "ownweb", "l": records.QUALITY["ownweb"], "n": int((df["web_kind"] == "own").sum())},
+                 {"k": "instagram", "l": records.QUALITY["instagram"], "n": int(df["instagram"].notna().sum())},
                  {"k": "photos", "l": records.QUALITY["photos"], "n": int((df["photos"] >= 5).sum())},
                  {"k": "nochain", "l": records.QUALITY["nochain"], "n": int((~df["chain"]).sum())}],
         "areas": [{"k": a, "l": g["area_en"].iloc[0], "jp": g["area_jp"].iloc[0], "n": len(g)}
@@ -330,7 +332,8 @@ def _preview_row(r) -> dict:
             "reviews": None if pd.isna(r["reviews"]) else int(r["reviews"]),
             "price": records.PRICE_BANDS[int(r["price"])], "pay": r["pay"], "pay_label": records.PAY[r["pay"]],
             "today": hours, "maps_uri": r["maps_uri"], "status": r["status"],
-            "phone": r["phone"] if pd.notna(r["phone"]) else None, "web": r["web"] if pd.notna(r["web"]) else None}
+            "phone": r["phone"] if pd.notna(r["phone"]) else None, "web": r["web"] if pd.notna(r["web"]) else None,
+            "web_kind": r["web_kind"] if pd.notna(r["web_kind"]) else None}
 
 
 def _404():

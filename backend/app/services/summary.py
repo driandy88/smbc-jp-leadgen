@@ -31,15 +31,23 @@ Rules:
 - Use keyword yield and keyword_set: say how many terms cover 90% / 95% of the list (curve), which
   terms add almost nothing once the stronger ones are in (drop, with places lost and cost saved),
   and the duplicate rate (raw hits per unique place).
-- Every merchant in the data is F&B (restaurants, bars, cafés, plus F&B-related venues such as karaoke and
-  liquor shops). "Merchants" and "F&B merchants" are the same number; never contrast them.
+- Every merchant in the data is F&B (restaurants, bars, cafés, plus F&B-related venues such as night clubs,
+  karaoke and cake shops with seating). Groceries, supermarkets and other shops without dine-in are Food
+  retail and are left out unless fnb.retail is non-zero. "Merchants" and "F&B merchants" are the same
+  number; never contrast them.
 - areas[] are wards. Wards with selected=false were only searched along the border of the chosen wards:
   give their counts, never a density, and say they are partly covered.
 - Use hotspots (named districts, merchants per km² at the core) for where to send reps, not hex ids.
+- areas[].hex says how merchants spread inside a ward: hexes (cells of hex_km2 each), active (hexes with any
+  merchant), cover (fewest hexes holding 50 / 80 / 90% of them), hot (hexes in the top 20% / 10% of all
+  picked areas' hexes, min = merchants per hex to qualify, share = merchants they hold), dense_share (share in hexes at 1,000+/km²) and
+  bands. Use it to say whether a ward is one tight cluster a rep can walk or spread thin; never cite hex ids.
   Use fnb_segments to say which kinds of F&B dominate and which are most cash-reliant.
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
-  merchants have a phone (the call list), and how many websites are social pages or portals rather than
-  the merchant's own. There is no email in Google data; never claim email reach.
+  merchants have a phone (the call list), and contact.web_kinds: own website, group / chain or venue site,
+  social media (contact.instagram on Instagram), booking site, gourmet / listing portal. Only own sites and
+  social pages reach the merchant directly; a group site reaches head office. There is no email in Google
+  data; never claim email reach.
 - Write everything in English. Use the English ward names (`en`, e.g. Naniwa, Kita) and English type
   names. Name a search term in English with the Japanese term in brackets, using kw_en, e.g.
   Restaurant (レストラン). Keep merchant names exactly as given. Short sentences."""
@@ -74,7 +82,9 @@ def _prompt_payload(p: dict) -> dict:
             "visit_window", "completeness", "quality"]
     out = {k: p.get(k) for k in keep}
     out["run"] = {k: p["run"].get(k) for k in ("keywords", "base_res", "max_res", "saturated", "splits")}
-    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads")} for a in p.get("areas", [])[:24]]
+    out["areas"] = [{k: v for k, v in a.items() if k not in ("price", "priority_leads", "hex")}
+                    | ({"hex": a["hex"] | {"hot": [{k: v for k, v in x.items() if k != "cells"} for x in a["hex"].get("hot", [])]}}
+                       if a.get("hex") else {}) for a in p.get("areas", [])[:24]]
     out["segments"] = {k: v for k, v in (p.get("segments") or {}).items() if k != "priority"}
     out["fnb"] = p.get("fnb")
     out["keywords"] = p.get("keywords")

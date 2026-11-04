@@ -122,8 +122,10 @@ SEGMENTS = [
 def segment(primary_type: str | None, fnb: str) -> str:
     if fnb == "no":
         return "Not F&B"
+    if fnb == "retail":
+        return "Food retail"
     if fnb == "related":
-        return "F&B-related (karaoke, liquor, venues)"
+        return "F&B-related (karaoke, bars in shops, venues)"
     t = primary_type or ""
     for name, words in SEGMENTS:
         if any(w in t for w in words):
