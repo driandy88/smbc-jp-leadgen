@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, download } from "../../api";
 import type { Outline } from "../../components/HexMap";
-import { PlaceMap, Points } from "../../components/PlaceMap";
+import type { Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
 import { AreaView, MainOverview } from "./Business";
+import { ExplorerView, MapExplorer } from "./MapExplorer";
+import { Websites } from "./Websites";
 import { Profile, Version } from "./types";
 
 type Analysis = { profile: Profile; summary: Brief };
@@ -184,6 +186,8 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
   const [points, setPoints] = useState<Points | null>(null);
   useEffect(() => { api<Points>(`/api/versions/${versionId}/points`).then(setPoints); }, [versionId]);
   const p = a.profile;
+  const [view, setView] = useState<ExplorerView>({ area: "all", web: "all" });
+  const showOnMap = (v: ExplorerView) => { setView({ ...v, reset: Date.now() }); document.getElementById("explorer")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
     <div className="hx-in" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -192,12 +196,17 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
       <Section n="01" t="Main" />
       <MainOverview p={p} points={points} />
 
-      <Section n="02" t="Map" />
-      <Card title="F&B merchant map · every merchant in this version" meta="red circles = busiest neighbourhoods">
-        <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
+      <div id="explorer" style={{ scrollMarginTop: 16 }}><Section n="02" t="Map · where they are" /></div>
+      <Card title="Explore by area, website and hex density" meta="pick filters · click a hex to zoom in">
+        <MapExplorer p={p} points={points} outline={outline} view={view} setView={setView} />
       </Card>
 
-      <Section n="03" t="Top 3 segments by area" />
+      <Section n="03" t="Websites · how merchants show up online" />
+      <Card title="Website type of every F&B merchant" meta="click a type or number to see it on the map">
+        <Websites p={p} points={points} onPick={showOnMap} />
+      </Card>
+
+      <Section n="04" t="Top 3 segments by area" />
       <AreaView p={p} points={points} />
     </div>
   );
