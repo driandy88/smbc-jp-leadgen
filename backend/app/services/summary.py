@@ -45,7 +45,7 @@ Rules:
   Use fnb_segments to say which kinds of F&B dominate and which are most cash-reliant.
 - Use contact: how many merchants can be phoned or have a website, how many cash-only / no-card
   merchants have a phone (the call list), and contact.web_kinds: own website, group / chain or venue site,
-  social media (contact.instagram on Instagram), booking site, gourmet / listing portal. Only own sites and
+  social media (contact.instagram on Instagram), booking / gourmet portal (one class). Only own sites and
   social pages reach the merchant directly; a group site reaches head office. There is no email in Google
   data; never claim email reach.
 - Write everything in English. Use the English ward names (`en`, e.g. Naniwa, Kita) and English type

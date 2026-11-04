@@ -41,7 +41,7 @@ def _priority(op: pd.DataFrame) -> pd.Series:
             & (op["rating"].fillna(0) >= 3.5) & op["phone"].notna())
 
 
-POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "ward_en", "hex_id",
+POINT_COLS = ["place_id", "lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "ward_en", "hex_id",
               "maps_uri", "address", "phone", "web", "web_kind", "status", "price"]
 
 
@@ -361,13 +361,13 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
         f"that is the call list. Google has no email field.")})
 
     kinds = {k["k"]: k for k in c["web_kinds"]}
-    nonown = kinds["social"]["n"] + kinds["booking"]["n"] + kinds["aggregator"]["n"]
+    nonown = kinds["social"]["n"] + kinds["portal"]["n"]
     if c["web"] and _pct(nonown, c["web"]) >= 10:
-        top_host = (kinds["aggregator"]["hosts"] or kinds["social"]["hosts"] or kinds["booking"]["hosts"])[0]
+        top_host = (kinds["portal"]["hosts"] or kinds["social"]["hosts"])[0]
         out.append({"k": "Web", "t": (
             f"Of {c['web']:,} website links, {kinds['own']['n']:,} are the merchant's own site, "
             f"{kinds['group']['n']:,} a chain or venue site, {kinds['social']['n']:,} social pages "
-            f"({c['instagram']:,} Instagram) and {kinds['booking']['n'] + kinds['aggregator']['n']:,} booking or "
+            f"({c['instagram']:,} Instagram) and {kinds['portal']['n']:,} booking or "
             f"gourmet-portal listings (most often {top_host['host']}). Shops on rented channels are open to a "
             "direct digital / payment offer.")})
     elif c["web"]:

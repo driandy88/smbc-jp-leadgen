@@ -8,8 +8,8 @@ they belong to. Each link gets one of these kinds:
 - group: a site shared by 3+ merchants of one run, i.e. a chain or operator (fujiofood.com, a Starbucks
   store page) or the hotel, department store or food hall the merchant sits in
 - social: Instagram, Facebook, X, LINE, TikTok, link-in-bio pages
-- booking: a reservation page (TableCheck, Ikyu, ebica, Tabelog's booking site…)
-- aggregator: a gourmet or listing portal (Tabelog, Hot Pepper, Gurunavi, Retty, delivery apps…)
+- portal: a booking page or gourmet / listing portal (TableCheck, Ikyu, Tabelog, Hot Pepper, Gurunavi,
+  Retty, delivery apps…): a rented channel, not the merchant's own
 """
 
 from urllib.parse import urlparse
@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import pandas as pd
 
 KIND = {"own": "Own website", "group": "Group / chain website", "social": "Social media",
-        "booking": "Booking site", "aggregator": "Gourmet / listing portal"}
+        "portal": "Booking / gourmet portal"}
 
 SOCIAL = ("instagram.com", "facebook.com", "fb.com", "x.com", "twitter.com", "tiktok.com", "youtube.com",
           "threads.net", "threads.com", "line.me", "lin.ee", "linktr.ee", "lit.link", "ameblo.jp", "note.com",
@@ -58,10 +58,8 @@ def listed_kind(url) -> str | None:
         return "social"
     if _on(h, BUILDER):  # before the portals: sites.google.com is not google.com
         return "own"
-    if _on(h, BOOKING):  # before the portals: yoyaku.tabelog.com is not tabelog.com
-        return "booking"
-    if _on(h, AGGREGATOR):
-        return "aggregator"
+    if _on(h, BOOKING) or _on(h, AGGREGATOR):
+        return "portal"
     return "own"
 
 

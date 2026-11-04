@@ -133,3 +133,49 @@ class ApiCall(Base):
     results: Mapped[int | None] = mapped_column(Integer)
     tokens_in: Mapped[int | None] = mapped_column(Integer)
     tokens_out: Mapped[int | None] = mapped_column(Integer)
+
+
+class WebSearch(Base):
+    """One run of the website-finder agent over merchants of a version that list no website."""
+
+    __tablename__ = "web_searches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(ForeignKey("versions.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    author: Mapped[str] = mapped_column(String(200))
+    mock: Mapped[bool] = mapped_column(Boolean, default=True)
+    # queued | running | cancelling | cancelled | done | failed
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    error: Mapped[str | None] = mapped_column(Text)
+    workers: Mapped[int] = mapped_column(Integer, default=4)
+    area: Mapped[str | None] = mapped_column(String(100))
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class WebFind(Base):
+    """What the agent decided for one merchant: does a website that really belongs to it exist."""
+
+    __tablename__ = "web_finds"
+    __table_args__ = (Index("ix_web_finds_search_status", "search_id", "status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    search_id: Mapped[int] = mapped_column(ForeignKey("web_searches.id", ondelete="CASCADE"), index=True)
+    version_id: Mapped[int] = mapped_column(Integer, index=True)
+    place_id: Mapped[str] = mapped_column(String(200))
+    name: Mapped[str] = mapped_column(String(300))
+    # queued | searching | done | error | skipped
+    status: Mapped[str] = mapped_column(String(12), default="queued")
+    exists: Mapped[bool | None] = mapped_column(Boolean)
+    website: Mapped[str | None] = mapped_column(String(1000))
+    # own | group (the chain's official store page) — only when exists
+    site_type: Mapped[str | None] = mapped_column(String(20))
+    social: Mapped[str | None] = mapped_column(String(1000))
+    confidence: Mapped[str | None] = mapped_column(String(10))
+    reason: Mapped[str | None] = mapped_column(Text)
+    queries: Mapped[list | None] = mapped_column(JSON)
+    sources: Mapped[list | None] = mapped_column(JSON)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

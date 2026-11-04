@@ -55,6 +55,10 @@ class Settings:
     # List price per million tokens; thinking tokens bill as output. Check the Vertex pricing page.
     gemini_usd_per_mtok_in: float = field(default_factory=lambda: float(_env("GEMINI_USD_PER_MTOK_IN", "0.3")))
     gemini_usd_per_mtok_out: float = field(default_factory=lambda: float(_env("GEMINI_USD_PER_MTOK_OUT", "2.5")))
+    # Google Search grounding for the website-finder agent, per search query the model runs
+    search_usd_per_1000: float = field(default_factory=lambda: float(_env("SEARCH_USD_PER_1000", "14")))
+    # Shared Drive folder the service account writes Google Sheets into (it has no Drive of its own)
+    sheets_folder_id: str = field(default_factory=lambda: _env("SHEETS_FOLDER_ID"))
     claude_model: str = field(default_factory=lambda: _env("CLAUDE_MODEL", "claude-sonnet-5-5"))
     # Sonnet 5.5 on Vertex, per 1M tokens
     claude_usd_per_mtok_in: float = field(default_factory=lambda: float(_env("CLAUDE_USD_PER_MTOK_IN", "2")))

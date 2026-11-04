@@ -2,7 +2,6 @@ import { Fragment, useMemo, useState } from "react";
 import type { Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
 import { isInstagram, WEB_KINDS, WEB_LABEL, webKind } from "../../lib/web";
-import { Profile } from "./types";
 
 const Card = ({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) => (
   <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
@@ -144,72 +143,9 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
             <button className="btn2" onClick={() => setSel(null)}>Clear</button>
           </>
         ) : (
-          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, website type, Instagram, address and Google Maps link. <b>Website type</b> splits the links into the merchant's own site, a group / chain site, social media, booking sites and gourmet portals.</span>
+          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, website type, Instagram, address and Google Maps link. <b>Website type</b> splits the links into the merchant's own site, a group / chain site, social media and booking / gourmet portals.</span>
         )}
       </div>
     </Wrap>
-  );
-}
-
-/** Per area picked in step 1: its three biggest F&B segments as bars, split into reachable and not. */
-export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
-  const areas = useMemo(() => {
-    if (!points) return [];
-    const picked = (p.areas || []).filter((a: any) => (a.selected ?? a.code !== "outside") && a.per_km2 != null);
-    const groups = new Map<string, Row[]>();
-    for (const r of points.rows.map((row) => Object.fromEntries(points.cols.map((c, i) => [c, row[i]])) as Row)) {
-      const k: string = r.ward_en ?? r.area_en;
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(r);
-    }
-    return picked.map((a: any) => {
-      const rows = groups.get(a.en) || [];
-      const segs = new Map<string, { n: number; reach: number }>();
-      for (const r of rows) {
-        const t = segs.get(r.segment) || { n: 0, reach: 0 };
-        t.n++;
-        if (contactClass(r) !== "none") t.reach++;
-        segs.set(r.segment, t);
-      }
-      return { name: a.en, density: a.per_km2 as number, n: rows.length,
-               top: [...segs.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 3) };
-    }).sort((x: any, y: any) => y.density - x.density);
-  }, [points, p]);
-
-  if (!points) return <Card title="Areas"><span style={{ fontSize: 12, color: "#5E5A52" }}>Loading merchants…</span></Card>;
-  if (!areas.length) return null;
-  const max = Math.max(1, ...areas.flatMap((a: any) => a.top.map(([, t]: [string, { n: number }]) => t.n)));
-  return (
-    <Card title="Areas · top 3 F&B segments in each area you picked" meta="bar = merchants · same scale across areas">
-      <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#5E5A52" }}>
-        <span className="legend"><span style={{ background: "#1E1E1C" }} />Reachable (phone or website)</span>
-        <span className="legend"><span style={{ background: "#C8442B" }} />Not reachable</span>
-      </div>
-      <div className="top3-grid">
-        {areas.map((a: any) => (
-          <div key={a.name} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, borderBottom: "1px solid #1E1E1C", paddingBottom: 6 }}>
-              <span className="serif" style={{ fontSize: 22 }}>{a.name}</span>
-              <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{fmt(a.n)} merchants · {fmt(Math.round(a.density))}/km²</span>
-            </div>
-            {a.top.map(([seg, t]: [string, { n: number; reach: number }], i: number) => (
-              <div key={seg} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
-                  <span><span className="m" style={{ color: "#8A8478", marginRight: 6 }}>{i + 1}</span>{seg}</span>
-                  <span className="m">{fmt(t.n)}</span>
-                </span>
-                <span className="top3-bar" title={`${seg} in ${a.name}: ${t.reach} reachable, ${t.n - t.reach} not`} style={{ width: `${(100 * t.n) / max}%` }}>
-                  <span style={{ flex: t.reach, background: "#1E1E1C" }} />
-                  {t.n > t.reach && <span style={{ flex: t.n - t.reach, background: "#C8442B" }} />}
-                </span>
-                <span style={{ fontSize: 11, color: "#5E5A52" }}>
-                  {fmt(t.reach)} reachable ({pct((100 * t.reach) / t.n, 0)}) · {fmt(t.n - t.reach)} not
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </Card>
   );
 }
