@@ -4,6 +4,8 @@ Paths mirror the pipeline's layout: google-data-extraction/<run>/raw/<city>/<hex
 """
 
 import io
+import shutil
+from pathlib import Path
 
 import pandas as pd
 
@@ -33,6 +35,16 @@ class Storage:
         if result["failed"]:
             raise OSError(result["failed"][0]["error"])
         return result["successful"][0]["gcs_path"]
+
+    def put_file(self, path: str, local_file: str, content_type: str = "text/csv") -> str:
+        """Upload a file already on disk; streams, so large exports never sit in memory."""
+        if self.bucket_name:
+            self._bucket.blob(path).upload_from_filename(local_file, content_type=content_type)
+            return f"gs://{self.bucket_name}/{path}"
+        dest = Path(self._local.root_dir) / path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(local_file, dest)
+        return str(dest)
 
 
 def run_prefix(run_id: int, created: str) -> str:
