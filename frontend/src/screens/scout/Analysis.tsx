@@ -197,7 +197,7 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
         <PlaceMap points={points} outline={outline} hotspots={p.hotspots} />
       </Card>
 
-      <Section n="03" t="Areas · density & top segments" />
+      <Section n="03" t="Areas" />
       <AreaView p={p} points={points} />
     </div>
   );
