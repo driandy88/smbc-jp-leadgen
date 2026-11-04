@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.settings import get_settings
@@ -32,6 +32,10 @@ def init_db() -> None:
     from app import models  # noqa: F401  registers tables
 
     Base.metadata.create_all(engine)
+    # create_all does not add columns to existing tables; small additive changes go here
+    if "sources" not in {c["name"] for c in inspect(engine).get_columns("versions")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE versions ADD COLUMN sources JSON"))
 
 
 def get_db() -> Iterator[Session]:

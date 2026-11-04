@@ -47,6 +47,7 @@ export type FilterResult = {
 export type Version = {
   id: number; name: string; notes: string; author: string; created_at: string; run_id: number; rows: number; diff: number | null;
   cities: string[]; areas: number; keywords: number; mock: boolean; cost_local: number; export_uri: string | null; analyzed: boolean;
+  sources: { id: number; name: string }[] | null; // set on a combined version
 };
 
 // The profile from services/analysis.py; loosely typed on purpose
