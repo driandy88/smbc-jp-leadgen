@@ -88,6 +88,13 @@ def test_mock_run_end_to_end(client, auth):
     # Merchant mix: areas, types and contact splits each add up to the full list
     assert sum(a["places"] for a in prof["areas"]) == prof["rows"]
     assert all(sum(a["fnb"].values()) == a["places"] for a in prof["areas"])
+    for a in prof["areas"]:
+        hx = a["hex"]
+        if a["selected"]:
+            assert 0 < hx["active"] <= hx["hexes"] and 0 < hx["half_cells"] <= hx["active"]
+            assert sum(b["merchants"] for b in hx["bands"]) == a["places"] and sum(b["hexes"] for b in hx["bands"]) == hx["hexes"]
+        else:
+            assert hx is None
     assert sum(t["n"] for t in prof["type_mix"]) == prof["rows"]
     c = prof["contact"]
     assert sum(x["n"] for x in c["split"].values()) == prof["rows"]
@@ -142,9 +149,24 @@ def test_fnb_class_on_real_shapes():
     hotel = {"primaryType": "hotel", "types": ["hotel", "lodging"]}
     assert records.fnb_class(izakaya) == ("core", "primaryType")
     assert records.fnb_class({"primaryType": "bar", "types": ["bar"]})[0] == "core"
-    assert records.fnb_class(kakuuchi) == ("related", "types")
+    assert records.fnb_class(kakuuchi) == ("related", "dining attributes")  # a liquor shop with a bar
     assert records.fnb_class(karaoke) == ("related", "dining attributes")
-    assert records.fnb_class(hotel) == ("no", "none")
+    assert records.fnb_class(hotel) == ("no", "primaryType")
+
+
+def test_food_retail_is_not_fnb():
+    supermarket = {"primaryType": "supermarket", "types": ["supermarket", "grocery_store", "food", "store"]}
+    butcher = {"primaryType": "butcher_shop", "types": ["butcher_shop", "food", "store"], "dineIn": False}
+    cake_to_go = {"primaryType": "cake_shop", "types": ["cake_shop", "food", "store"]}
+    shop_cafe = {"primaryType": "store", "types": ["store", "food"], "servesCoffee": True}
+    gift_shop = {"primaryType": "store", "types": ["store", "point_of_interest"]}
+    cafe_venue = {"primaryType": "event_venue", "types": ["event_venue", "cafe", "bar"], "dineIn": True}
+    assert records.fnb_class(supermarket) == ("retail", "primaryType")
+    assert records.fnb_class(butcher) == ("retail", "primaryType")
+    assert records.fnb_class(cake_to_go) == ("retail", "types")  # no seating: Food retail
+    assert records.fnb_class(shop_cafe)[0] == "related"
+    assert records.fnb_class(gift_shop)[0] == "no"
+    assert records.fnb_class(cafe_venue) == ("related", "types")  # a cafe & bar filed as an event venue
 
 
 def test_cancel_before_job_starts_does_not_hang(client, auth, monkeypatch):
@@ -171,13 +193,24 @@ def test_cancel_before_job_starts_does_not_hang(client, auth, monkeypatch):
 
 
 def test_web_kind():
-    from app.services.analysis import web_kind
-    assert web_kind("https://www.instagram.com/izakaya_x/") == "social"
-    assert web_kind("https://lin.ee/abc") == "social"
-    assert web_kind("https://tabelog.com/osaka/A2701/") == "portal"
-    assert web_kind("https://beauty.hotpepper.jp/slnH0001/") == "portal"
-    assert web_kind("https://izakaya-x.jp/") == "own"
-    assert web_kind(None) is None
+    import pandas as pd
+
+    from app.services.websites import kinds, listed_kind
+    assert listed_kind("https://www.instagram.com/izakaya_x/") == "social"
+    assert listed_kind("https://lin.ee/abc") == "social"
+    assert listed_kind("https://tabelog.com/osaka/A2701/") == "aggregator"
+    assert listed_kind("https://yoyaku.tabelog.com/a1b2") == "booking"
+    assert listed_kind("https://www.tablecheck.com/shops/x/reserve") == "booking"
+    assert listed_kind("https://sites.google.com/view/bar-x") == "own"
+    assert listed_kind("https://izakaya-x.jp/") == "own"
+    assert listed_kind(None) is None
+    web = pd.Series(["https://www.fujiofood.com/shop/1", "https://fujiofood.com/shop/2", "https://www.fujiofood.com/shop/3",
+                     "https://saizo.gorp.jp/", "https://kaj7606.gorp.jp/", "https://abc.gorp.jp/",
+                     "https://sites.google.com/view/a", "https://sites.google.com/view/b", "https://sites.google.com/view/c",
+                     None])
+    names = pd.Series(["スキヤキフジオ なんば店", "本串家物語 梅田店", "つるまる饂飩 天一店", "菜蔵", "おか長", "三好",
+                       "A", "B", "C", "D"])
+    assert kinds(web, names).tolist() == ["group"] * 3 + ["own"] * 6 + [None]
 
 
 def test_type_labels_are_english():

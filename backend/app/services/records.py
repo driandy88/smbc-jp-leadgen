@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.db import session_scope
 from app.models import Place, Run
-from app.services import districts, regions
+from app.services import districts, regions, websites
 
 PRICE_BANDS = ["〜¥1,000", "¥1,000–2,000", "¥2,000–3,000", "¥3,000–5,000", "¥5,000+", "No info"]
 PRICE_LEVEL_BAND = {"PRICE_LEVEL_INEXPENSIVE": 0, "PRICE_LEVEL_MODERATE": 1, "PRICE_LEVEL_EXPENSIVE": 3,
@@ -18,7 +18,8 @@ STATUS = {"OPERATIONAL": "Operational", "CLOSED_TEMPORARILY": "Temporarily close
           "CLOSED_PERMANENTLY": "Permanently closed"}
 SERVICES = {"dineIn": "Dine-in", "takeout": "Takeout", "delivery": "Delivery", "reservable": "Reservable",
             "servesBeer": "Serves beer", "servesLunch": "Lunch", "servesDinner": "Dinner"}
-QUALITY = {"phone": "Has phone number", "web": "Has website", "photos": "5+ photos", "nochain": "Exclude chains"}
+QUALITY = {"phone": "Has phone number", "web": "Has website", "ownweb": "Has own website", "instagram": "Has Instagram",
+           "photos": "5+ photos", "nochain": "Exclude chains"}
 REVIEW_STEPS = [0, 5, 10, 20, 50, 100, 200, 500, 1000]
 
 # F&B detection from Google's own fields. Google has no "is F&B" flag, but three signals together
@@ -31,21 +32,47 @@ FNB_PRIMARY = {
     "cocktail_bar", "snack_bar", "beer_garden", "diner", "cafeteria", "chocolate_shop", "acai_shop",
     "bar_and_grill", "noodle_shop", "candy_store", "pastry_shop",
 }
-FNB_TYPES = {"food", "restaurant", "bar", "cafe", "meal_takeaway", "meal_delivery"}
+# Generic "food" is not on this list: Google puts it on every shop that sells food, groceries included
+FNB_TYPES = {"restaurant", "bar", "cafe", "meal_takeaway", "meal_delivery"}
+# Shops that sell food to take home: Food retail, unless Google says you can eat or drink there
+FOOD_SHOP = {
+    "grocery_store", "supermarket", "discount_supermarket", "convenience_store", "food_store", "asian_grocery_store",
+    "butcher_shop", "liquor_store", "market", "seafood_market", "tea_store", "health_food_store",
+}
+# Shops of any kind: Food retail only when Google also tags them "food"
+SHOP = {"store", "general_store", "discount_store", "department_store", "wholesaler", "manufacturer", "drugstore",
+        "farm"}
+# Places that host food or drink but are not in the trade (events, rooms, retail outside food)
+NOT_FNB_PRIMARY = {
+    "hotel", "hostel", "lodging", "wedding_venue", "event_venue", "coworking_space", "art_gallery", "museum",
+    "real_estate_agency", "clothing_store", "bicycle_store", "association_or_organization", "corporate_office",
+    "office_space_rental_agency", "shopping_mall", "service", "point_of_interest",
+}
 DINING_FIELDS = ("dineIn", "servesBeer", "servesWine", "servesCoffee", "servesBreakfast", "servesLunch",
                  "servesDinner", "servesDessert", "servesBrunch", "servesCocktails", "servesVegetarianFood")
-FNB_LABEL = {"core": "F&B", "related": "F&B-related", "no": "Not F&B"}
+FNB_LABEL = {"core": "F&B", "related": "F&B-related", "retail": "Food retail", "no": "Not F&B"}
+FNB_LISTED = ["core", "related"]  # what a list holds unless Food retail is switched on
 
 
 def fnb_class(p: dict) -> tuple[str, str]:
-    """('core' | 'related' | 'no', the signal that decided it)."""
+    """('core' | 'related' | 'retail' | 'no', the signal that decided it). Decided by what Google says the
+    place mainly is, then by whether people eat or drink there; never by words in the name."""
     primary = p.get("primaryType") or ""
+    types = set(p.get("types") or [])
     if primary in FNB_PRIMARY or primary.endswith(("_restaurant", "_bar", "_cafe")):
         return "core", "primaryType"
-    if FNB_TYPES & set(p.get("types") or []):
+    dine_in = any(p.get(k) is True for k in DINING_FIELDS)  # dine-in, or serves beer / lunch / coffee…
+    # A cafe & bar filed as an event venue is still a cafe & bar
+    if primary in NOT_FNB_PRIMARY and not (dine_in or FNB_TYPES & types):
+        return "no", "primaryType"
+    if not dine_in and (primary in FOOD_SHOP or (primary in SHOP and "food" in types)):
+        return "retail", "primaryType"
+    if FNB_TYPES & types:
         return "related", "types"
     if any(k in p for k in DINING_FIELDS):
         return "related", "dining attributes"
+    if "food" in types:
+        return "retail", "types"
     return "no", "none"
 DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]  # Google's day 0 is Sunday
 
@@ -150,6 +177,8 @@ def _frame(run_id: int, unique_places: int) -> pd.DataFrame:
     df["chain"] = (branch & (brand.map(brand[branch].value_counts()).fillna(0) >= 3)) | (
         df["name"].map(df["name"].value_counts()) >= 6)
     df["segment"] = [districts.segment(t, f) for t, f in zip(df["type"], df["fnb"])]
+    df["web_kind"] = websites.kinds(df["web"], df["name"])
+    df["instagram"] = df["web"].map(websites.instagram)
     # The ward a place really lies in. Searches spill over the edge of the selected wards, so places
     # outside the selection get their own ward (e.g. Namba -> Chuo) instead of "Outside"
     out = df["area"] == "outside"
@@ -177,7 +206,7 @@ def default_filters(df: pd.DataFrame) -> dict:
         "price": list(range(6)), "pay": list(PAY), "types": [], "svc": [], "qual": [],
         # Places from border cells that fall outside every selected area start excluded
         "areas": sorted(a for a in df["area"].unique().tolist() if a != "outside") if not df.empty else [],
-        "fnb": ["core", "related"],
+        "fnb": list(FNB_LISTED),
     }
 
 
@@ -208,15 +237,15 @@ def steps(f: dict) -> list[tuple[str, callable]]:
     def quality(df):
         m = pd.Series(True, index=df.index)
         for k in f.get("qual", []):
-            m &= {"phone": df["phone"].notna(), "web": df["web"].notna(), "photos": df["photos"] >= 5,
-                  "nochain": ~df["chain"]}[k]
+            m &= {"phone": df["phone"].notna(), "web": df["web"].notna(), "ownweb": df["web_kind"] == "own",
+                  "instagram": df["instagram"].notna(), "photos": df["photos"] >= 5, "nochain": ~df["chain"]}[k]
         return m
 
     min_rev = REVIEW_STEPS[min(f.get("revIdx", 0), len(REVIEW_STEPS) - 1)]
     return [
         ("Business status", lambda df: df["status"].isin(f.get("status", []))),
         # Every list is F&B only: places that are not F&B are always dropped here
-        ("F&B check", lambda df: df["fnb"].isin([k for k in f.get("fnb", ["core", "related"]) if k != "no"])),
+        ("F&B check", lambda df: df["fnb"].isin([k for k in f.get("fnb", FNB_LISTED) if k != "no"])),
         ("Area", lambda df: df["area"].isin(f.get("areas", []))),
         ("Rating", lambda df: np.where(df["rating"].isna(), bool(f.get("unrated", True)),
                                        df["rating"].fillna(0) >= f.get("minRating", 0))),

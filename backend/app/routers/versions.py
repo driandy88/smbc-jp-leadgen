@@ -15,7 +15,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.models import ApiCall, Run, Version
 from app.routers.scout import _run_out, kw_stats
-from app.services import records
+from app.services import records, websites
 from app.services.analysis import points, profile
 from app.services.storage import Storage
 from app.services.summary import summarize
@@ -24,7 +24,8 @@ from app.settings import get_settings
 router = APIRouter(prefix="/api/versions", tags=["versions"], dependencies=[Depends(current_user)])
 
 EXPORT_COLS = ["place_id", "name", "address", "area_jp", "area_en", "type_label", "type_label_jp", "status", "rating", "reviews",
-               "pay", "phone", "web", "photos", "lat", "lng", "hex_id", "maps_uri", "keywords", "chain"]
+               "pay", "phone", "web", "web_kind", "instagram", "fnb", "photos", "lat", "lng", "hex_id", "maps_uri",
+               "keywords", "chain"]
 
 
 class NewVersion(BaseModel):
@@ -111,8 +112,9 @@ def combine(body: Combine, db: Session = Depends(get_db), user: str = Depends(cu
     if len(srcs) != len(ids):
         _404()
     run_ids = sorted({i for v in srcs for i in _run_ids(v)})
+    fnb = sorted({k for v in srcs for k in _fnb_kept(v)})
     df = _frames(run_ids)
-    df = df[df["pk"].isin({pk for v in srcs for pk in v.place_ids})] if not df.empty else df
+    df = df[df["pk"].isin({pk for v in srcs for pk in v.place_ids}) & df["fnb"].isin(fnb)] if not df.empty else df
     rows_in = sum(v.rows for v in srcs)
     kept = df.sort_values("run_id", ascending=False).drop_duplicates("place_id") if not df.empty else df
     stats = {"rows_in": rows_in, "rows": len(kept), "duplicates": rows_in - len(kept)}
@@ -125,7 +127,7 @@ def combine(body: Combine, db: Session = Depends(get_db), user: str = Depends(cu
         raise HTTPException(409, "A version with this name exists")
     by_id = {v.id: v for v in srcs}
     v = Version(run_id=max(run_ids), name=name, notes=body.notes, author=user,
-                filters={"combined": [by_id[i].name for i in ids]}, place_ids=[int(x) for x in kept["pk"]],
+                filters={"combined": [by_id[i].name for i in ids], "fnb": fnb}, place_ids=[int(x) for x in kept["pk"]],
                 rows=len(kept), sources={"versions": ids, "runs": run_ids})
     db.add(v)
     db.flush()
@@ -192,9 +194,15 @@ def _frames(run_ids: list[int]) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
 
 
+def _fnb_kept(v: Version) -> list[str]:
+    """F&B classes the version keeps. Places reclassified since it was saved (e.g. groceries that were
+    F&B-related and are now Food retail) leave it unless it asked for that class."""
+    return [k for k in (v.filters or {}).get("fnb", records.FNB_LISTED) if k != "no"]
+
+
 def _version_frame(v: Version) -> pd.DataFrame:
     df = _frames(_run_ids(v))
-    return df[df["pk"].isin(set(v.place_ids))] if not df.empty else df
+    return df[df["pk"].isin(set(v.place_ids)) & df["fnb"].isin(_fnb_kept(v))] if not df.empty else df
 
 
 def _context(db: Session, v: Version) -> tuple[dict, dict]:
@@ -227,6 +235,8 @@ def _export_frame(df: pd.DataFrame) -> pd.DataFrame:
     out = df[EXPORT_COLS].copy()
     out["keywords"] = out["keywords"].map("|".join)
     out["pay"] = out["pay"].map(records.PAY)
+    out["web_kind"] = out["web_kind"].map(websites.KIND)
+    out["fnb"] = out["fnb"].map(records.FNB_LABEL)
     return out
 
 

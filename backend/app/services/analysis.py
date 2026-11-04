@@ -6,13 +6,12 @@ listings with no website, and well-reviewed venues are the signals a sales team 
 """
 
 import math
-from urllib.parse import urlparse
 
 import h3
 import numpy as np
 import pandas as pd
 
-from app.services import districts, regions
+from app.services import districts, regions, websites
 from app.services.keywords import english_for
 from app.services.records import DAYS, PAY, PRICE_BANDS, open_at
 
@@ -43,7 +42,7 @@ def _priority(op: pd.DataFrame) -> pd.Series:
 
 
 POINT_COLS = ["lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "ward_en", "hex_id",
-              "maps_uri", "address", "phone", "web", "status", "price"]
+              "maps_uri", "address", "phone", "web", "web_kind", "status", "price"]
 
 
 def points(df: pd.DataFrame) -> dict:
@@ -90,13 +89,14 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
             "priority_leads": int(seg_priority["area"].eq(code).sum()),
             "price": [_pct((g["price"] == i).sum(), len(g)) for i in range(6)],
             "top_types": g["type_label"].value_counts().head(6).to_dict(),
-            "fnb": {k: int((g["fnb"] == k).sum()) for k in ("core", "related", "no")},
+            "fnb": {k: int((g["fnb"] == k).sum()) for k in FNB_KEYS},
             "types": _type_rows(g, 8),
             "type_count": int(g["type_label"].nunique()),
             "contact": _contact_counts(g),
             "fnb_n": int((g["fnb"] != "no").sum()),
             "callable": int((gop["pay"].isin(["cash", "none"]) & gop["phone"].notna()).sum()),
             "chains": int(g["chain"].sum()),
+            "hex": _area_hex(code, g) if selected and code != "outside" else None,
         })
     areas.sort(key=lambda a: -a["places"])
 
@@ -207,33 +207,6 @@ def profile(df: pd.DataFrame, run: dict, kw_stats: dict[str, dict] | None = None
     return out
 
 
-SOCIAL = ("instagram.com", "facebook.com", "fb.com", "x.com", "twitter.com", "tiktok.com", "youtube.com",
-          "threads.net", "line.me", "lin.ee", "linktr.ee", "lit.link")
-PORTAL = ("tabelog.com", "hotpepper.jp", "gnavi.co.jp", "retty.me", "ikyu.com", "hitosara.com", "tablecheck.com",
-          "toreta.in", "ebica.jp", "owst.jp", "gorp.jp", "favy.jp", "ozmall.co.jp", "opentable.jp", "opentable.com",
-          "tripadvisor.jp", "tripadvisor.com", "yelp.com", "airrsv.net", "ubereats.com", "demae-can.com")
-WEB_KIND = {"own": "Own website", "social": "Social / LINE only", "portal": "Gourmet portal / booking page"}
-
-
-def web_host(url) -> str:
-    if not isinstance(url, str) or not url:
-        return ""
-    host = urlparse(url if "//" in url else f"//{url}").netloc.lower().split(":")[0]
-    return host.removeprefix("www.")
-
-
-def web_kind(url) -> str | None:
-    """Own site, social profile, or a listing on a gourmet / booking portal (not the merchant's own channel)."""
-    host = web_host(url)
-    if not host:
-        return None
-    if any(host == d or host.endswith("." + d) for d in SOCIAL):
-        return "social"
-    if any(host == d or host.endswith("." + d) for d in PORTAL):
-        return "portal"
-    return "own"
-
-
 def _contact_counts(g: pd.DataFrame) -> dict:
     ph, web = g["phone"].notna(), g["web"].notna()
     return {"n": len(g), "phone": int(ph.sum()), "web": int(web.sum()), "either": int((ph | web).sum()),
@@ -245,19 +218,19 @@ def _contact(df: pd.DataFrame, op: pd.DataFrame) -> dict:
     n = len(df)
     c = _contact_counts(df)
     ph, web = df["phone"].notna(), df["web"].notna()
-    kinds = df["web"].map(web_kind)
-    hosts = df["web"].map(web_host)
+    kinds = df["web_kind"]
+    hosts = df["web"].map(websites.host)
     split = {"both": c["both"], "phone_only": int((ph & ~web).sum()), "web_only": int((~ph & web).sum()),
              "neither": c["neither"]}
     by_kind = []
-    for k, label in WEB_KIND.items():
+    for k, label in websites.KIND.items():
         m = kinds == k
         top = hosts[m].value_counts().head(5) if k != "own" else pd.Series(dtype=int)
         by_kind.append({"k": k, "label": label, "n": int(m.sum()), "pct": _pct(m.sum(), c["web"]),
                         "hosts": [{"host": h, "n": int(v)} for h, v in top.items()]})
     cashish = op[op["pay"].isin(["cash", "none"])]
     fnb_rows = []
-    for k in ("core", "related", "no"):
+    for k in FNB_KEYS:
         g = df[df["fnb"] == k]
         if len(g):
             cc = _contact_counts(g)
@@ -269,6 +242,9 @@ def _contact(df: pd.DataFrame, op: pd.DataFrame) -> dict:
         "split": {k: {"n": v, "pct": _pct(v, n)} for k, v in split.items()},
         "web_kinds": by_kind,
         "own_site": int((kinds == "own").sum()),
+        "instagram": int(df["instagram"].notna().sum()),
+        # Reached through a channel the merchant runs itself: phone, own website or social page
+        "direct": int((ph | kinds.isin(["own", "social"])).sum()),
         "email": None,
         "cash_callable": {"n": int(cashish["phone"].notna().sum()), "of": len(cashish)},
         "by_fnb": fnb_rows,
@@ -338,7 +314,7 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
     areas = [a for a in p["areas"] if a.get("selected", a["code"] != "outside") and a["places"] >= 10]
 
     out.append({"k": "Mix", "t": f"{n:,} F&B merchants: {pct_s(f['core']['pct'])} restaurants, bars and cafés, "
-                                 f"{pct_s(f['related']['pct'])} F&B-related venues (karaoke, liquor shops, event spaces)."})
+                                 f"{pct_s(f['related']['pct'])} F&B-related venues (night clubs, karaoke, cake shops with seating)."})
 
     hs = p.get("hotspots") or []
     if hs:
@@ -384,13 +360,15 @@ def _insights(p: dict, df: pd.DataFrame, op: pd.DataFrame) -> list[dict]:
         f"that is the call list. Google has no email field.")})
 
     kinds = {k["k"]: k for k in c["web_kinds"]}
-    nonown = kinds["social"]["n"] + kinds["portal"]["n"]
+    nonown = kinds["social"]["n"] + kinds["booking"]["n"] + kinds["aggregator"]["n"]
     if c["web"] and _pct(nonown, c["web"]) >= 10:
-        top_host = (kinds["portal"]["hosts"] or kinds["social"]["hosts"])[0]
+        top_host = (kinds["aggregator"]["hosts"] or kinds["social"]["hosts"] or kinds["booking"]["hosts"])[0]
         out.append({"k": "Web", "t": (
-            f"{nonown:,} of {c['web']:,} websites ({pct_s(_pct(nonown, c['web']))}) are social pages or portal "
-            f"listings, not the merchant's own site; most often {top_host['host']} ({top_host['n']:,}). "
-            "These shops rely on rented channels and are open to a direct digital / payment offer.")})
+            f"Of {c['web']:,} website links, {kinds['own']['n']:,} are the merchant's own site, "
+            f"{kinds['group']['n']:,} a chain or venue site, {kinds['social']['n']:,} social pages "
+            f"({c['instagram']:,} Instagram) and {kinds['booking']['n'] + kinds['aggregator']['n']:,} booking or "
+            f"gourmet-portal listings (most often {top_host['host']}). Shops on rented channels are open to a "
+            "direct digital / payment offer.")})
     elif c["web"]:
         out.append({"k": "Web", "t": (
             f"{pct_s(c['web_pct'])} have a website and {pct_s(_pct(kinds['own']['n'], c['web']))} of those are the "
@@ -426,9 +404,12 @@ def _hist(s: pd.Series, bins, labels) -> list[dict]:
     return [{"l": l, "v": int(v)} for l, v in counts.items()]
 
 
+FNB_KEYS = ("core", "related", "retail", "no")
+
+
 def _fnb(df: pd.DataFrame) -> dict:
     n = len(df)
-    out = {k: {"n": int((df["fnb"] == k).sum()), "pct": _pct((df["fnb"] == k).sum(), n)} for k in ("core", "related", "no")}
+    out = {k: {"n": int((df["fnb"] == k).sum()), "pct": _pct((df["fnb"] == k).sum(), n)} for k in FNB_KEYS}
     non_core = df[df["fnb"] != "core"]
     out["non_core_types"] = [{"type": t, "n": int(c)} for t, c in non_core["type_label"].value_counts().head(8).items()]
     out["signals"] = {k: int(v) for k, v in df["fnb_signal"].value_counts().items()}
@@ -563,3 +544,37 @@ def _hex_dist(merchants: pd.Series, fnb: pd.Series) -> list[dict]:
     cut = lambda s: pd.cut(s, bins=HEX_BINS, labels=HEX_LABELS, right=False).value_counts()  # noqa: E731
     m, f = cut(merchants), cut(fnb)
     return [{"l": l, "merchants": int(m.get(l, 0)), "fnb": int(f.get(l, 0))} for l in HEX_LABELS]
+
+
+# Area spread is measured on res-9 hexes (~0.1 km², a block a rep can walk) whatever the run searched at:
+# base cells (~0.7 km²) are too coarse to show where merchants cluster inside a ward
+AREA_HEX_RES = 9
+# F&B merchants per km² in a hex
+DENSITY_BANDS = [(0, "Empty"), (1, "Sparse · under 200/km²"), (200, "Moderate · 200–999/km²"),
+                 (1000, "Dense · 1,000–2,999/km²"), (3000, "Very dense · 3,000+/km²")]
+
+
+def _area_hex(code: str, g: pd.DataFrame, res: int = AREA_HEX_RES) -> dict:
+    """How the area's merchants spread over its hexes: how many hexes, how many have any, and how dense
+    each one is. Hexes are the area's cells plus border cells its merchants fall in."""
+    km2 = h3.hex_area(res, unit="km^2")
+    per = pd.Series([h3.geo_to_h3(la, ln, res) for la, ln in zip(g["lat"], g["lng"]) if pd.notna(la)],
+                    dtype=object).value_counts()
+    cells = sorted(set(regions.area_hexes(code, res)) | set(per.index))
+    per = per.reindex(cells, fill_value=0).sort_values(ascending=False)
+    dens = per / km2
+    active = per[per > 0]
+    cum = per.cumsum() / max(1, per.sum())
+    lo = [b for b, _ in DENSITY_BANDS]
+    band = pd.cut(dens, bins=[-1, 0.5, *lo[2:], math.inf], labels=[l for _, l in DENSITY_BANDS]) if len(dens) else dens
+    return {
+        "res": res, "hex_km2": round(km2, 3), "hexes": len(per), "active": len(active),
+        "active_pct": _pct(len(active), len(per)),
+        "median_active": float(active.median()) if len(active) else 0,
+        "max": int(per.max()) if len(per) else 0, "max_per_km2": round(float(dens.max()), 0) if len(dens) else 0,
+        "top_cell": per.index[0] if len(active) else None,
+        "half_cells": int((cum < 0.5).sum()) + 1 if len(active) else 0,  # fewest hexes holding half the merchants
+        "dense_share": float(_pct(per[dens >= 1000].sum(), per.sum())),  # merchants in hexes at 1,000+/km²
+        "bands": [{"l": l, "hexes": int((band == l).sum()), "merchants": int(per[band == l].sum())}
+                  for _, l in DENSITY_BANDS],
+    }

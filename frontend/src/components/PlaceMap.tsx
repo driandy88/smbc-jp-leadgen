@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmt } from "../lib/format";
+import { WEB_KINDS, WEB_LABEL, webKind } from "../lib/web";
 import { Outline } from "./HexMap";
 
 /** Columns + row arrays from /points; one row per merchant. */
@@ -10,17 +11,18 @@ export type Points = { cols: string[]; rows: unknown[][] };
 type Place = {
   lat: number; lng: number; name: string; type_label: string; rating: number | null; reviews: number | null;
   pay: string; fnb: string; area_en: string; ward_en?: string; maps_uri: string | null; address: string; phone: string | null;
-  web: string | null; status: string; segment: string; district: string;
+  web: string | null; web_kind?: string | null; status: string; segment: string; district: string;
 };
 /** Densest neighbourhoods from the profile: merchants per km² in a 300 m circle, named by district. */
 export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number };
 
-type Mode = "contact" | "pay";
+type Mode = "contact" | "web" | "pay";
 const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [string, string, string][] }> = {
   contact: {
     label: "Contact", key: (p) => (p.phone && p.web ? "both" : p.phone ? "phone" : p.web ? "web" : "none"),
     keys: [["both", "Phone + website", "#1E1E1C"], ["phone", "Phone only", "#6E685C"], ["web", "Website only", "#A39B88"], ["none", "No contact", "#C8442B"]],
   },
+  web: { label: "Website type", key: webKind, keys: WEB_KINDS },
   pay: {
     label: "Payment", key: (p) => p.pay,
     keys: [["cash", "Cash only", "#8F2D1B"], ["none", "No payment info", "#D48E78"], ["card", "Card", "#6E685C"], ["nfc", "Card + NFC / IC", "#3E5A63"]],
@@ -39,7 +41,7 @@ function popup(p: Place) {
     <span>${esc(PAY_LABEL[p.pay] || p.pay)}${p.status !== "OPERATIONAL" ? ` · ${esc(p.status.toLowerCase().replace("_", " "))}` : ""}</span>
     ${p.address ? `<span class="jp" style="color:#5E5A52">${esc(p.address)}</span>` : ""}
     <span class="m">${p.phone ? esc(p.phone) : '<span style="color:#A8371F">no phone</span>'}${p.web ? "" : ' · <span style="color:#A8371F">no website</span>'}</span>
-    <span style="display:flex;gap:12px">${link(p.maps_uri, "Google Maps ↗")}${link(p.web, "Website ↗")}</span>
+    <span style="display:flex;gap:12px">${link(p.maps_uri, "Google Maps ↗")}${link(p.web, `${p.web ? esc(WEB_LABEL[webKind(p)]) : "Website"} ↗`)}</span>
   </div>`;
 }
 

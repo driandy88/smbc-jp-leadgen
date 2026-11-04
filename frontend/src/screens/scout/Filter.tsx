@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Box } from "../../components/Icons";
 import { fmt } from "../../lib/format";
+import { WEB_LABEL } from "../../lib/web";
 import { FilterResult, Filters } from "./types";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -149,7 +150,7 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
             </div>
           </Group>
 
-          <Group t="Contact & listing quality" f="phone · website · photos">
+          <Group t="Contact & listing quality" f="phone · website type · photos">
             {o.qual.map((q) => <button key={q.k} className="tog" aria-pressed={f.qual.includes(q.k)} onClick={() => toggle("qual", q.k)}><span className="trk"><span className="knob" /></span>{q.l} <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{fmt(q.n)}</span></button>)}
           </Group>
 
@@ -198,7 +199,7 @@ export function Filter({ runId, filters, setFilters, onBack, onNext }: {
                     <span className="m" style={{ fontSize: 11 }}>{r.price}</span><span style={{ fontSize: 11, color: PAY_COLOR[r.pay] }}>{r.pay_label}</span>
                     <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, fontSize: 11 }}>
                       {r.phone ? <a className="m" href={`tel:${r.phone.replace(/[^\d+]/g, "")}`} style={{ whiteSpace: "nowrap", textDecoration: "none" }}>{r.phone}</a> : <span className="m" style={{ color: "#A39B88" }}>no phone</span>}
-                      {r.web && /^https?:\/\//.test(r.web) ? <a href={r.web} target="_blank" rel="noreferrer" title={r.web} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#C8442B" }}>{site(r.web)} ↗</a> : <span style={{ color: "#A39B88" }}>no website</span>}
+                      {r.web && /^https?:\/\//.test(r.web) ? <a href={r.web} target="_blank" rel="noreferrer" title={`${WEB_LABEL[r.web_kind || "own"]} · ${r.web}`} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#C8442B" }}>{site(r.web)} ↗</a> : <span style={{ color: "#A39B88" }}>no website</span>}
                     </span>
                     <span className="m" style={{ fontSize: 11 }}>{r.today}</span>
                   </div>

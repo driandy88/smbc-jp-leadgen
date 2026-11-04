@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import type { Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
+import { isInstagram, WEB_KINDS, WEB_LABEL, webKind } from "../../lib/web";
 import { Profile } from "./types";
 
 const Card = ({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) => (
@@ -17,12 +18,17 @@ const Card = ({ title, meta, children }: { title: string; meta?: string; childre
 const Bare = ({ children }: { title: string; meta?: string; children: React.ReactNode }) => <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{children}</div>;
 
 type Row = Record<string, any>;
-const CLASSES = [
-  { k: "both", l: "Phone + website", c: "#1E1E1C" },
-  { k: "phone", l: "Phone only", c: "#6E685C" },
-  { k: "web", l: "Website only", c: "#A39B88" },
-  { k: "none", l: "No contact", c: "#C8442B" },
-] as const;
+type Cls = { k: string; l: string; c: string };
+const contactClass = (r: Row) => (r.phone && r.web ? "both" : r.phone ? "phone" : r.web ? "web" : "none");
+/** Columns of the slicer: how a merchant can be contacted, or what its website link is. */
+const VIEWS: Record<string, { l: string; of: (r: Row) => string; classes: Cls[] }> = {
+  contact: {
+    l: "Contact", of: contactClass,
+    classes: [{ k: "both", l: "Phone + website", c: "#1E1E1C" }, { k: "phone", l: "Phone only", c: "#6E685C" },
+              { k: "web", l: "Website only", c: "#A39B88" }, { k: "none", l: "No contact", c: "#C8442B" }],
+  },
+  web: { l: "Website type", of: webKind, classes: WEB_KINDS.map(([k, l, c]) => ({ k, l, c })) },
+};
 const PAY: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
 const rating = (r: Row) => (r.rating == null ? "Unrated" : r.rating >= 4.5 ? "★4.5+" : r.rating >= 4 ? "★4.0–4.4" : r.rating >= 3.5 ? "★3.5–3.9" : "Under ★3.5");
 const DIMS: { k: string; l: string; f: (r: Row) => string }[] = [
@@ -35,9 +41,10 @@ const DIMS: { k: string; l: string; f: (r: Row) => string }[] = [
 ];
 /** Save merchants as a CSV call list (BOM so Excel reads the Japanese names). */
 function downloadCsv(rows: Row[], filename: string) {
-  const head = ["name", "segment", "type", "neighbourhood", "area", "phone", "website", "address", "rating", "reviews", "payment", "google_maps"];
+  const head = ["name", "segment", "type", "neighbourhood", "area", "phone", "website", "website_type", "instagram", "address", "rating", "reviews", "payment", "google_maps"];
   const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = rows.map((r) => [r.name, r.segment, r.type_label, r.district, r.ward_en ?? r.area_en, r.phone, r.web, r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri].map(q).join(","));
+  const lines = rows.map((r) => [r.name, r.segment, r.type_label, r.district, r.ward_en ?? r.area_en, r.phone, r.web, r.web ? WEB_LABEL[webKind(r)] : "",
+    isInstagram(r.web) ? r.web : "", r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri].map(q).join(","));
   const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -46,11 +53,14 @@ function downloadCsv(rows: Row[], filename: string) {
   URL.revokeObjectURL(a.href);
 }
 
-const contactClass = (r: Row) => (r.phone && r.web ? "both" : r.phone ? "phone" : r.web ? "web" : "none");
-
 /** Slice the list by contact availability against any business dimension; download any cell as a call list. */
 export function ContactSlicer({ points, bare }: { points: Points | null; bare?: boolean }) {
   const [dim, setDim] = useState("segment");
+  const [view, setView] = useState("contact");
+  const { of: clsOf, classes: CLASSES } = VIEWS[view];
+  const zero = () => Object.fromEntries([...CLASSES.map((c) => [c.k, 0]), ["n", 0]]) as Record<string, number>;
+  // Reachable = phone or any website, whichever columns are shown
+  const reach = (t: Record<string, number>) => (view === "contact" ? t.n - t.none : t.reach);
   const [sel, setSel] = useState<{ row: string | null; cls: string | null } | null>(null);
   const [all, setAll] = useState(false);
 
@@ -61,22 +71,23 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
     const m = new Map<string, Record<string, number>>();
     for (const r of base) {
       const key = d.f(r) ?? "—";
-      const t = m.get(key) || { both: 0, phone: 0, web: 0, none: 0, n: 0 };
-      t[contactClass(r)]++;
+      const t = m.get(key) || zero();
+      t[clsOf(r)]++;
       t.n++;
+      t.reach = (t.reach || 0) + (contactClass(r) !== "none" ? 1 : 0);
       m.set(key, t);
     }
     return [...m.entries()].sort((a, b) => b[1].n - a[1].n);
-  }, [base, d]);
+  }, [base, d, view]);
   const totals = useMemo(() => {
-    const t: Record<string, number> = { both: 0, phone: 0, web: 0, none: 0, n: base.length };
-    for (const r of base) t[contactClass(r)]++;
+    const t = zero();
+    for (const r of base) { t[clsOf(r)]++; t.n++; t.reach = (t.reach || 0) + (contactClass(r) !== "none" ? 1 : 0); }
     return t;
-  }, [base]);
+  }, [base, view]);
 
   const Wrap = bare ? Bare : Card;
   if (!points) return <Wrap title="Contact slicer"><span style={{ fontSize: 12, color: "#5E5A52" }}>Loading merchants…</span></Wrap>;
-  const picked = sel ? base.filter((r) => (sel.row == null || d.f(r) === sel.row) && (sel.cls == null || contactClass(r) === sel.cls)) : [];
+  const picked = sel ? base.filter((r) => (sel.row == null || d.f(r) === sel.row) && (sel.cls == null || clsOf(r) === sel.cls)) : [];
   const shown = all ? table : table.slice(0, 12);
   const isSel = (row: string | null, cls: string | null) => sel && sel.row === row && sel.cls === cls;
   const cell = (row: string | null, cls: string | null, v: number, n: number, color?: string) => (
@@ -95,11 +106,15 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
         <div role="radiogroup" aria-label="Slice by" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {DIMS.map((x) => <button key={x.k} role="radio" className="chip" aria-checked={dim === x.k} aria-pressed={dim === x.k} onClick={() => { setDim(x.k); setSel(null); setAll(false); }}>{x.l}</button>)}
         </div>
+        <span className="lbl" style={{ color: "#5E5A52", marginLeft: "auto" }}>Columns</span>
+        <div role="radiogroup" aria-label="Columns" className="seg">
+          {Object.entries(VIEWS).map(([k, v]) => <button key={k} role="radio" aria-checked={view === k} onClick={() => { setView(k); setSel(null); }}>{v.l}</button>)}
+        </div>
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 760 }}>
-          <div className="m slice-grid" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}>
+        <div style={{ minWidth: view === "contact" ? 760 : 940 }}>
+          <div className={`m slice-grid${view === "web" ? " slice-grid-web" : ""}`} style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}>
             <span>{d.l.toUpperCase()}</span><span>F&B MERCHANTS</span>
             {CLASSES.map((c) => <span key={c.k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><span style={{ width: 8, height: 8, background: c.c }} />{c.l.toUpperCase()}</span>)}
             <span>REACHABLE</span><span>MIX</span>
@@ -107,11 +122,11 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
           {[["All", totals] as [string, Record<string, number>], ...shown].map(([key, t], i) => {
             const row = i === 0 ? null : key;
             return (
-              <div key={key + i} className="slice-grid" style={{ fontSize: 12, padding: "3px 0", borderBottom: i === 0 ? "1px solid #1E1E1C" : "1px solid #E2DDD1", alignItems: "center", fontWeight: i === 0 ? 600 : 400 }}>
+              <div key={key + i} className={`slice-grid${view === "web" ? " slice-grid-web" : ""}`} style={{ fontSize: 12, padding: "3px 0", borderBottom: i === 0 ? "1px solid #1E1E1C" : "1px solid #E2DDD1", alignItems: "center", fontWeight: i === 0 ? 600 : 400 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={key}>{key}</span>
                 {cell(row, null, t.n, 0)}
                 {CLASSES.map((c) => <Fragment key={c.k}>{cell(row, c.k, t[c.k], t.n, c.k === "none" && t[c.k] ? "#A8371F" : undefined)}</Fragment>)}
-                <span className="m" style={{ color: (100 * (t.n - t.none)) / Math.max(1, t.n) < 80 ? "#A8371F" : undefined }}>{pct((100 * (t.n - t.none)) / Math.max(1, t.n), 0)}</span>
+                <span className="m" style={{ color: (100 * reach(t)) / Math.max(1, t.n) < 80 ? "#A8371F" : undefined }}>{pct((100 * reach(t)) / Math.max(1, t.n), 0)}</span>
                 <span style={{ display: "flex", height: 8, gap: 1 }}>{CLASSES.map((c) => <span key={c.k} style={{ width: `${(100 * t[c.k]) / Math.max(1, t.n)}%`, background: c.c }} />)}</span>
               </div>
             );
@@ -129,7 +144,7 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
             <button className="btn2" onClick={() => setSel(null)}>Clear</button>
           </>
         ) : (
-          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, address and Google Maps link.</span>
+          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, website type, Instagram, address and Google Maps link. <b>Website type</b> splits the links into the merchant's own site, a group / chain site, social media, booking sites and gourmet portals.</span>
         )}
       </div>
     </Wrap>
@@ -146,7 +161,8 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
     { v: fmt(p.rows), l: "F&B merchants", s: `${fmt((p.areas || []).filter((a: any) => a.selected !== false).length)} areas · incl. ${fmt(f.related?.n)} F&B-related venues`, accent: true },
     ...(c ? [{ v: pct(p.overview.cash_or_unknown_pct, 0), l: "cash-only or no card info", s: `${fmt(c.cash_callable.n)} of ${fmt(c.cash_callable.of)} list a phone` }] : []),
     { v: pct(indie / p.rows * 100, 0), l: "independent (not a chain)", s: `${fmt(p.rows - indie)} chain branches` },
-    ...(c ? [{ v: pct(c.either_pct, 0), l: "reachable by phone or web", s: `${fmt(c.either)} merchants · ${fmt(c.neither)} with neither` }] : []),
+    ...(c ? [{ v: pct(c.either_pct, 0), l: "reachable by phone or web",
+               s: c.direct != null ? `${fmt(c.direct)} directly (phone, own site or social) · ${fmt(c.instagram)} on Instagram · ${fmt(c.neither)} with neither` : `${fmt(c.either)} merchants · ${fmt(c.neither)} with neither` }] : []),
   ];
   return (
     <Card title="F&B merchants · who is out there and who we can reach" meta="click a number in the table to download those merchants">
@@ -164,6 +180,32 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
   );
 }
 
+
+const BAND_COLOR = ["#E2DDD1", "#D48E78", "#C8442B", "#8F2D1B", "#4A170E"];
+type Hex = { hexes: number; active: number; hex_km2: number; median_active: number; max: number; max_per_km2: number;
+             half_cells: number; dense_share: number; bands: { l: string; hexes: number; merchants: number }[] };
+
+/** How an area's merchants spread over its ~0.1 km² hexes: one bar of hexes by density, one of merchants. */
+function HexSpread({ h }: { h: Hex }) {
+  const bar = (k: "hexes" | "merchants") => {
+    const tot = Math.max(1, h.bands.reduce((n, b) => n + b[k], 0));
+    return (
+      <span style={{ display: "flex", height: 10, gap: 1 }}>
+        {h.bands.map((b, i) => b[k] ? <span key={b.l} title={`${b.l}: ${fmt(b.hexes)} hexes, ${fmt(b.merchants)} merchants`} style={{ width: `${(100 * b[k]) / tot}%`, background: BAND_COLOR[i] }} /> : null)}
+      </span>
+    );
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "#5E5A52" }}>
+      <span title={`Hexes of ${h.hex_km2} km² each`} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><b className="m" style={{ color: "#1E1E1C" }}>{fmt(h.hexes)}</b> hexes · {fmt(h.active)} with F&B · half in <b className="m" style={{ color: "#1E1E1C" }}>{fmt(h.half_cells)}</b></span>
+      <span style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: "4px 8px", alignItems: "center" }}>
+        <span>hexes</span>{bar("hexes")}
+        <span>merchants</span>{bar("merchants")}
+      </span>
+      <span>Hex ≈ {h.hex_km2} km². Busiest {fmt(h.max)} merchants ({fmt(h.max_per_km2)}/km²) · {pct(h.dense_share, 0)} in dense hexes (1,000+/km²) · median {fmt(h.median_active)} per hex</span>
+    </div>
+  );
+}
 
 /** Per area picked in step 1: its three biggest F&B segments as bars, split into reachable and not. */
 export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
@@ -185,7 +227,7 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
         if (contactClass(r) !== "none") t.reach++;
         segs.set(r.segment, t);
       }
-      return { name: a.en, density: a.per_km2 as number, n: rows.length,
+      return { name: a.en, density: a.per_km2 as number, n: rows.length, hex: a.hex,
                top: [...segs.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 3) };
     }).sort((x: any, y: any) => y.density - x.density);
   }, [points, p]);
@@ -199,6 +241,10 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
         <span className="legend"><span style={{ background: "#1E1E1C" }} />Reachable (phone or website)</span>
         <span className="legend"><span style={{ background: "#C8442B" }} />Not reachable</span>
       </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, color: "#5E5A52" }}>
+        <span>Hex density, F&B merchants per km²:</span>
+        {["Empty", "under 200", "200–999", "1,000–2,999", "3,000+"].map((l, i) => <span key={l} className="legend"><span style={{ background: BAND_COLOR[i] }} />{l}</span>)}
+      </div>
       <div className="top3-grid">
         {areas.map((a: any) => (
           <div key={a.name} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
@@ -206,6 +252,7 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
               <span className="serif" style={{ fontSize: 22 }}>{a.name}</span>
               <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{fmt(a.n)} merchants · {fmt(Math.round(a.density))}/km²</span>
             </div>
+            {a.hex && <HexSpread h={a.hex} />}
             {a.top.map(([seg, t]: [string, { n: number; reach: number }], i: number) => (
               <div key={seg} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
