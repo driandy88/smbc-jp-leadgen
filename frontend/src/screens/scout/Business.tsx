@@ -16,10 +16,6 @@ const Card = ({ title, meta, children }: { title: string; meta?: string; childre
 /** No frame, for a section embedded in another card. */
 const Bare = ({ children }: { title: string; meta?: string; children: React.ReactNode }) => <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{children}</div>;
 
-const Bar = ({ v, max, c = "#1E1E1C" }: { v: number; max: number; c?: string }) => (
-  <span style={{ height: 6, background: "#E2DDD1", display: "block" }}><span style={{ display: "block", height: 6, width: `${(100 * v) / Math.max(1, max)}%`, background: c }} /></span>
-);
-
 type Row = Record<string, any>;
 const CLASSES = [
   { k: "both", l: "Phone + website", c: "#1E1E1C" },
@@ -168,111 +164,60 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
   );
 }
 
-type Seg = { name: string; rows: Row[]; n: Record<string, number>; reach: number; cash: number };
 const isCash = (r: Row) => r.pay === "cash" || r.pay === "none";
 
-/** Per area: how dense F&B is, how reachable, and the three biggest F&B segments split by reachable or not. */
+/** The areas picked in step 1, as one bar chart of F&B density with a plain-language line for each. */
 export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
   const areas = useMemo(() => {
     if (!points) return [];
-    const byName = new Map<string, any>((p.areas || []).map((a: any) => [a.en, a]));
+    const picked = (p.areas || []).filter((a: any) => (a.selected ?? a.code !== "outside") && a.per_km2 != null);
     const groups = new Map<string, Row[]>();
     for (const r of points.rows.map((row) => Object.fromEntries(points.cols.map((c, i) => [c, row[i]])) as Row)) {
-      if (r.fnb === "no") continue;
       const k: string = r.ward_en ?? r.area_en;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(r);
     }
-    return [...groups.entries()].map(([name, rows]) => {
-      const meta = byName.get(name);
-      const segs = new Map<string, Row[]>();
-      for (const r of rows) {
-        if (!segs.has(r.segment)) segs.set(r.segment, []);
-        segs.get(r.segment)!.push(r);
-      }
-      const top: Seg[] = [...segs.entries()].map(([sn, sr]) => {
-        const n: Record<string, number> = { both: 0, phone: 0, web: 0, none: 0 };
-        for (const r of sr) n[contactClass(r)]++;
-        return { name: sn, rows: sr, n, reach: sr.length - n.none, cash: sr.filter(isCash).length };
-      }).sort((x, y) => y.rows.length - x.rows.length).slice(0, 3);
-      const districts = new Map<string, number>();
-      for (const r of rows) if (!String(r.district).endsWith("· other")) districts.set(r.district, (districts.get(r.district) || 0) + 1);
-      const hub = [...districts.entries()].sort((x, y) => y[1] - x[1])[0];
-      return { name, rows, top, hub, selected: meta?.selected ?? name !== "Outside", density: meta?.per_km2 ?? null,
-               km2: meta?.km2 ?? null, reach: rows.filter((r) => contactClass(r) !== "none").length, cash: rows.filter(isCash).length };
-    }).sort((x, y) => Number(y.selected) - Number(x.selected) || (y.density ?? 0) - (x.density ?? 0) || y.rows.length - x.rows.length);
+    const top = (rows: Row[], key: (r: Row) => string, skip?: (k: string) => boolean) => {
+      const m = new Map<string, number>();
+      for (const r of rows) if (!skip?.(key(r))) m.set(key(r), (m.get(key(r)) || 0) + 1);
+      return [...m.entries()].sort((x, y) => y[1] - x[1]);
+    };
+    return picked.map((a: any) => {
+      const rows = groups.get(a.en) || [];
+      return { name: a.en, density: a.per_km2 as number, km2: a.km2 as number | null, n: rows.length,
+               reach: rows.filter((r) => contactClass(r) !== "none").length, cash: rows.filter(isCash).length,
+               segs: top(rows, (r) => r.segment).slice(0, 3), hub: top(rows, (r) => r.district, (k) => k.endsWith("· other"))[0] };
+    }).sort((x: any, y: any) => y.density - x.density);
   }, [points, p]);
 
-  // Partly covered wards with a sliver of the list go on one line instead of a row each
-  const total = areas.reduce((n, a) => n + a.rows.length, 0);
-  const shown = areas.filter((a) => a.selected || a.rows.length >= 0.05 * total);
-  const folded = areas.filter((a) => !shown.includes(a));
-  const maxD = Math.max(1, ...areas.map((a) => a.density ?? 0));
   if (!points) return <Card title="Areas"><span style={{ fontSize: 12, color: "#5E5A52" }}>Loading merchants…</span></Card>;
+  if (!areas.length) return null;
+  const max = areas[0].density;
+  const low = areas[areas.length - 1];
+  const share = (v: number, n: number) => pct((100 * v) / Math.max(1, n), 0);
   return (
-    <Card title="Areas · density and the top 3 F&B segments in each" meta="ranked by F&B merchants per km² · reachable = phone or website">
-      {shown.map((a, i) => {
-        const share = (v: number) => pct((100 * v) / Math.max(1, a.rows.length), 0);
-        return (
-          <div key={a.name} className="area-row">
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                <span className="m" style={{ fontSize: 11, color: "#C8442B" }}>{String(i + 1).padStart(2, "0")}</span>
-                <span className="serif" style={{ fontSize: 24, lineHeight: 1.1 }}>{a.name}</span>
-              </div>
-              {a.selected && a.density != null ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span><span className="m" style={{ fontSize: 26, color: "#C8442B" }}>{fmt(Math.round(a.density))}</span> <span style={{ fontSize: 12 }}>F&B / km²</span></span>
-                  <Bar v={a.density} max={maxD} c="#C8442B" />
-                </div>
-              ) : <span style={{ fontSize: 12, color: "#8A8478", lineHeight: 1.5 }}>Partly covered: only the edge next to your selected areas was searched, so no density.</span>}
-              <div className="m" style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 10px", fontSize: 12 }}>
-                <span>{fmt(a.rows.length)}</span><span style={{ color: "#5E5A52" }}>F&B merchants{a.km2 ? ` · ${a.km2} km²` : ""}</span>
-                <span>{share(a.reach)}</span><span style={{ color: "#5E5A52" }}>reachable</span>
-                <span>{share(a.cash)}</span><span style={{ color: "#5E5A52" }}>cash-only or no card info</span>
-              </div>
-              {a.hub && <span style={{ fontSize: 12, color: "#5E5A52" }}>Busiest neighbourhood: <b style={{ color: "#1E1E1C" }}>{a.hub[0]}</b> ({fmt(a.hub[1])})</span>}
-            </div>
-            <div className="area-segs">
-              {a.top.map((t, j) => {
-                const tot = t.rows.length;
-                const w = (v: number) => `${(100 * v) / Math.max(1, tot)}%`;
-                const file = `${a.name}_${t.name}`.replace(/\W+/g, "-");
-                return (
-                  <div key={t.name} style={{ border: "1px solid #D8D3C7", background: "#FBFAF6", padding: 12, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-                    <span style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                      <span className="m" style={{ fontSize: 11, color: "#8A8478" }}>{j + 1}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{t.name}</span>
-                    </span>
-                    <span className="m" style={{ fontSize: 12, color: "#5E5A52" }}>{fmt(tot)} merchants · {share(tot)} of area</span>
-                    <div style={{ display: "flex", height: 8, gap: 1 }}>
-                      {CLASSES.map((c) => <span key={c.k} title={`${c.l} · ${t.n[c.k]}`} style={{ width: w(t.n[c.k]), background: c.c, minWidth: t.n[c.k] ? 2 : 0 }} />)}
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", fontSize: 12 }}>
-                      <span><b className="m" style={{ color: "#3F6B35", fontSize: 16 }}>{fmt(t.reach)}</b> reachable</span>
-                      <span><b className="m" style={{ color: "#A8371F", fontSize: 16 }}>{fmt(t.n.none)}</b> not reachable</span>
-                    </div>
-                    <span style={{ fontSize: 11, color: "#5E5A52" }}>{pct((100 * t.cash) / Math.max(1, tot), 0)} cash-only or no card info</span>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button className="btn2" style={{ fontSize: 11, padding: "4px 8px" }} disabled={!t.reach} onClick={() => downloadCsv(t.rows.filter((r) => contactClass(r) !== "none"), `${file}_reachable.csv`)}>↓ Reachable</button>
-                      <button className="btn2" style={{ fontSize: 11, padding: "4px 8px" }} disabled={!t.n.none} onClick={() => downloadCsv(t.rows.filter((r) => contactClass(r) === "none"), `${file}_not-reachable.csv`)}>↓ Not reachable</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      {!!folded.length && (
-        <span style={{ fontSize: 12, color: "#5E5A52", lineHeight: 1.6, borderTop: "1px solid #E2DDD1", paddingTop: 10 }}>
-          Also found along the edges of your areas ({fmt(folded.reduce((n, a) => n + a.rows.length, 0))} merchants, partly covered):{" "}
-          {folded.map((a) => `${a.name} ${fmt(a.rows.length)}`).join(" · ")}
-        </span>
+    <Card title="Areas · how dense is F&B in each area you picked" meta="F&B merchants per km² of land">
+      {areas.length > 1 && (
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+          <b>{areas[0].name}</b> is the densest at {fmt(Math.round(max))} F&B merchants per km²
+          {low.density ? `, ${(max / low.density).toFixed(1)}× ${low.name}` : ""}.
+        </p>
       )}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: "#5E5A52" }}>
-        {CLASSES.map((c) => <span key={c.k} className="legend"><span style={{ background: c.c }} />{c.l}</span>)}
-        <span>Density = F&B merchants ÷ the area's land size.</span>
+      <div role="list" aria-label="F&B density by area" style={{ display: "flex", flexDirection: "column" }}>
+        {areas.map((a: any) => (
+          <div key={a.name} role="listitem" className="dens-row">
+            <span style={{ fontSize: 15, fontWeight: 600 }}>{a.name}</span>
+            <span className="dens-bar" title={`${a.name}: ${fmt(Math.round(a.density))} F&B / km² · ${fmt(a.n)} merchants on ${a.km2} km²`}>
+              <span style={{ width: `${(100 * a.density) / max}%` }} />
+              <span className="m">{fmt(Math.round(a.density))}</span>
+            </span>
+            <span style={{ fontSize: 12, color: "#3A3833", lineHeight: 1.55 }}>
+              {fmt(a.n)} merchants on {a.km2} km²{a.hub ? `, busiest around ${a.hub[0]}` : ""}. Mostly{" "}
+              {a.segs.map(([k, v]: [string, number]) => `${k} (${fmt(v)})`).join(", ")}.{" "}
+              <span style={{ color: "#5E5A52" }}>{share(a.reach, a.n)} reachable · {share(a.cash, a.n)} cash-only or no card info.</span>
+            </span>
+          </div>
+        ))}
       </div>
     </Card>
   );
