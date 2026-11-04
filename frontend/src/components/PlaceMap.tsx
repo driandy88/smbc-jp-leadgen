@@ -102,11 +102,20 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560, h
   useEffect(() => {
     const m = map.current;
     if (!m || !outline) return;
+    // Bold ward borders, each ward named at its centre, faint so the hexes and dots still read
     const layer = L.geoJSON(outline as unknown as GeoJSON.FeatureCollection, {
-      style: { color: "#1E1E1C", weight: 1.4, fill: false, interactive: false },
+      style: { color: "#1E1E1C", weight: 2.6, opacity: 0.85, fill: false, interactive: false },
     }).addTo(m);
-    layer.bringToBack();
-    return () => { layer.remove(); };
+    const names = L.layerGroup().addTo(m);
+    layer.eachLayer((l) => {
+      const f = (l as L.Polygon & { feature?: { properties?: { en?: string } } }).feature;
+      if (!f?.properties?.en) return;
+      L.marker((l as L.Polygon).getCenter(), {
+        icon: L.divIcon({ className: "pm-ward", html: esc(f.properties.en), iconSize: undefined as unknown as L.PointExpression }),
+        interactive: false, keyboard: false,
+      }).addTo(names);
+    });
+    return () => { layer.remove(); names.remove(); };
   }, [outline]);
 
   // Hotspots: the densest neighbourhoods, drawn as circles with their name and density

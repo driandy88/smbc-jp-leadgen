@@ -109,6 +109,7 @@ button:disabled { cursor: not-allowed; }
 .pm-map .pm-tip{font-size:12px;padding:3px 7px}
 .seg.pm-seg{grid-template-columns:repeat(3,auto)}
 .seg.pm-seg button{font-size:12px;min-height:32px;padding:0 14px}
+.pm-ward { background: none; border: none; width: auto !important; height: auto !important; transform-origin: center; font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; color: rgba(30, 30, 28, 0.72); text-shadow: 0 0 2px rgba(248, 246, 240, 0.95), 0 0 5px rgba(248, 246, 240, 0.85), 0 0 10px rgba(248, 246, 240, 0.6); pointer-events: none; translate: -50% -50%; }
 .pm-spot { background: none; border: 0; white-space: nowrap; font: 600 12px 'Inter Tight', sans-serif; color: #1E1E1C; text-shadow: 0 0 3px #F8F6F0, 0 0 3px #F8F6F0, 0 0 3px #F8F6F0; transform: translate(-50%, -50%); width: auto !important; height: auto !important; }
 .pm-spot b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #C8442B; color: #F8F6F0; font-size: 10px; text-shadow: none; margin-right: 4px; }
 .pm-spot span { font: 500 10px 'IBM Plex Mono', ui-monospace, monospace; color: #A8371F; margin-left: 5px; }
