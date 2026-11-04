@@ -14,6 +14,7 @@ the run under the Places quota.
 """
 
 import logging
+import tempfile
 import threading
 import time
 import traceback
@@ -266,20 +267,34 @@ class Collector:
             logger.warning("raw upload failed for %s: %s", cell["hex_id"], e)
 
     def _finish(self, db: Session, run: Run) -> None:
-        rows = db.scalars(select(Place).where(Place.run_id == run.id)).all()
-        if rows:
-            df = pd.DataFrame([{**r.data, "keywords": "|".join(r.keywords), "hex_id": r.hex_id, "area": r.area,
-                                "hits": r.hits} for r in rows])
-            try:
-                self.storage.put_csv(f"{self.prefix}/combined/data-extraction.csv", df)
-            except Exception as e:  # noqa: BLE001
-                log(db, run.id, f"combined CSV upload failed: {e}", "warn")
+        # Mark the run done before the backup export, so a failed export never blocks saving it
         run.status = "done"
         run.finished_at = datetime.now(timezone.utc)
         dupes = run.raw_hits - run.unique_places
         log(db, run.id, f"done · {run.unique_places:,} unique places from {run.raw_hits:,} hits "
                         f"({dupes:,} duplicates merged) · {run.api_calls:,} calls")
+        db.commit()
+        try:
+            self._export_combined(db, run)
+        except Exception as e:  # noqa: BLE001  the CSV is a backup; the DB is the source of truth
+            logger.exception("combined CSV export failed for run %s", run.id)
+            log(db, run.id, f"combined CSV upload failed: {e}", "warn")
 
+    def _export_combined(self, db: Session, run: Run, batch: int = 1000) -> None:
+        """All places as one CSV, written in batches: full Google payloads for a big run don't fit
+        in the job's memory at once."""
+        q = select(Place.data, Place.keywords, Place.hex_id, Place.area, Place.hits).where(Place.run_id == run.id)
+        cols = list(dict.fromkeys(k for (d,) in db.execute(select(Place.data).where(Place.run_id == run.id)
+                                                           .execution_options(yield_per=batch)) for k in d))
+        if not cols:
+            return
+        cols += ["keywords", "hex_id", "area", "hits"]
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", newline="", encoding="utf-8") as f:
+            for part in db.execute(q.execution_options(yield_per=batch)).partitions():
+                pd.DataFrame([{**d, "keywords": "|".join(kw), "hex_id": hx, "area": a, "hits": h}
+                              for d, kw, hx, a, h in part], columns=cols).to_csv(f, index=False, header=f.tell() == 0)
+            f.flush()
+            self.storage.put_file(f"{self.prefix}/combined/data-extraction.csv", f.name)
 
 def recover_interrupted() -> None:
     """In thread mode a restart kills in-flight runs; mark them so the UI doesn't spin forever."""
