@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import auth, billing, scout, versions
+from app.routers import auth, billing, scout, versions, websearch
 from app.settings import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -20,15 +20,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(_: FastAPI):
     init_db()
     if get_settings().execution_mode == "thread":
+        from app.services import webagent
         from app.services.collector import recover_interrupted
 
         recover_interrupted()
+        webagent.recover_interrupted()
     yield
 
 
 app = FastAPI(title="Hexline", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
-for r in (auth.router, scout.router, versions.router, billing.router):
+for r in (auth.router, scout.router, versions.router, websearch.router, billing.router):
     app.include_router(r)
 
 

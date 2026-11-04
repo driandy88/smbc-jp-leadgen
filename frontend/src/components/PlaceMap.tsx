@@ -16,7 +16,7 @@ type Place = {
 /** Densest neighbourhoods from the profile: merchants per km² in a 300 m circle, named by district. */
 export type Hotspot = { name: string; ward: string; lat: number; lng: number; density_km2: number; n: number; radius_m: number; reach_pct: number };
 
-type Mode = "contact" | "web" | "pay";
+export type Mode = "contact" | "web" | "pay";
 const SCHEMES: Record<Mode, { label: string; key: (p: Place) => string; keys: [string, string, string][] }> = {
   contact: {
     label: "Contact", key: (p) => (p.phone && p.web ? "both" : p.phone ? "phone" : p.web ? "web" : "none"),
@@ -54,13 +54,15 @@ const DOT_ZOOM = 15;
 /** A shaded hex under the dots; clicking it calls onHex. */
 export type HexShade = { h: string; color: string; tip: string; opacity?: number };
 
-export function PlaceMap({ points, outline, hotspots, highlight, height = 560, hexes, onHex, fitKey, dim }: {
+export function PlaceMap({ points, outline, hotspots, highlight, height = 560, hexes, onHex, fitKey, dim, modes = ["contact", "web", "pay"] }: {
   points: Points | null; outline: Outline | null; res?: number; hotspots?: Hotspot[]; highlight?: string | null; height?: number;
   hexes?: HexShade[]; onHex?: (h: string) => void;
   /** Refit to the merchants only when this changes (e.g. the picked area), not on every filter */
   fitKey?: string;
   /** A hex layer is on: dots only from DOT_ZOOM in, smaller, so the hexes read at a glance */
   dim?: boolean;
+  /** Colour-by options to offer */
+  modes?: Mode[];
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -177,7 +179,7 @@ export function PlaceMap({ points, outline, hotspots, highlight, height = 560, h
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", alignItems: "center" }}>
         <div role="radiogroup" aria-label="Colour dots by" className="seg pm-seg">
-          {(Object.keys(SCHEMES) as Mode[]).map((k) => (
+          {modes.map((k) => (
             <button key={k} role="radio" aria-checked={mode === k} onClick={() => setMode(k)}>{SCHEMES[k].label}</button>
           ))}
         </div>

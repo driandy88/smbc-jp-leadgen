@@ -51,7 +51,32 @@ button:disabled { cursor: not-allowed; }
 .hx-drift { animation: hxDrift 48s ease-in-out infinite; }
 .hx-pulse-layer path:not(:first-child) { animation: hxPulse 4.8s ease-in-out infinite; }
 
+/* Website-finder agent */
+.wf-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px 24px; align-items: end; }
+.wf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wf-field input[type=range] { accent-color: #C8442B; width: 100%; }
+.wf-hint { font-size: 11px; color: #5E5A52; }
+.wf-live { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.wf-bar { height: 6px; background: #E2DDD1; overflow: hidden; }
+.wf-bar span { display: block; height: 100%; background: #C8442B; transition: width .6s ease; }
+.wf-lanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
+.wf-lane { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px dashed #D8D3C7; color: #1E1E1C; }
+.wf-lane[data-idle="true"] { color: #A39B88; }
+.wf-glass { color: #C8442B; animation: wfGlass 1.6s ease-in-out infinite; }
+.wf-scan { position: relative; flex: 0 0 64px; height: 6px; overflow: hidden; background: repeating-linear-gradient(90deg, #D8D3C7 0 3px, transparent 3px 6px); }
+.wf-scan::after { content: ""; position: absolute; top: 0; left: -40%; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #C8442B, transparent); animation: wfScan 1.3s ease-in-out infinite; }
+.wf-dot { width: 8px; height: 8px; border-radius: 50%; background: #C8442B; animation: hxPulse 1.2s ease-in-out infinite; }
+.wf-feed { display: grid; grid-template-columns: 18px minmax(120px, 1fr) minmax(120px, 1.4fr); gap: 8px; font-size: 12px; padding: 3px 0; border-bottom: 1px solid #ECE8DE; }
+.wf-yes { color: #F8F6F0; background: #1E1E1C; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+.wf-no { color: #8A8478; width: 16px; text-align: center; }
+.wf-row { display: grid; grid-template-columns: minmax(150px, 1.3fr) 90px minmax(150px, 1.3fr) 80px minmax(220px, 2.2fr) 150px; gap: 10px; align-items: start; }
+.wf-spin { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: wfSpin .8s linear infinite; vertical-align: -1px; }
+@keyframes wfScan { to { left: 100% } }
+@keyframes wfGlass { 0%, 100% { transform: translate(0, 0) } 25% { transform: translate(2px, -1px) } 75% { transform: translate(-2px, 1px) } }
+@keyframes wfSpin { to { transform: rotate(360deg) } }
+
 @media (prefers-reduced-motion: reduce) {
+  .wf-glass, .wf-scan::after, .wf-dot, .wf-spin, .wf-bar span { animation: none !important; transition: none !important; }
   .hx-drift, .hx-pulse-layer path, .hx-stroke, .hx-in, .hx-stamp, .hx-ink { animation: none !important; }
 }
 @media (max-width: 720px) {
@@ -95,9 +120,9 @@ button:disabled { cursor: not-allowed; }
 .ex-row:hover, .ex-row[aria-pressed="true"] { background: #EEEAE0; }
 .ex-merch { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 92px 120px 112px minmax(0, 1fr); gap: 10px; align-items: center; }
 .web-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
-.web-tile { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 12px; background: transparent; border: 1px solid #D8D3C7; border-radius: 2px; cursor: pointer; color: #1E1E1C; min-height: 170px; }
-.web-tile:hover { border-color: #1E1E1C; background: #F3F0E8; }
-.web-area { display: grid; grid-template-columns: minmax(110px, 1.2fr) 80px repeat(6, minmax(84px, 1fr)); gap: 8px; }
+.web-tile { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid #D8D3C7; border-radius: 2px; color: #1E1E1C; min-height: 190px; }
+.web-tile:hover { border-color: #1E1E1C; }
+.web-area { display: grid; grid-template-columns: minmax(110px, 1.2fr) 80px repeat(5, minmax(96px, 1fr)); gap: 8px; }
 @media (max-width: 960px) { .ex-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .sum-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 .sum-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 18px; border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7; padding: 14px 0; }

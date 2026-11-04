@@ -3,13 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { Outline } from "../../components/HexMap";
 import { HexShade, PlaceMap, Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
-import { WEB_KINDS, WEB_LABEL, webKind } from "../../lib/web";
+import { WEB_LABEL, webKind } from "../../lib/web";
 import { downloadCsv } from "./Business";
 import { Profile } from "./types";
 
 type Row = Record<string, any>;
-/** What the explorer shows; the Websites card sets it too. */
-export type ExplorerView = { area: string; web: string; reset?: number };
+/** What the explorer shows. */
+export type ExplorerView = { area: string };
 type Layer = "off" | "density" | "top20" | "top10";
 
 const RES = 9; // the backend's AREA_HEX_RES
@@ -29,11 +29,11 @@ const scale = (lo: number, hi: number) => (n: number) => (hi > lo ? (Math.log(n)
 const PAY: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
 const majority = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-/** One place to explore the list: pick an area and a website type, shade hexes by density, click a hex to see it up close. */
+/** One place to explore the list: pick an area, shade hexes by density, click a hex to see it up close. */
 export function MapExplorer({ p, points, outline, view, setView }: { p: Profile; points: Points | null; outline: Outline | null; view: ExplorerView; setView: (v: ExplorerView) => void }) {
   const [layer, setLayer] = useState<Layer>("density");
   const [hex, setHex] = useState<string | null>(null);
-  useEffect(() => setHex(null), [view.area, view.reset]); // a new area, or a pick from the Websites card
+  useEffect(() => setHex(null), [view.area]);
 
   const picked: Row[] = useMemo(() => (p.areas || []).filter((a: Row) => a.selected ?? a.code !== "outside"), [p]);
   const pickedNames = useMemo(() => new Set(picked.map((a) => a.en)), [picked]);
@@ -63,11 +63,8 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
   const inArea = (r: Row) => view.area === "all" || r.area === view.area;
   const areaRows = useMemo(() => rows.filter(inArea), [rows, view.area]);
   const scopeRows = hex ? areaRows.filter((r) => r.cell === hex) : areaRows; // what the panel and table describe
-  const shownRows = view.web === "all" ? scopeRows : scopeRows.filter((r) => webKind(r) === view.web);
-  const mapPoints = useMemo<Points | null>(() => points && {
-    cols: points.cols,
-    rows: (view.web === "all" ? areaRows : areaRows.filter((r) => webKind(r) === view.web)).map((o) => points.cols.map((c) => o[c])),
-  }, [points, areaRows, view.web]);
+  const shownRows = scopeRows;
+  const mapPoints = useMemo<Points | null>(() => points && { cols: points.cols, rows: areaRows.map((o) => points.cols.map((c) => o[c])) }, [points, areaRows]);
 
   const areaCells = cells.filter((c) => view.area === "all" || c.area === view.area);
   const hotCells = layer === "top10" ? areaCells.filter((c) => c.n >= cut.top10) : layer === "top20" ? areaCells.filter((c) => c.n >= cut.top20) : [];
@@ -92,8 +89,6 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
       <div className="ex-filters">
         <Chips label="Area" value={view.area} onChange={(area) => pick({ area })}
           opts={[{ k: "all", l: "All areas", n: rows.length }, ...picked.map((a) => ({ k: a.en, l: a.en, n: rows.filter((r) => r.area === a.en).length }))]} />
-        <Chips label="Website" value={view.web} onChange={(web) => setView({ ...view, web })}
-          opts={[{ k: "all", l: "Any" }, ...WEB_KINDS.map(([k, l, c]) => ({ k, l, c, n: scopeRows.filter((r) => webKind(r) === k).length }))]} />
         <Chips label="Hexes" value={layer} onChange={(l) => { setLayer(l as Layer); setHex(null); }}
           opts={[{ k: "off", l: "Off" }, { k: "density", l: "Density" }, { k: "top20", l: "Top 20%" }, { k: "top10", l: "Top 10%" }]} />
       </div>
@@ -101,7 +96,7 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
       <div className="ex-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
           <PlaceMap points={mapPoints} outline={outline} hotspots={layer === "off" ? p.hotspots : undefined} highlight={hex} hexes={hex ? undefined : shades} dim={!hex && layer !== "off"}
-            onHex={setHex} fitKey={view.area} height={600} />
+            onHex={setHex} fitKey={view.area} height={600} modes={["contact", "pay"]} />
           <HexLegend layer={layer} cut={cut} range={range} />
         </div>
 
@@ -112,10 +107,6 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
           ) : (
             <AreaCard name={area?.en ?? "All picked areas"} n={areaRows.length} perKm2={area?.per_km2} h={area?.hex ?? sumHex(picked, cells)} cut={cut} />
           )}
-
-          <Block t={`Website · ${curCell ? "this hex" : area?.en ?? "all areas"}`} meta="click to filter">
-            <WebBars rows={scopeRows} active={view.web} onPick={(k) => setView({ ...view, web: view.web === k ? "all" : k })} />
-          </Block>
 
           {!curCell && hotCells.length > 0 && (
             <Block t={`${layer === "top10" ? "Top 10%" : "Top 20%"} hexes · ${fmt(hotCells.length)}`} meta="click to zoom">
@@ -133,7 +124,7 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
           )}
 
           <button className="btn2" style={{ alignSelf: "flex-start" }} disabled={!shownRows.length}
-            onClick={() => downloadCsv(shownRows, `merchants_${curCell ? curCell.district : view.area}_${view.web}.csv`.replace(/[^\w.-]+/g, "-"))}>
+            onClick={() => downloadCsv(shownRows, `merchants_${curCell ? curCell.district : view.area}.csv`.replace(/[^\w.-]+/g, "-"))}>
             Download {fmt(shownRows.length)} merchants (CSV)
           </button>
         </div>
@@ -236,28 +227,6 @@ function HexCard({ c, rows, cut, onBack }: { c: { h: string; n: number; district
         <Stat v={pct((100 * reach) / Math.max(1, rows.length), 0)} l="reachable by phone or web" />
         <Stat v={pct((100 * cash) / Math.max(1, rows.length), 0)} l="cash-only or no card info" />
       </div>
-    </div>
-  );
-}
-
-/** Website type of the merchants in scope, as clickable bars. */
-function WebBars({ rows, active, onPick }: { rows: Row[]; active: string; onPick: (k: string) => void }) {
-  const n = Math.max(1, rows.length);
-  const insta = rows.filter((r) => r.web && /instagram\.com/i.test(r.web)).length;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {WEB_KINDS.map(([k, l, c]) => {
-        const v = rows.filter((r) => webKind(r) === k).length;
-        return (
-          <button key={k} className="ex-row" aria-pressed={active === k} onClick={() => onPick(k)} style={{ opacity: active !== "all" && active !== k ? 0.45 : 1 }}>
-            <span style={{ width: 118, textAlign: "left" }}>{l}</span>
-            <span style={{ flex: 1, height: 8, background: "#E2DDD1" }}><span style={{ display: "block", height: 8, width: `${(100 * v) / n}%`, background: c }} /></span>
-            <span className="m" style={{ width: 48, textAlign: "right" }}>{fmt(v)}</span>
-            <span className="m" style={{ width: 36, textAlign: "right", color: "#5E5A52" }}>{pct((100 * v) / n, 0)}</span>
-          </button>
-        );
-      })}
-      <span style={{ fontSize: 11, color: "#5E5A52", marginTop: 4 }}>{fmt(insta)} on Instagram · {pct((100 * rows.filter((r) => r.phone || ["own", "social"].includes(webKind(r))).length) / n, 0)} reachable directly (phone, own site or social)</span>
     </div>
   );
 }

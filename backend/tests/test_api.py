@@ -200,9 +200,9 @@ def test_web_kind():
     from app.services.websites import kinds, listed_kind
     assert listed_kind("https://www.instagram.com/izakaya_x/") == "social"
     assert listed_kind("https://lin.ee/abc") == "social"
-    assert listed_kind("https://tabelog.com/osaka/A2701/") == "aggregator"
-    assert listed_kind("https://yoyaku.tabelog.com/a1b2") == "booking"
-    assert listed_kind("https://www.tablecheck.com/shops/x/reserve") == "booking"
+    assert listed_kind("https://tabelog.com/osaka/A2701/") == "portal"
+    assert listed_kind("https://yoyaku.tabelog.com/a1b2") == "portal"
+    assert listed_kind("https://www.tablecheck.com/shops/x/reserve") == "portal"
     assert listed_kind("https://sites.google.com/view/bar-x") == "own"
     assert listed_kind("https://izakaya-x.jp/") == "own"
     assert listed_kind(None) is None
@@ -346,3 +346,107 @@ def test_lists_are_fnb_only_and_spillover_gets_its_real_ward(client, auth):
     chuo = next(a for a in p["areas"] if a["en"] == "Chuo")
     assert chuo["selected"] and chuo["per_km2"]
     assert all(a["per_km2"] is None for a in p["areas"] if not a["selected"])
+
+
+def _mock_version(client, auth, name):
+    r = client.post("/api/runs", headers=auth, json={"keywords": ["居酒屋"], "areas": AREAS, "base_res": 8, "max_res": 9, "mock": True}).json()
+    for _ in range(300):
+        if client.get(f"/api/runs/{r['id']}", headers=auth).json()["status"] not in ("queued", "running"):
+            break
+        time.sleep(0.5)
+    return client.post("/api/versions", headers=auth, json={"run_id": r["id"], "name": name, "filters": {}}).json()
+
+
+def test_website_agent_runs_in_parallel_and_skips_searched(client, auth, monkeypatch):
+    from app.services import webagent
+    monkeypatch.setattr(webagent.time, "sleep", lambda s: None)
+    v = _mock_version(client, auth, "agent_v")
+    st = client.get(f"/api/versions/{v['id']}/websearch", headers=auth).json()
+    assert st["mock"] and st["remaining"] > 6 and st["finds"] == []
+    ws = client.post(f"/api/versions/{v['id']}/websearch", headers=auth, json={"limit": 6, "workers": 3}).json()
+    assert ws["total"] == 6 and ws["workers"] == 3
+    for _ in range(100):
+        p = client.get(f"/api/websearch/{ws['id']}", headers=auth).json()
+        if p["status"] not in ("queued", "running"):
+            break
+        time.sleep(0.2)
+    assert p["status"] == "done" and p["done"] == 6 and len(p["recent"]) == 6
+    st2 = client.get(f"/api/versions/{v['id']}/websearch", headers=auth).json()
+    assert st2["remaining"] == st["remaining"] - 6 and len(st2["finds"]) == 6
+    assert all((f["website"] is not None) == f["exists"] for f in st2["finds"])
+    # The next run picks the next merchants, never the ones already answered
+    ws2 = client.post(f"/api/versions/{v['id']}/websearch", headers=auth, json={"limit": 2, "workers": 1}).json()
+    for _ in range(100):
+        if client.get(f"/api/websearch/{ws2['id']}", headers=auth).json()["status"] not in ("queued", "running"):
+            break
+        time.sleep(0.2)
+    names = [f["place_id"] for f in client.get(f"/api/versions/{v['id']}/websearch", headers=auth).json()["finds"]]
+    assert len(names) == 8 == len(set(names))
+
+
+def test_website_agent_answer_rules(monkeypatch):
+    import json as _json
+
+    from app.services import webagent
+    reply = {}
+
+    class Resp:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "```json\n" + _json.dumps(reply) + "\n```"}]},
+                                    "groundingMetadata": {"webSearchQueries": ["a", "b"], "groundingChunks": [{"web": {"uri": "u", "title": "t"}}]}}],
+                    "usageMetadata": {"promptTokenCount": 2000, "candidatesTokenCount": 100}}
+
+    class Session:
+        def __init__(self, creds):
+            pass
+
+        def post(self, url, json, timeout):
+            assert json["tools"] == [{"googleSearch": {}}]
+            return Resp()
+
+    import google.auth
+    import google.auth.transport.requests as gtr
+    monkeypatch.setattr(google.auth, "default", lambda scopes: (None, "p"))
+    monkeypatch.setattr(gtr, "AuthorizedSession", Session)
+    m = {"place_id": "x", "name": "居酒屋 はな", "phone": "06-1234-5678"}
+    reply.update(exists=True, website="https://izakaya-hana.jp/", site_type="own", social="", confidence="high", reason="same phone")
+    ans, call = webagent.search_one(m)
+    assert ans["exists"] and ans["website"] == "https://izakaya-hana.jp/" and ans["queries"] == ["a", "b"]
+    assert call["cost_usd"] > 2 * 14 / 1000  # two grounded searches plus tokens
+    reply.update(website="https://tabelog.com/osaka/A2701/123/")  # a portal is never the website
+    assert webagent.search_one(m)[0]["exists"] is False
+    reply.update(website="https://www.instagram.com/hana/", social="")  # social goes to the social column
+    ans = webagent.search_one(m)[0]
+    assert ans["exists"] is False and ans["social"] == "https://www.instagram.com/hana/" and ans["website"] is None
+
+
+def test_web_class_sheet(client, auth, monkeypatch):
+    from app.services import gsheets
+    v = _mock_version(client, auth, "sheet_v")
+    # Not set up: a clear message, not a crash
+    assert client.post(f"/api/versions/{v['id']}/sheets/web/none", headers=auth).status_code == 503
+    made = {}
+    monkeypatch.setattr(gsheets, "create", lambda name, tabs: made.update(name=name, tabs=tabs) or "https://docs.google.com/x")
+    pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
+    kinds = {r[pts["cols"].index("web_kind")] if r[pts["cols"].index("web")] else "none" for r in pts["rows"]}
+    k = next(iter(kinds))
+    assert client.post(f"/api/versions/{v['id']}/sheets/web/{k}", headers=auth).json()["url"] == "https://docs.google.com/x"
+    rep, table, pivot = made["tabs"]
+    assert [b.title for b in rep.blocks][:2] == ["By area", "By segment"] and len(rep.kpis) == 4
+    assert table.header[0] == "Name" and len(table.rows) == sum(
+        1 for r in pts["rows"] if (r[pts["cols"].index("web_kind")] if r[pts["cols"].index("web")] else "none") == k)
+    assert pivot.source == "Merchants"
+    assert client.post(f"/api/versions/{v['id']}/sheets/web/nope", headers=auth).status_code == 404
+
+
+def test_sheet_cells_are_typed():
+    from app.services.gsheets import Link, _cell
+    assert _cell("=SUM(A1)")["userEnteredValue"] == {"stringValue": "=SUM(A1)"}
+    assert _cell("+81 6-1234")["userEnteredValue"] == {"stringValue": "+81 6-1234"}
+    assert _cell(Link('https://a.jp/?q="x"', "a"))["userEnteredValue"]["formulaValue"] == '=HYPERLINK("https://a.jp/?q=""x""","a")'
+    assert _cell(0.25, pct=True)["userEnteredFormat"]["numberFormat"]["type"] == "PERCENT"
