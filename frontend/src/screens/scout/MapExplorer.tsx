@@ -15,8 +15,17 @@ type Layer = "off" | "density" | "top20" | "top10";
 const RES = 9; // the backend's AREA_HEX_RES
 const HEX_KM2 = getHexagonAreaAvg(RES, "km2");
 // F&B merchants per km² in a hex, densest first
-const DENSITY: [number, string, string][] = [[3000, "#4A170E", "3,000+"], [1000, "#8F2D1B", "1,000–2,999"], [200, "#C8442B", "200–999"], [1, "#D48E78", "under 200"]];
-const shade = (perKm2: number) => DENSITY.find(([lo]) => perKm2 >= lo)?.[1] ?? "#E2DDD1";
+// Heat scale, least to most packed
+const RAMP = ["#FBE7B5", "#F5B86A", "#E8803F", "#C8442B", "#8F1F14", "#4A0E08"];
+const hexToRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** Colour for t in 0..1 along the ramp. */
+const heat = (t: number) => {
+  const x = Math.min(1, Math.max(0, t)) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
+  const [a, b] = [hexToRgb(RAMP[i]), hexToRgb(RAMP[i + 1])];
+  return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
+};
+// Log scale between the quietest and the busiest hex shown: one outlier block doesn't wash out the rest
+const scale = (lo: number, hi: number) => (n: number) => (hi > lo ? (Math.log(n) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) : 1);
 const PAY: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
 const majority = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
@@ -62,12 +71,14 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
 
   const areaCells = cells.filter((c) => view.area === "all" || c.area === view.area);
   const hotCells = layer === "top10" ? areaCells.filter((c) => c.n >= cut.top10) : layer === "top20" ? areaCells.filter((c) => c.n >= cut.top20) : [];
+  const shown = layer === "density" ? areaCells : hotCells;
+  const range = { lo: Math.min(...shown.map((c) => c.n)), hi: Math.max(...shown.map((c) => c.n)) };
   const shades = useMemo<HexShade[]>(() => {
     const tip = (c: { n: number; district: string }) => `${c.district} · ${fmt(c.n)} merchants · ${fmt(Math.round(c.n / HEX_KM2))}/km²`;
     // One polygon per hex: a border hex shows its busiest ward's count
     const once = (cs: typeof cells) => cs.filter((c, i) => cs.findIndex((d) => d.h === c.h) === i);
-    if (layer === "density") return once(areaCells).map((c) => ({ h: c.h, color: shade(c.n / HEX_KM2), tip: tip(c) }));
-    return once(hotCells).map((c) => ({ h: c.h, color: c.n >= cut.top10 ? "#8F2D1B" : "#C8442B", tip: tip(c) }));
+    const t = scale(range.lo, range.hi);
+    return once(shown).map((c) => ({ h: c.h, color: heat(t(c.n)), tip: tip(c), opacity: 0.72 }));
   }, [layer, view.area, cells, cut]);
 
   const pick = (v: Partial<ExplorerView>) => { setHex(null); setView({ ...view, ...v }); };
@@ -91,7 +102,7 @@ export function MapExplorer({ p, points, outline, view, setView }: { p: Profile;
         <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
           <PlaceMap points={mapPoints} outline={outline} hotspots={layer === "off" ? p.hotspots : undefined} highlight={hex} hexes={hex ? undefined : shades} dim={!hex && layer !== "off"}
             onHex={setHex} fitKey={view.area} height={600} />
-          <HexLegend layer={layer} cut={cut} />
+          <HexLegend layer={layer} cut={cut} range={range} />
         </div>
 
         {/* Side panel: the picked area or hex */}
@@ -251,16 +262,18 @@ function WebBars({ rows, active, onPick }: { rows: Row[]; active: string; onPick
   );
 }
 
-function HexLegend({ layer, cut }: { layer: Layer; cut: Cut }) {
+function HexLegend({ layer, cut, range }: { layer: Layer; cut: Cut; range: { lo: number; hi: number } }) {
   if (layer === "off") return <span style={{ fontSize: 11, color: "#5E5A52" }}>Red circles = busiest neighbourhoods. Turn on Hexes to shade blocks by density.</span>;
-  const items: [string, string][] = layer === "density"
-    ? DENSITY.slice().reverse().map(([, c, l]) => [c, l])
-    : [["#8F2D1B", `Top 10% · ${fmt(cut.top10)}+ merchants`], ...(layer === "top20" ? [["#C8442B", `Top 20% · ${fmt(cut.top20)}+`] as [string, string]] : [])];
+  if (!isFinite(range.lo)) return null;
+  const km = (n: number) => fmt(Math.round(n / HEX_KM2));
+  const what = layer === "density" ? "Every block" : `${layer === "top10" ? "Top 10%" : "Top 20%"} blocks (${fmt(layer === "top10" ? cut.top10 : cut.top20)}+ merchants, of all ${fmt(cut.pool)} in the picked areas)`;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, color: "#5E5A52", alignItems: "center" }}>
-      <span>{layer === "density" ? "Hex density, F&B merchants per km²:" : `Busiest hexes of all ${fmt(cut.pool)} in the picked areas, same cutoff for every area:`}</span>
-      {items.map(([c, l]) => <span key={l} className="legend"><span style={{ background: c }} />{l}</span>)}
-      <span>· click a hex to see it up close</span>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", fontSize: 11, color: "#5E5A52", alignItems: "center" }}>
+      <span>{what}, coloured by merchants per block:</span>
+      <span className="m">{fmt(range.lo)} <span style={{ color: "#8A8478" }}>({km(range.lo)}/km²)</span></span>
+      <span style={{ width: 160, height: 10, background: `linear-gradient(90deg, ${RAMP.join(", ")})` }} />
+      <span className="m">{fmt(range.hi)} <span style={{ color: "#8A8478" }}>({km(range.hi)}/km²)</span></span>
+      <span>· click a block to see it up close</span>
     </div>
   );
 }
