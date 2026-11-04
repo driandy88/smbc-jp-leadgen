@@ -151,36 +151,6 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
   );
 }
 
-/** Main section: the merchant scorecard with the contact slicer underneath. */
-export function MainOverview({ p, points }: { p: Profile; points: Points | null }) {
-  const f = p.fnb;
-  const c = p.contact;
-  if (!f) return null;
-  const indie = p.rows - (p.areas || []).reduce((n: number, a: { chains?: number }) => n + (a.chains || 0), 0);
-  const items = [
-    { v: fmt(p.rows), l: "F&B merchants", s: `${fmt((p.areas || []).filter((a: any) => a.selected !== false).length)} areas · incl. ${fmt(f.related?.n)} F&B-related venues`, accent: true },
-    ...(c ? [{ v: pct(p.overview.cash_or_unknown_pct, 0), l: "cash-only or no card info", s: `${fmt(c.cash_callable.n)} of ${fmt(c.cash_callable.of)} list a phone` }] : []),
-    { v: pct(indie / p.rows * 100, 0), l: "independent (not a chain)", s: `${fmt(p.rows - indie)} chain branches` },
-    ...(c ? [{ v: pct(c.either_pct, 0), l: "reachable by phone or web",
-               s: c.direct != null ? `${fmt(c.direct)} directly (phone, own site or social) · ${fmt(c.instagram)} on Instagram · ${fmt(c.neither)} with neither` : `${fmt(c.either)} merchants · ${fmt(c.neither)} with neither` }] : []),
-  ];
-  return (
-    <Card title="F&B merchants · who is out there and who we can reach" meta="click a number in the table to download those merchants">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", borderTop: "1px solid #1E1E1C", borderBottom: "1px solid #D8D3C7" }}>
-        {items.map((s, i) => (
-          <div key={s.l} style={{ padding: "12px 12px 12px 0", paddingLeft: i ? 12 : 0, borderLeft: i ? "1px solid #E2DDD1" : undefined, display: "flex", flexDirection: "column", gap: 3 }}>
-            <span className="m" style={{ fontSize: 26, letterSpacing: "-0.02em", color: s.accent ? "#C8442B" : undefined }}>{s.v}</span>
-            <span style={{ fontSize: 12 }}>{s.l}</span>
-            <span style={{ fontSize: 11, color: "#5E5A52" }}>{s.s}</span>
-          </div>
-        ))}
-      </div>
-      <ContactSlicer points={points} bare />
-    </Card>
-  );
-}
-
-
 /** Per area picked in step 1: its three biggest F&B segments as bars, split into reachable and not. */
 export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
   const areas = useMemo(() => {
