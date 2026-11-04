@@ -101,6 +101,7 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 960px) { .ex-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .sum-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 .sum-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 18px; border-top: 1px solid #1E1E1C; border-bottom: 1px solid #D8D3C7; padding: 14px 0; }
+.funnel-step { color: #F8F6F0; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px; font-size: 13px; min-height: 40px; clip-path: polygon(0 0, 100% 0, 97% 100%, 3% 100%); }
 .sum-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 28px; }
 .sum-area { display: grid; grid-template-columns: minmax(150px, 1.3fr) 90px 80px 110px 100px 110px minmax(160px, 1.4fr); gap: 10px; align-items: center; }
 .sum-mini { display: grid; grid-template-columns: minmax(0, 2fr) 84px 100px 84px; gap: 8px; align-items: center; }
