@@ -5,7 +5,8 @@ import type { Points } from "../../components/PlaceMap";
 import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, shortDate, money } from "../../lib/format";
 import { AiBrief, Brief } from "./AiBrief";
-import { AreaView, MainOverview } from "./Business";
+import { AreaView, ContactSlicer } from "./Business";
+import { Summary } from "./Summary";
 import { ExplorerView, MapExplorer } from "./MapExplorer";
 import { Websites } from "./Websites";
 import { Profile, Version } from "./types";
@@ -191,10 +192,16 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
 
   return (
     <div className="hx-in" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      <AiBrief s={a.summary} name={name} />
+      <BriefToggle s={a.summary} name={name} />
 
-      <Section n="01" t="Main" />
-      <MainOverview p={p} points={points} />
+      <Section n="01" t="Summary · lead potential" />
+      <Summary p={p} points={points} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+        <span style={{ flex: 1, height: 1, background: "#BDB6A7" }} />
+        <span className="lbl" style={{ color: "#5E5A52" }}>Explore · interactive, to play around</span>
+        <span style={{ flex: 1, height: 1, background: "#BDB6A7" }} />
+      </div>
 
       <div id="explorer" style={{ scrollMarginTop: 16 }}><Section n="02" t="Map · where they are" /></div>
       <Card title="Explore by area, website and hex density" meta="pick filters · click a hex to zoom in">
@@ -206,8 +213,29 @@ function Report({ a, versionId, name, outline }: { a: Analysis; versionId: numbe
         <Websites p={p} points={points} onPick={showOnMap} />
       </Card>
 
-      <Section n="04" t="Top 3 segments by area" />
+      <Section n="04" t="Contact slicer · who we can reach, by any cut" />
+      <ContactSlicer points={points} />
+
+      <Section n="05" t="Top 3 segments by area" />
       <AreaView p={p} points={points} />
+    </div>
+  );
+}
+
+const BRIEF_KEY = "hexline.brief";
+
+/** The AI brief, hidden by default to one line with its headline; the choice is remembered in this browser. */
+function BriefToggle({ s, name }: { s: Brief; name: string }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(BRIEF_KEY) === "show"; } catch { return false; } });
+  const toggle = () => { setOpen(!open); try { localStorage.setItem(BRIEF_KEY, open ? "hide" : "show"); } catch { /* private mode */ } };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span className="m ai-tag">AI SALES BRIEF</span>
+        <span style={{ flex: "1 1 300px", fontSize: 13, color: open ? "#5E5A52" : "#1E1E1C", minWidth: 0 }}>{open ? "Written by AI from the aggregate numbers below." : s.headline}</span>
+        <button aria-pressed={open} className="tog" onClick={toggle}><span className="trk"><span className="knob" /></span>{open ? "Shown" : "Hidden"}</button>
+      </div>
+      {open && <AiBrief s={s} name={name} />}
     </div>
   );
 }
