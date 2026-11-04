@@ -164,9 +164,8 @@ export function MainOverview({ p, points }: { p: Profile; points: Points | null 
   );
 }
 
-const isCash = (r: Row) => r.pay === "cash" || r.pay === "none";
 
-/** The areas picked in step 1, as one bar chart of F&B density with a plain-language line for each. */
+/** Per area picked in step 1: its three biggest F&B segments as bars, split into reachable and not. */
 export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
   const areas = useMemo(() => {
     if (!points) return [];
@@ -177,45 +176,51 @@ export function AreaView({ p, points }: { p: Profile; points: Points | null }) {
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(r);
     }
-    const top = (rows: Row[], key: (r: Row) => string, skip?: (k: string) => boolean) => {
-      const m = new Map<string, number>();
-      for (const r of rows) if (!skip?.(key(r))) m.set(key(r), (m.get(key(r)) || 0) + 1);
-      return [...m.entries()].sort((x, y) => y[1] - x[1]);
-    };
     return picked.map((a: any) => {
       const rows = groups.get(a.en) || [];
-      return { name: a.en, density: a.per_km2 as number, km2: a.km2 as number | null, n: rows.length,
-               reach: rows.filter((r) => contactClass(r) !== "none").length, cash: rows.filter(isCash).length,
-               segs: top(rows, (r) => r.segment).slice(0, 3), hub: top(rows, (r) => r.district, (k) => k.endsWith("· other"))[0] };
+      const segs = new Map<string, { n: number; reach: number }>();
+      for (const r of rows) {
+        const t = segs.get(r.segment) || { n: 0, reach: 0 };
+        t.n++;
+        if (contactClass(r) !== "none") t.reach++;
+        segs.set(r.segment, t);
+      }
+      return { name: a.en, density: a.per_km2 as number, n: rows.length,
+               top: [...segs.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 3) };
     }).sort((x: any, y: any) => y.density - x.density);
   }, [points, p]);
 
   if (!points) return <Card title="Areas"><span style={{ fontSize: 12, color: "#5E5A52" }}>Loading merchants…</span></Card>;
   if (!areas.length) return null;
-  const max = areas[0].density;
-  const low = areas[areas.length - 1];
-  const share = (v: number, n: number) => pct((100 * v) / Math.max(1, n), 0);
+  const max = Math.max(1, ...areas.flatMap((a: any) => a.top.map(([, t]: [string, { n: number }]) => t.n)));
   return (
-    <Card title="Areas · how dense is F&B in each area you picked" meta="F&B merchants per km² of land">
-      {areas.length > 1 && (
-        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-          <b>{areas[0].name}</b> is the densest at {fmt(Math.round(max))} F&B merchants per km²
-          {low.density ? `, ${(max / low.density).toFixed(1)}× ${low.name}` : ""}.
-        </p>
-      )}
-      <div role="list" aria-label="F&B density by area" style={{ display: "flex", flexDirection: "column" }}>
+    <Card title="Areas · top 3 F&B segments in each area you picked" meta="bar = merchants · same scale across areas">
+      <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#5E5A52" }}>
+        <span className="legend"><span style={{ background: "#1E1E1C" }} />Reachable (phone or website)</span>
+        <span className="legend"><span style={{ background: "#C8442B" }} />Not reachable</span>
+      </div>
+      <div className="top3-grid">
         {areas.map((a: any) => (
-          <div key={a.name} role="listitem" className="dens-row">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{a.name}</span>
-            <span className="dens-bar" title={`${a.name}: ${fmt(Math.round(a.density))} F&B / km² · ${fmt(a.n)} merchants on ${a.km2} km²`}>
-              <span style={{ width: `${(100 * a.density) / max}%` }} />
-              <span className="m">{fmt(Math.round(a.density))}</span>
-            </span>
-            <span style={{ fontSize: 12, color: "#3A3833", lineHeight: 1.55 }}>
-              {fmt(a.n)} merchants on {a.km2} km²{a.hub ? `, busiest around ${a.hub[0]}` : ""}. Mostly{" "}
-              {a.segs.map(([k, v]: [string, number]) => `${k} (${fmt(v)})`).join(", ")}.{" "}
-              <span style={{ color: "#5E5A52" }}>{share(a.reach, a.n)} reachable · {share(a.cash, a.n)} cash-only or no card info.</span>
-            </span>
+          <div key={a.name} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, borderBottom: "1px solid #1E1E1C", paddingBottom: 6 }}>
+              <span className="serif" style={{ fontSize: 22 }}>{a.name}</span>
+              <span className="m" style={{ fontSize: 11, color: "#5E5A52" }}>{fmt(a.n)} merchants · {fmt(Math.round(a.density))}/km²</span>
+            </div>
+            {a.top.map(([seg, t]: [string, { n: number; reach: number }], i: number) => (
+              <div key={seg} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+                  <span><span className="m" style={{ color: "#8A8478", marginRight: 6 }}>{i + 1}</span>{seg}</span>
+                  <span className="m">{fmt(t.n)}</span>
+                </span>
+                <span className="top3-bar" title={`${seg} in ${a.name}: ${t.reach} reachable, ${t.n - t.reach} not`} style={{ width: `${(100 * t.n) / max}%` }}>
+                  <span style={{ flex: t.reach, background: "#1E1E1C" }} />
+                  {t.n > t.reach && <span style={{ flex: t.n - t.reach, background: "#C8442B" }} />}
+                </span>
+                <span style={{ fontSize: 11, color: "#5E5A52" }}>
+                  {fmt(t.reach)} reachable ({pct((100 * t.reach) / t.n, 0)}) · {fmt(t.n - t.reach)} not
+                </span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
