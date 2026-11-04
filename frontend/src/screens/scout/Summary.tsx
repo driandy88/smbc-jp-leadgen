@@ -2,7 +2,7 @@ import { latLngToCell } from "h3-js";
 import { useMemo } from "react";
 import type { Points } from "../../components/PlaceMap";
 import { fmt, pct } from "../../lib/format";
-import { webKind } from "../../lib/web";
+import { isInstagram, webKind } from "../../lib/web";
 import { Profile } from "./types";
 
 type Row = Record<string, any>;
@@ -54,59 +54,54 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
     { v: pct(share(ops.filter(cashish).length, ops.length), 0), l: "cash-only or no card info", s: "of operating merchants" },
     { v: fmt(fCall.length), l: "call list", s: "cash / no card, with a phone", accent: true },
     { v: pct(100 - share(chains, rows.length), 0), l: "independents", s: `${fmt(chains)} chain branches` },
-    { v: fmt(rows.filter((r) => r.web && /instagram\.com/i.test(r.web)).length), l: "on Instagram", s: "Instagram is their website" },
+    { v: fmt(rows.filter((r) => isInstagram(r.web)).length), l: "on Instagram", s: "Instagram is their website" },
     { v: hot10 ? fmt(hot10) : "—", l: "dense blocks (top-10% hexes)", s: hot10 ? `hold ${pct(share(hot10Held, inPicked), 0)} of merchants` : "re-run Analyze" },
   ];
 
   // C. Area scorecard: one row per picked area, plus the neighbouring wards together
   const stat = (rs: Row[]) => {
     const o = rs.filter(op);
-    return { n: rs.length, reach: share(rs.filter(reach).length, rs.length), cash: share(o.filter(cashish).length, o.length),
-             call: rs.filter(call).length, ownSocial: share(rs.filter((r) => ["own", "social"].includes(webKind(r))).length, rs.length) };
+    return { n: rs.length, reach: share(rs.filter(reach).length, rs.length), cash: share(o.filter(cashish).length, o.length), call: rs.filter(call).length };
   };
-  const areaRows = picked.map((a) => {
-    const s = stat(rows.filter((r) => r.area === a.en));
-    const h = a.hex;
-    return { name: a.en, ...s, km2: a.per_km2 as number | null, hexes: h?.hexes as number | undefined, half: h?.cover?.["50"] as number | undefined,
-             top10: h?.hot?.[1]?.hexes as number | undefined, median: h?.median_active as number | undefined, indie: 100 - share(a.chains || 0, a.places) };
-  }).sort((a, b) => b.call - a.call);
+  const areaRows = picked.map((a) => ({ name: a.en, ...stat(rows.filter((r) => r.area === a.en)), km2: a.per_km2 as number | null,
+                                        dense: a.hex?.hot?.[1]?.hexes as number | undefined })).sort((a, b) => b.call - a.call);
   const nb = rows.filter((r) => !names.has(r.area));
-  const nbChains = (p.areas || []).filter((a: Row) => !names.has(a.en)).reduce((s: number, a: Row) => s + (a.chains || 0), 0);
-  const nbRow = nb.length ? { name: "Neighbouring wards (partly covered)", ...stat(nb), indie: 100 - share(nbChains, nb.length) } : null;
-
-  // Plain read of the scorecard: where the call list clusters, and where it is spread thin
+  const nbRow = nb.length ? stat(nb) : null;
   const callTotal = rows.filter(call).length;
-  const dense = areaRows.filter((a) => (a.top10 ?? 0) >= 5);
-  const thin = areaRows.filter((a) => a.top10 != null && a.top10 <= 2);
-  const and = (xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0];
-  const reads: string[] = [];
-  if (dense.length) reads.push(`${and(dense.map((a) => a.name))} hold ${pct(share(dense.reduce((s, a) => s + a.call, 0), callTotal), 0)} of the call list `
-    + `(${fmt(dense.reduce((s, a) => s + a.call, 0))}), packed into ${fmt(dense.reduce((s, a) => s + (a.top10 || 0), 0))} dense blocks: walk them.`);
-  if (thin.length) reads.push(`${and(thin.map((a) => a.name))} ${thin.length > 1 ? "have" : "has"} ${fmt(thin.reduce((s, a) => s + (a.top10 || 0), 0))} dense blocks `
-    + `between them and about ${fmt(Math.round(thin.reduce((s, a) => s + (a.median || 0), 0) / thin.length))} merchants per block: phone them rather than walk.`);
+  const maxCall = Math.max(1, ...areaRows.map((a) => a.call));
 
-  // D. Where to walk first: the busiest blocks of the picked areas
-  const cells = new Map<string, Row[]>();
-  for (const r of rows) if (r.cell && names.has(r.area)) cells.set(`${r.area}|${r.cell}`, [...(cells.get(`${r.area}|${r.cell}`) || []), r]);
-  const walk = [...cells.values()].sort((a, b) => b.length - a.length).slice(0, 5).map((rs) => {
-    const ds = rs.map((r) => r.district).filter(Boolean);
-    const district = [...ds.reduce((m, d) => m.set(d, (m.get(d) || 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-    return { district, area: rs[0].area, ...stat(rs) };
-  });
+  // One takeaway: the areas to walk (5+ dense blocks) and the ones to phone (spread out)
+  const and = (xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0];
+  const walkAreas = areaRows.filter((a) => (a.dense ?? 0) >= 5), phoneAreas = areaRows.filter((a) => a.dense != null && a.dense < 5);
+  const takeaway = walkAreas.length && phoneAreas.length
+    ? `Walk ${and(walkAreas.map((a) => a.name))}: ${pct(share(walkAreas.reduce((s, a) => s + a.call, 0), callTotal), 0)} of the call list, in ${fmt(walkAreas.reduce((s, a) => s + (a.dense || 0), 0))} dense blocks. Phone ${and(phoneAreas.map((a) => a.name))}: merchants are spread out.`
+    : "";
+
+  // D. Where to walk first: neighbourhoods of the picked areas by call list, with their dense blocks
+  const denseCells = new Set(picked.flatMap((a) => (a.hex?.hot?.[1]?.cells || []).map((c: Row) => `${a.en}|${c.h}`)));
+  const hoods = new Map<string, Row[]>();
+  for (const r of rows) if (names.has(r.area) && r.district) hoods.set(r.district, [...(hoods.get(r.district) || []), r]);
+  const mostly = (rs: Row[]) => [...rs.reduce<Map<string, number>>((m, r) => m.set(r.area, (m.get(r.area) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1])[0][0];
+  const walk = [...hoods].map(([d, rs]) => ({ d, area: mostly(rs), ...stat(rs), dense: new Set(rs.filter((r) => denseCells.has(`${r.area}|${r.cell}`)).map((r) => r.cell)).size }))
+    .filter((w) => !w.d.includes("· other")).sort((a, b) => b.call - a.call).slice(0, 5);
 
   // E. Who to pitch: business segments by call list
   const segs = new Map<string, Row[]>();
   for (const r of rows) segs.set(r.segment, [...(segs.get(r.segment) || []), r]);
   const pitch = [...segs].map(([s, rs]) => ({ s, ...stat(rs) })).sort((a, b) => b.call - a.call).slice(0, 3);
 
-  // F. How to reach: each merchant in its best channel
-  const channel = (r: Row) => direct(r) ? "direct" : webKind(r) === "group" ? "group" : r.web ? "listing" : "none";
-  const ch = [
-    { k: "direct", l: "Directly", s: "phone, own site or social", c: "#1E1E1C" },
-    { k: "group", l: "Only via head office", s: "chain or venue site, no phone", c: "#6E685C" },
-    { k: "listing", l: "Only via a listing", s: "booking or gourmet portal, no phone", c: "#A39B88" },
-    { k: "none", l: "Walk-in only", s: "no phone, no website", c: "#C8442B" },
-  ].map((x) => ({ ...x, n: rows.filter((r) => channel(r) === x.k).length }));
+  // F. What the website links really are (Google gives one link per merchant)
+  const withWeb = rows.filter((r) => r.web);
+  const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+  const on = (r: Row, d: string) => { const h = hostOf(r.web); return h === d || h.endsWith("." + d); };
+  const socialRows = withWeb.filter((r) => webKind(r) === "social");
+  const links = [
+    { k: "own", l: "Their own website", s: "own domain or site-builder page", c: "#1E1E1C" },
+    { k: "social", l: "Social media", s: `Instagram ${fmt(socialRows.filter((r) => isInstagram(r.web)).length)} · Facebook ${fmt(socialRows.filter((r) => on(r, "facebook.com")).length)} · X ${fmt(socialRows.filter((r) => on(r, "x.com") || on(r, "twitter.com")).length)} · other ${fmt(socialRows.filter((r) => !["instagram.com", "facebook.com", "x.com", "twitter.com"].some((d) => on(r, d))).length)}`, c: "#3E5A63" },
+    { k: "group", l: "Group / chain site", s: "the chain, operator or hotel site, not the shop's own", c: "#6E685C" },
+    { k: "aggregator", l: "Gourmet portal listing", s: "Tabelog, Hot Pepper, Gurunavi…", c: "#A39B88" },
+    { k: "booking", l: "Booking page", s: "TableCheck, Ikyu, Tabelog booking…", c: "#B59A5B" },
+  ].map((x) => ({ ...x, n: withWeb.filter((r) => webKind(r) === x.k).length }));
 
   // G. Watch-outs
   const watch = [
@@ -114,10 +109,6 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
     `${pct(share(chains, rows.length), 0)} are chain branches (${fmt(chains)}); their payment provider is usually chosen at head office.`,
     ...(nb.length ? [`${fmt(nb.length)} merchants sit in neighbouring wards that were only searched along the border, so those counts are partial.`] : []),
   ];
-
-  const best = (k: "n" | "km2" | "reach" | "cash" | "call" | "ownSocial" | "indie" | "top10") => Math.max(...areaRows.map((a) => (a[k] as number) ?? -1));
-  const bestHalf = Math.min(...areaRows.filter((a) => a.half && a.hexes).map((a) => a.half! / a.hexes!));
-  const hi = (on: boolean) => (on ? { color: "#C8442B", fontWeight: 600 } : undefined);
 
   return (
     <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 22 }}>
@@ -153,19 +144,22 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
           <span style={{ fontSize: 11, color: "#5E5A52" }}>Each step is a subset of the one above; % = share of all merchants found. {fmt(ops.length - fReach.length)} operating merchants have no phone or website: field visits only.</span>
         </SumBlock>
 
-        {/* F. How to reach */}
-        <SumBlock t="How to reach them">
+        {/* F. What the website links really are */}
+        <SumBlock t="What their website link really is" meta={`${fmt(withWeb.length)} of ${fmt(rows.length)} have a link`}>
           <div style={{ display: "flex", height: 12, gap: 1 }}>
-            {ch.map((x) => x.n ? <span key={x.k} title={`${x.l}: ${fmt(x.n)}`} style={{ width: `${share(x.n, rows.length)}%`, background: x.c }} /> : null)}
+            {links.map((x) => x.n ? <span key={x.k} title={`${x.l}: ${fmt(x.n)}`} style={{ width: `${share(x.n, withWeb.length)}%`, background: x.c }} /> : null)}
           </div>
-          {ch.map((x) => (
+          {links.map((x) => (
             <div key={x.k} style={{ display: "grid", gridTemplateColumns: "12px minmax(0, 1fr) 64px 40px", gap: 8, alignItems: "baseline", fontSize: 13 }}>
               <span style={{ width: 9, height: 9, background: x.c, alignSelf: "center" }} />
               <span>{x.l} <span style={{ fontSize: 11, color: "#5E5A52" }}>· {x.s}</span></span>
               <span className="m" style={{ textAlign: "right" }}>{fmt(x.n)}</span>
-              <span className="m" style={{ textAlign: "right", fontSize: 11, color: "#5E5A52" }}>{pct(share(x.n, rows.length), 0)}</span>
+              <span className="m" style={{ textAlign: "right", fontSize: 11, color: "#5E5A52" }}>{pct(share(x.n, withWeb.length), 0)}</span>
             </div>
           ))}
+          <span style={{ fontSize: 12, lineHeight: 1.45 }}>
+            Only <b>{fmt(links[0].n)}</b> merchants ({pct(share(links[0].n, rows.length), 0)} of all) have a real website of their own. {fmt(rows.length - withWeb.length)} have no link at all.
+          </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6, borderTop: "1px solid #E2DDD1", paddingTop: 10 }}>
             <span className="lbl" style={{ color: "#5E5A52" }}>Watch-outs</span>
             {watch.map((w) => <span key={w} style={{ fontSize: 12, lineHeight: 1.45 }}>· {w}</span>)}
@@ -174,57 +168,56 @@ export function Summary({ p, points }: { p: Profile; points: Points | null }) {
       </div>
 
       {/* C. Area scorecard */}
-      <SumBlock t="Area scorecard" meta="red = best in column">
+      <SumBlock t="Areas">
         <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 1000, fontSize: 12 }}>
-            <div className="m sum-area" style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}>
-              <span>AREA</span><span>MERCHANTS</span><span>PER KM²</span><span>HEXES</span><span>HALF THE MERCHANTS IN</span><span>DENSE BLOCKS</span>
-              <span>REACHABLE</span><span>CASH / NO CARD</span><span>CALL LIST</span><span>OWN SITE + SOCIAL</span><span>INDEPENDENTS</span>
+          <div style={{ minWidth: 820, fontSize: 13 }}>
+            <div className="sum-area" style={{ borderBottom: "1px solid #1E1E1C", padding: "4px 0", alignItems: "end" }}>
+              {[["AREA", ""], ["MERCHANTS", "F&B found"], ["PER KM²", "how packed"], ["DENSE BLOCKS", "350 m blocks, 120+ each"],
+                ["REACHABLE", "phone or website"], ["CASH / NO CARD", "of operating"], ["CALL LIST", "cash / no card, with a phone"]].map(([h, sub]) => (
+                <span key={h} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span className="m" style={{ fontSize: 10, color: "#1E1E1C" }}>{h}</span>
+                  <span style={{ fontSize: 10, color: "#8A8478" }}>{sub}</span>
+                </span>
+              ))}
             </div>
             {areaRows.map((a) => (
-              <div key={a.name} className="sum-area" style={{ padding: "6px 0", borderBottom: "1px solid #E2DDD1" }}>
-                <span className="serif" style={{ fontSize: 16 }}>{a.name}</span>
-                <span className="m" style={hi(a.n === best("n"))}>{fmt(a.n)}</span>
-                <span className="m" style={hi(a.km2 === best("km2"))}>{a.km2 ? fmt(Math.round(a.km2)) : "—"}</span>
-                <span className="m">{a.hexes != null ? fmt(a.hexes) : "—"}</span>
-                <span className="m" style={hi(!!a.half && !!a.hexes && a.half / a.hexes === bestHalf)}>{a.half != null ? `${fmt(a.half)} hexes (${pct(share(a.half, a.hexes || 1), 0)})` : "—"}</span>
-                <span className="m" style={hi(a.top10 === best("top10"))}>{a.top10 != null ? fmt(a.top10) : "—"}</span>
-                <span className="m" style={hi(a.reach === best("reach"))}>{pct(a.reach, 0)}</span>
-                <span className="m" style={hi(a.cash === best("cash"))}>{pct(a.cash, 0)}</span>
-                <span className="m" style={hi(a.call === best("call"))}>{fmt(a.call)}</span>
-                <span className="m" style={hi(a.ownSocial === best("ownSocial"))}>{pct(a.ownSocial, 0)}</span>
-                <span className="m" style={hi(a.indie === best("indie"))}>{pct(a.indie, 0)}</span>
+              <div key={a.name} className="sum-area" style={{ padding: "8px 0", borderBottom: "1px solid #E2DDD1" }}>
+                <span className="serif" style={{ fontSize: 18 }}>{a.name}</span>
+                <span className="m">{fmt(a.n)}</span>
+                <span className="m">{a.km2 ? fmt(Math.round(a.km2)) : "—"}</span>
+                <span className="m">{a.dense != null ? fmt(a.dense) : "—"}</span>
+                <span className="m">{pct(a.reach, 0)}</span>
+                <span className="m">{pct(a.cash, 0)}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ height: 10, width: `${(70 * a.call) / maxCall}%`, background: "#C8442B" }} />
+                  <span className="m" style={{ fontWeight: 600 }}>{fmt(a.call)}</span>
+                </span>
               </div>
             ))}
             {nbRow && (
-              <div className="sum-area" style={{ padding: "6px 0", borderBottom: "1px solid #E2DDD1", color: "#5E5A52" }}>
-                <span style={{ fontStyle: "italic" }}>{nbRow.name}</span>
-                <span className="m">{fmt(nbRow.n)}</span><span>—</span><span>—</span><span>—</span><span>—</span>
+              <div className="sum-area" style={{ padding: "6px 0", borderBottom: "1px solid #E2DDD1", color: "#5E5A52", fontSize: 12 }}>
+                <span style={{ fontStyle: "italic" }}>Neighbouring wards (partly covered)</span>
+                <span className="m">{fmt(nbRow.n)}</span><span>—</span><span>—</span>
                 <span className="m">{pct(nbRow.reach, 0)}</span><span className="m">{pct(nbRow.cash, 0)}</span><span className="m">{fmt(nbRow.call)}</span>
-                <span className="m">{pct(nbRow.ownSocial, 0)}</span><span className="m">{pct(nbRow.indie, 0)}</span>
               </div>
             )}
           </div>
         </div>
-        {reads.map((t) => <span key={t} style={{ fontSize: 13, lineHeight: 1.5 }}>{t}</span>)}
-        <span style={{ fontSize: 11, color: "#5E5A52" }}>
-          Hex = a ~350 m block. Half the merchants in = the fewest blocks holding half the area's merchants (fewer = tighter cluster).
-          Dense blocks = top-10% hexes across the picked areas.
-        </span>
+        {takeaway && <span style={{ fontSize: 14, lineHeight: 1.5 }}>{takeaway}</span>}
       </SumBlock>
 
       <div className="sum-two">
         {/* D. Where to walk first */}
-        <SumBlock t="Where to walk first · busiest blocks">
-          <MiniTable head={["BLOCK", "MERCHANTS", "CASH / NO CARD", "CALL LIST", "REACHABLE"]}
-            rows={walk.map((w, i) => [<span key="n"><span className="m" style={{ color: "#8A8478", marginRight: 6 }}>{i + 1}</span>{w.district} <span style={{ fontSize: 11, color: "#5E5A52" }}>· {w.area}</span></span>,
-              fmt(w.n), pct(w.cash, 0), fmt(w.call), pct(w.reach, 0)])} />
+        <SumBlock t="Where to walk first · neighbourhoods by call list">
+          <MiniTable head={["NEIGHBOURHOOD", "MERCHANTS", "DENSE BLOCKS", "CALL LIST"]}
+            rows={walk.map((w, i) => [<span key="n"><span className="m" style={{ color: "#8A8478", marginRight: 6 }}>{i + 1}</span>{w.d} <span style={{ fontSize: 11, color: "#5E5A52" }}>· {w.area}</span></span>,
+              fmt(w.n), fmt(w.dense), <b key="c">{fmt(w.call)}</b>])} />
         </SumBlock>
 
         {/* E. Who to pitch */}
         <SumBlock t="Who to pitch · segments by call list">
-          <MiniTable head={["SEGMENT", "MERCHANTS", "CASH / NO CARD", "CALL LIST", "SHARE OF LIST"]}
-            rows={pitch.map((s) => [s.s, fmt(s.n), pct(s.cash, 0), fmt(s.call), pct(share(s.call, callTotal), 0)])} />
+          <MiniTable head={["SEGMENT", "MERCHANTS", "CALL LIST", "SHARE OF LIST"]}
+            rows={pitch.map((x) => [x.s, fmt(x.n), <b key="c">{fmt(x.call)}</b>, pct(share(x.call, callTotal), 0)])} />
         </SumBlock>
       </div>
     </div>
