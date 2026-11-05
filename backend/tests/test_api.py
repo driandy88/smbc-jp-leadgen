@@ -500,10 +500,12 @@ def test_review_languages(client, auth, monkeypatch):
                                  {"text": {"text": "很好", "languageCode": "zh-Hant"}},
                                  {"rating": 5}]) == {"rv_sample": 3, "rv_ja": 1, "rv_en": 1, "rv_codes": "ja,en,zh-Hant"}
     v = _mock_version(client, auth, "reviews_v")
+    pts = client.get(f"/api/versions/{v['id']}/points", headers=auth).json()
+    assert {"rv_sample", "rv_ja", "rv_en"} <= set(pts["cols"])
     s = client.get(f"/api/versions/{v['id']}/reviews", headers=auth).json()
     sp = s["split"]
     assert s["covered"] > 0 and sp["ja"] + sp["en"] + sp["other"] == sp["n"] == s["sampled"] and sp["ja_pct"] > 50
-    assert len(s["top_ja"]) == 10 and s["top_ja"][0]["est_ja"] >= s["top_ja"][-1]["est_ja"]
+    assert len(s["top_ja"]) == 20 and s["top_ja"][0]["est_ja"] >= s["top_ja"][-1]["est_ja"]
     t = s["top_ja"][0]
     assert t["est_ja"] == round(t["reviews"] * t["ja"] / t["sample"]) and t["ja"] + t["en"] + t["other"] == t["sample"]
     made = {}

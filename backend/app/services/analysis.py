@@ -42,7 +42,7 @@ def _priority(op: pd.DataFrame) -> pd.Series:
 
 
 POINT_COLS = ["place_id", "lat", "lng", "name", "type_label", "rating", "reviews", "pay", "fnb", "segment", "district", "area_en", "ward_en", "hex_id",
-              "maps_uri", "address", "phone", "web", "web_kind", "status", "price"]
+              "maps_uri", "address", "phone", "web", "web_kind", "status", "price", "rv_sample", "rv_ja", "rv_en"]
 
 
 def points(df: pd.DataFrame) -> dict:

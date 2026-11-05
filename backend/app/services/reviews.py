@@ -67,7 +67,7 @@ def _row(r: dict) -> dict:
             "pay": r["pay"], "callable": bool(r["callable"]), "maps_uri": r["maps_uri"] if isinstance(r["maps_uri"], str) else None}
 
 
-def top(g: pd.DataFrame, by: str, n: int = 10) -> list[dict]:
+def top(g: pd.DataFrame, by: str, n: int = 20) -> list[dict]:
     if g.empty:
         return []
     t = g[g[by] > 0].sort_values([by, "reviews"], ascending=[False, False]).head(n)

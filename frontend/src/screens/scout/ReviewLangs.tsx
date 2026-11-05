@@ -55,13 +55,13 @@ export function ReviewLangs({ versionId }: { versionId: number }) {
         ))}
         <div className="web-tile" style={{ minHeight: 0 }}>
           <span style={{ fontSize: 12 }}>Full detail</span>
-          <span style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.4 }}>Summary with top 10s, by area and segment, visitor magnets on the call list; every merchant; every sampled review; live pivots.</span>
+          <span style={{ fontSize: 11, color: "#5E5A52", lineHeight: 1.4 }}>Summary with top 20s, by area and segment, visitor magnets on the call list; every merchant; every sampled review; live pivots.</span>
           <span style={{ marginTop: "auto" }}><SheetButton path={`/api/versions/${versionId}/sheets/reviews`} primary /></span>
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span className="lbl">Top 10 · most {rank === "ja" ? "Japanese" : "English"} reviews (est.)</span>
+        <span className="lbl">Top 20 · most {rank === "ja" ? "Japanese" : "English"} reviews (est.)</span>
         <div style={{ display: "flex", gap: 6 }} role="group" aria-label="Rank by">
           {(["ja", "en"] as const).map((k) => (
             <button key={k} className="chip" aria-pressed={rank === k} onClick={() => setRank(k)}>{k === "ja" ? "Japanese" : "English"}</button>
