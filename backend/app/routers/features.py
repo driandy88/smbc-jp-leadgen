@@ -16,9 +16,11 @@ from app.services.gsheets import Block, Report, Table
 
 router = APIRouter(prefix="/api", tags=["features"], dependencies=[Depends(current_user)])
 
-# A version's merchants don't change once it's made, so its profile is worked out once per instance
+# A version's merchants don't change once it's made, so its profile is worked out once and saved on the version
+# (every server instance reads it from there), plus kept in memory here
 _PROFILES: dict[int, dict] = {}
 KEEP = 6
+SCHEMA = 1  # bump when the profile's shape changes: saved profiles of an older shape are worked out again
 
 ABOUT = ("Every field Google Places returns for the merchants in this version. Completeness = merchants with a value in "
          "the field ÷ all merchants (false counts as a value; empty text, lists and objects don't). Nested fields are "
@@ -28,12 +30,17 @@ ABOUT = ("Every field Google Places returns for the merchants in this version. C
 def profile(db: Session, vid: int) -> dict:
     if vid in _PROFILES:
         return _PROFILES[vid]
-    pks = [int(x) for x in _df(_v(db, vid))["pk"]]
-    p = features.Profiler()
-    for s in range(0, len(pks), 500):
-        for (data,) in db.execute(select(Place.data).where(Place.id.in_(pks[s:s + 500]))):
-            p.add(data)
-    out = features.summary(p.rows(), p.n)
+    v = _v(db, vid)
+    out = v.features if v.features and v.features.get("schema") == SCHEMA else None
+    if out is None:
+        pks = [int(x) for x in _df(v)["pk"]]
+        p = features.Profiler()
+        for s in range(0, len(pks), 500):
+            for (data,) in db.execute(select(Place.data).where(Place.id.in_(pks[s:s + 500]))):
+                p.add(data)
+        out = features.summary(p.rows(), p.n) | {"schema": SCHEMA}
+        v.features = out
+        db.commit()
     while len(_PROFILES) >= KEEP:
         _PROFILES.pop(next(iter(_PROFILES)))
     _PROFILES[vid] = out

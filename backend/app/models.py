@@ -107,6 +107,8 @@ class Version(Base):
     analysis: Mapped[dict | None] = mapped_column(JSON)
     # Set on a combined version: {"versions": [source ids], "runs": [every run its places come from]}
     sources: Mapped[dict | None] = mapped_column(JSON)
+    # The feature list profile, worked out once (it reads every payload); loaded only when asked for
+    features: Mapped[dict | None] = mapped_column(JSON, deferred=True)
 
 
 class ApiCall(Base):
