@@ -6,7 +6,7 @@ import { Squiggle } from "../../components/Icons";
 import { cityName, fmt, shortDate, money } from "../../lib/format";
 import { ContactSlicer } from "./Business";
 import { ExplorerView, MapExplorer } from "./MapExplorer";
-import { ReviewLangs } from "./ReviewLangs";
+import { FeatureList } from "./FeatureList";
 import { WebFinder } from "./WebFinder";
 import { Websites } from "./Websites";
 import { Profile, Version } from "./types";
@@ -204,9 +204,9 @@ function Report({ a, versionId, outline }: { a: Analysis; versionId: number; out
         <Websites p={p} points={points} versionId={versionId} />
       </Card>
 
-      <Section n="04" t="Review languages · locals or visitors" />
-      <Card title="Who writes their Google reviews" meta="Japanese · English · other languages">
-        <ReviewLangs versionId={versionId} />
+      <Section n="04" t="Feature list · what Google tells us about each merchant" />
+      <Card title="Every field, most complete first" meta="nested fields broken down · filter to find any">
+        <FeatureList versionId={versionId} />
       </Card>
 
       <Section n="05" t="Website finder · AI agent for merchants with no website" />

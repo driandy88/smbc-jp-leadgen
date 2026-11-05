@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import auth, billing, reviews, scout, versions, websearch
+from app.routers import auth, billing, features, reviews, scout, versions, websearch
 from app.settings import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Hexline", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
-for r in (auth.router, scout.router, versions.router, websearch.router, reviews.router, billing.router):
+for r in (auth.router, scout.router, versions.router, websearch.router, reviews.router, features.router, billing.router):
     app.include_router(r)
 
 
