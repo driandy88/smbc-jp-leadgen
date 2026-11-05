@@ -524,7 +524,12 @@ def test_review_languages(client, auth, monkeypatch):
     assert len(merchants.rows) == s["covered"] and sum(1 for r in raw.rows if r[3] != "No text") == s["sampled"]
     assert [p.source for p in pivots] == ["Reviews"] * 3 and all(p.label == "Reviews" for p in pivots)
     monkeypatch.undo()
-    x = client.get(f"/api/versions/{v['id']}/sheets/reviews.xlsx", headers=auth)
+    # Google can't hold it here: the workbook the button built is kept for the download, used once
+    from app.routers import websearch
+    path = client.post(f"/api/versions/{v['id']}/sheets/reviews", headers=auth).json()["xlsx"]
+    assert path in websearch._BUILT
+    x = client.get(path, headers=auth)
+    assert path not in websearch._BUILT and x.status_code == 200
     import io
 
     import openpyxl

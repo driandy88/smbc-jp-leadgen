@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth import current_user
 from app.db import get_db
 from app.models import Place
-from app.routers.websearch import _deliver, _df, _num, _v, _xlsx
+from app.routers.websearch import _cached, _deliver, _df, _num, _v, _xlsx
 from app.services import records, reviews
 from app.services.gsheets import Block, Link, Pivot, Report, Table
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["reviews"], dependencies=[Depends(curren
 ABOUT = ("Google returns up to 5 of its 'most relevant' reviews per merchant, so the language split is measured on that "
          "sample. Est. counts scale it to the merchant's total reviews: total × share of the sample in that language. "
          "We ask Google in Japanese, and it favours reviews in the asked language, so non-Japanese shares here are a floor.")
-TEXT_MAX = 1000
+TEXT_MAX = 500  # characters of review text kept per row; ~100k rows have to fit one workbook
 
 
 @router.get("/versions/{vid}/reviews")
@@ -43,7 +43,7 @@ def reviews_sheet(vid: int, db: Session = Depends(get_db)):
 
 @router.get("/versions/{vid}/sheets/reviews.xlsx")
 def reviews_xlsx(vid: int, db: Session = Depends(get_db)):
-    return _xlsx(*_tabs(db, vid))
+    return _xlsx(*(_cached(f"/api/versions/{vid}/sheets/reviews.xlsx") or _tabs(db, vid)))
 
 
 def _raw(db: Session, pks: list[int]) -> dict[int, list]:
@@ -128,10 +128,10 @@ def _tabs(db: Session, vid: int) -> tuple[str, list]:
             rrows.append([r["name"], r["area"], r["segment"], reviews.group(code) if code else "No text", reviews.lang_name(code), code,
                           x.get("rating"), (x.get("publishTime") or "")[:10] or None, x.get("relativePublishTimeDescription"),
                           t[:TEXT_MAX] + ("…" if len(t) > TEXT_MAX else "") or None, _num(r["rating"]), _num(r["reviews"]),
-                          Link(r["maps_uri"], "Open ↗") if isinstance(r["maps_uri"], str) else None])
+                          r["place_id"]])  # no link per review: Excel caps a sheet at 65,530 links; the Merchants tab has them
     raw_tab = Table("Reviews", ["Merchant", "Area", "Segment", "Language group", "Language", "Code", "Review rating", "Published",
-                                "When (Google)", "Review text (original)", "Merchant rating", "Merchant reviews", "Google Maps"],
-                    rrows, [220, 90, 150, 110, 150, 60, 80, 90, 100, 420, 90, 100, 90])
+                                "When (Google)", "Review text (original)", "Merchant rating", "Merchant reviews", "Place ID"],
+                    rrows, [220, 90, 150, 110, 150, 60, 80, 90, 100, 420, 90, 100, 200])
 
     tabs = [Report(f"Review languages · {v.name}", ABOUT, blocks, kpis), merchants, raw_tab,
             Pivot("Pivot · area", "Reviews", "Area", "Language group", "Merchant", label="Reviews",
