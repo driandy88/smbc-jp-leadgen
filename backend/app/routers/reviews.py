@@ -27,6 +27,15 @@ def review_langs(vid: int, db: Session = Depends(get_db)):
     return reviews.summary(_df(_v(db, vid)))
 
 
+@router.get("/versions/{vid}/reviews/top")
+def review_top(vid: int, by: str = "est_ja", min_reviews: int = 0, area: str = "all", callable_only: bool = False,
+               n: int = 20, db: Session = Depends(get_db)):
+    """The top list the page re-ranks: by Japanese / English reviews (sampled or estimated), share, total or rating."""
+    if by not in reviews.RANKS:
+        raise HTTPException(422, f"Rank by one of {', '.join(reviews.RANKS)}")
+    return reviews.top(reviews.frame(_df(_v(db, vid))), by, max(1, min(n, 200)), max(0, min_reviews), area, callable_only)
+
+
 @router.post("/versions/{vid}/sheets/reviews")
 def reviews_sheet(vid: int, db: Session = Depends(get_db)):
     return _deliver(*_tabs(db, vid), f"/api/versions/{vid}/sheets/reviews.xlsx")

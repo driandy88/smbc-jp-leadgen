@@ -153,3 +153,4 @@ button:disabled { cursor: not-allowed; }
 .rv-table .r { text-align: right; }
 .rv-table a { color: #1E1E1C; text-decoration-color: #BDB6A7; }
 .rv-of { color: #8A8478; font-size: 10px; margin-left: 1px; }
+.rv-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; }

@@ -508,6 +508,15 @@ def test_review_languages(client, auth, monkeypatch):
     assert len(s["top_ja"]) == 20 and s["top_ja"][0]["est_ja"] >= s["top_ja"][-1]["est_ja"]
     t = s["top_ja"][0]
     assert t["est_ja"] == round(t["reviews"] * t["ja"] / t["sample"]) and t["ja"] + t["en"] + t["other"] == t["sample"]
+    top = lambda **q: client.get(f"/api/versions/{v['id']}/reviews/top", headers=auth, params=q).json()  # noqa: E731
+    en = top(by="en")
+    assert en["rows"] and all(r["en"] > 0 for r in en["rows"]) and en["rows"][0]["en"] >= en["rows"][-1]["en"]
+    big = top(by="ja", min_reviews=100)
+    assert all(r["reviews"] >= 100 for r in big["rows"]) and big["total"] < top(by="ja")["total"]
+    area = s["areas"][0]
+    assert all(r["area"] == area and r["callable"] for r in top(by="reviews", area=area, callable_only=True)["rows"])
+    assert top(by="rating", min_reviews=10 ** 9) == {"rows": [], "total": 0}
+    assert client.get(f"/api/versions/{v['id']}/reviews/top?by=nope", headers=auth).status_code == 422
     made = {}
     monkeypatch.setattr(gsheets, "create", lambda name, tabs: made.update(tabs=tabs) or "https://docs.google.com/r")
     assert client.post(f"/api/versions/{v['id']}/sheets/reviews", headers=auth).json()["url"] == "https://docs.google.com/r"

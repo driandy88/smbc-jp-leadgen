@@ -67,11 +67,30 @@ def _row(r: dict) -> dict:
             "pay": r["pay"], "callable": bool(r["callable"]), "maps_uri": r["maps_uri"] if isinstance(r["maps_uri"], str) else None}
 
 
-def top(g: pd.DataFrame, by: str, n: int = 20) -> list[dict]:
+# Ways to rank the top list: (sort columns, highest first; ties broken by the ones after the first)
+RANKS = {
+    "est_ja": ["est_ja", "reviews"], "est_en": ["est_en", "reviews"],
+    "ja": ["rv_ja", "est_ja", "reviews"], "en": ["rv_en", "est_en", "reviews"],
+    "share_en": ["share_en", "rv_en", "reviews"], "reviews": ["reviews", "rating"], "rating": ["rating", "reviews"],
+}
+# Ranks by a language only list merchants with at least one review in it
+NEEDS = {"est_ja": "rv_ja", "est_en": "rv_en", "ja": "rv_ja", "en": "rv_en", "share_en": "rv_en"}
+
+
+def top(g: pd.DataFrame, by: str, n: int = 20, min_reviews: int = 0, area: str = "all", callable_only: bool = False) -> dict:
+    """The top n merchants by a rank in RANKS, after the filters; total = how many pass the filters."""
     if g.empty:
-        return []
-    t = g[g[by] > 0].sort_values([by, "reviews"], ascending=[False, False]).head(n)
-    return [_row(r) for r in t.to_dict("records")]
+        return {"rows": [], "total": 0}
+    cols = RANKS.get(by) or RANKS["est_ja"]
+    t = g[g["reviews"].fillna(0) >= min_reviews]
+    if area != "all":
+        t = t[t["area"] == area]
+    if callable_only:
+        t = t[t["callable"]]
+    if by in NEEDS:
+        t = t[t[NEEDS[by]] > 0]
+    t = t.sort_values(cols, ascending=False, na_position="last")
+    return {"rows": [_row(r) for r in t.head(n).to_dict("records")], "total": len(t)}
 
 
 def by_col(g: pd.DataFrame, col: str) -> list[dict]:
@@ -92,5 +111,6 @@ def summary(df: pd.DataFrame) -> dict:
     return {"covered": len(g), "merchants": len(df), "sampled": int(g["rv_sample"].sum()),
             "total_reviews": int(g["reviews"].fillna(0).sum()), "split": _split(c), "langs": langs,
             "foreign_merchants": int(g["foreign"].sum()),
-            "top_ja": top(g, "est_ja"), "top_en": top(g, "est_en"),
+            "top_ja": top(g, "est_ja")["rows"], "top_en": top(g, "est_en")["rows"],
+            "areas": sorted(g["area"].dropna().unique().tolist()), "max_reviews": int(g["reviews"].fillna(0).max()),
             "by_area": by_col(g, "area"), "by_segment": by_col(g, "segment")[:12]}
