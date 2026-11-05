@@ -535,3 +535,31 @@ def test_review_languages(client, auth, monkeypatch):
     import openpyxl
     wb = openpyxl.load_workbook(io.BytesIO(x.content))
     assert wb.sheetnames == ["Summary", "Merchants", "Reviews", "Pivot · area", "Pivot · segment", "Pivot · language"]
+
+
+def test_feature_list(client, auth, monkeypatch):
+    from app.services import features, gsheets
+    p = features.Profiler()
+    p.add({"a": 1, "pay": {"card": True, "cash": False}, "reviews": [{"r": 5, "t": {"x": "hi"}}, {"r": 4}], "types": ["x", "y"], "e": ""})
+    p.add({"a": 2, "pay": {}, "reviews": [], "types": ["x"]})
+    rows = {r["path"]: r for r in p.rows()}
+    assert rows["a"]["pct"] == 100 and rows["pay"]["pct"] == 50 and rows["e"]["places"] == 0
+    assert rows["pay.cash"]["places"] == 1 and rows["pay.cash"]["top"] == [[False, 1]] and rows["pay.cash"]["pct_parent"] == 100
+    assert rows["reviews[].t.x"]["parent"] == "reviews[].t" and rows["reviews"]["nested"] == 3 and rows["reviews"]["children"] == 2
+    assert rows["types"]["top"] == [["x", 2], ["y", 1]] and rows["types"]["items"]["max"] == 2
+    assert features.label("paymentOptions.acceptsNfc") == "Accepts NFC" and features.label("googleMapsUri") == "Google maps URI"
+
+    v = _mock_version(client, auth, "features_v")
+    s = client.get(f"/api/versions/{v['id']}/features", headers=auth).json()
+    top = [r for r in s["rows"] if not r["parent"]]
+    assert s["features"] == len(top) > 20 and s["nested"] == len(s["rows"]) - len(top) > 0
+    assert sum(s["bands"].values()) == s["features"] and [r["pct"] for r in top] == sorted((r["pct"] for r in top), reverse=True)
+    assert next(r for r in s["rows"] if r["path"] == "paymentOptions.acceptsCreditCards")["parent"] == "paymentOptions"
+    made = {}
+    monkeypatch.setattr(gsheets, "create", lambda name, tabs: made.update(tabs=tabs) or "https://docs.google.com/f")
+    assert client.post(f"/api/versions/{v['id']}/sheets/features", headers=auth).json()["url"] == "https://docs.google.com/f"
+    rep, allf = made["tabs"]
+    assert len(allf.rows) == len(s["rows"]) and len(rep.blocks[1].rows) == 20 and len(rep.blocks[2].rows) == s["features"] - 20
+    monkeypatch.undo()
+    x = client.get(f"/api/versions/{v['id']}/sheets/features.xlsx", headers=auth)
+    assert x.status_code == 200 and len(x.content) > 1000
