@@ -13,7 +13,7 @@ type Row = {
 };
 type Band = { k: string; l: string; min: number };
 type Summary = { merchants: number; features: number; nested: number; with_nested: number; usable: number;
-  bands: Record<string, number>; bands_nested: Record<string, number>; band_names: Band[]; rows: Row[] };
+  bands: Record<string, number>; bands_nested: Record<string, number>; band_names: Band[]; rows: Row[]; byPath: Map<string, Row> };
 
 const COL: Record<string, string> = { complete: "#1E1E1C", mostly: "#6B675E", partial: "#B59A5B", rare: "#C8442B" };
 const KINDS = ["yes/no", "number", "text", "list", "object"];
@@ -25,6 +25,13 @@ const share = (r: Row, c: number) => (100 * c) / Math.max(1, r.kind === "list" ?
 // Hardly any value repeats: addresses, phone numbers, IDs
 const mostlyUnique = (r: Row) => r.unique || (r.distinct > 50 && r.top.length > 0 && r.top[0][1] / Math.max(1, r.values) < 0.01);
 const show = (v: Val | null) => (v === true ? "Yes" : v === false ? "No" : v == null ? "—" : String(v));
+
+/** The labels from the top-level feature down to this field. */
+function chain(r: Row, by: Map<string, Row>) {
+  const out = [r.label];
+  for (let p = r.parent; p; p = by.get(p)?.parent ?? null) out.unshift(by.get(p)?.label ?? p);
+  return out;
+}
 
 /** In one line: what the field holds. */
 function gist(r: Row) {
@@ -46,7 +53,7 @@ export function FeatureList({ versionId }: { versionId: number }) {
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => {
     setS(null);
-    api<Summary>(`/api/versions/${versionId}/features`).then(setS).catch((e) => setErr(e instanceof ApiError ? e.message : "Couldn't load the feature list"));
+    api<Summary>(`/api/versions/${versionId}/features`).then((x) => setS({ ...x, byPath: new Map(x.rows.map((r) => [r.path, r])) })).catch((e) => setErr(e instanceof ApiError ? e.message : "Couldn't load the feature list"));
   }, [versionId]);
 
   const list = useMemo(() => {
@@ -151,6 +158,12 @@ export function FeatureList({ versionId }: { versionId: number }) {
   );
 }
 
+function Crumbs({ c }: { c: string[] }) {
+  return <span>{c.map((l, i) => i < c.length - 1
+    ? <span key={i} style={{ color: "#8A8478" }}>{l} › </span>
+    : <span key={i}>{l}</span>)}</span>;
+}
+
 function Bar({ p, color }: { p: number; color: string }) {
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -167,7 +180,7 @@ function FeatureRow({ r, i, s, open, setOpen }: { r: Row; i: number; s: Summary;
     <Fragment>
       <tr onClick={() => setOpen(isOpen ? null : r.path)} style={{ cursor: "pointer", background: isOpen ? "#F6F4EE" : undefined }} aria-expanded={isOpen}>
         <td className="m">{i}</td>
-        <td>{r.label}<span className="m" style={{ display: "block", fontSize: 10, color: "#8A8478" }}>{r.path}</span></td>
+        <td>{r.parent ? <Crumbs c={chain(r, s.byPath)} /> : r.label}<span className="m" style={{ display: "block", fontSize: 10, color: "#8A8478" }}>{r.path}</span></td>
         <td className="m" style={{ fontSize: 11 }}>{r.kind}</td>
         <td title={b.l}><Bar p={r.pct} color={COL[b.k]} /></td>
         <td className="m r">{fmt(r.places)}</td>
