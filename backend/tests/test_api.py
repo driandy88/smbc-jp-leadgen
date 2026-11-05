@@ -491,3 +491,31 @@ def test_xlsx_filename_is_safe():
     from app.routers.websearch import _filename
     assert _filename("Hexline · final keywords - 4 areas (Kita, Chuo) · Booking / gourmet portal · 2026-11-04 15:05") == \
         "Hexline_final-keywords-4-areas-Kita-Chuo_Booking-gourmet-portal_2026-11-04-15-05.xlsx"
+
+
+def test_review_languages(client, auth, monkeypatch):
+    from app.services import gsheets, records
+    assert records.review_langs([{"originalText": {"text": "旨い", "languageCode": "ja"}},
+                                 {"originalText": {"text": "Good", "languageCode": "en"}},
+                                 {"text": {"text": "很好", "languageCode": "zh-Hant"}},
+                                 {"rating": 5}]) == {"rv_sample": 3, "rv_ja": 1, "rv_en": 1, "rv_codes": "ja,en,zh-Hant"}
+    v = _mock_version(client, auth, "reviews_v")
+    s = client.get(f"/api/versions/{v['id']}/reviews", headers=auth).json()
+    sp = s["split"]
+    assert s["covered"] > 0 and sp["ja"] + sp["en"] + sp["other"] == sp["n"] == s["sampled"] and sp["ja_pct"] > 50
+    assert len(s["top_ja"]) == 10 and s["top_ja"][0]["est_ja"] >= s["top_ja"][-1]["est_ja"]
+    t = s["top_ja"][0]
+    assert t["est_ja"] == round(t["reviews"] * t["ja"] / t["sample"]) and t["ja"] + t["en"] + t["other"] == t["sample"]
+    made = {}
+    monkeypatch.setattr(gsheets, "create", lambda name, tabs: made.update(tabs=tabs) or "https://docs.google.com/r")
+    assert client.post(f"/api/versions/{v['id']}/sheets/reviews", headers=auth).json()["url"] == "https://docs.google.com/r"
+    rep, merchants, raw, *pivots = made["tabs"]
+    assert len(merchants.rows) == s["covered"] and sum(1 for r in raw.rows if r[3] != "No text") == s["sampled"]
+    assert [p.source for p in pivots] == ["Reviews"] * 3 and all(p.label == "Reviews" for p in pivots)
+    monkeypatch.undo()
+    x = client.get(f"/api/versions/{v['id']}/sheets/reviews.xlsx", headers=auth)
+    import io
+
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(x.content))
+    assert wb.sheetnames == ["Summary", "Merchants", "Reviews", "Pivot · area", "Pivot · segment", "Pivot · language"]
