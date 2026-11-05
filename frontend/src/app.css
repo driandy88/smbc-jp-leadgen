@@ -145,3 +145,12 @@ button:disabled { cursor: not-allowed; }
 .slice-cell[aria-pressed="true"] { background: #1E1E1C; color: #F8F6F0; }
 .slice-cell[aria-pressed="true"] .m { color: #F8F6F0 !important; }
 .slice-cell:disabled { cursor: default; opacity: 0.5; }
+
+/* Review languages */
+.rv-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; }
+.rv-table th { text-align: left; font: 10px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: 0.05em; text-transform: uppercase; color: #5E5A52; font-weight: 400; border-bottom: 1px solid #1E1E1C; padding: 5px 8px 5px 0; }
+.rv-table td { border-bottom: 1px solid #E2DDD1; padding: 6px 8px 6px 0; vertical-align: top; }
+.rv-table .r { text-align: right; }
+.rv-table a { color: #1E1E1C; text-decoration-color: #BDB6A7; }
+.rv-of { color: #8A8478; font-size: 10px; margin-left: 1px; }
+.rv-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; }

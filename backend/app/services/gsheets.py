@@ -65,6 +65,7 @@ class Pivot:
     cols: str
     value: str
     note: str = ""
+    label: str = "Merchants"  # what the counted value is called
 
 
 def _tab(t) -> str:
@@ -178,7 +179,7 @@ def _pivot(sid: int, t: Pivot, tabs: dict[str, tuple[int, Table]]) -> list[dict]
         "rows": [{"sourceColumnOffset": idx[t.rows], "showTotals": True, "sortOrder": "DESCENDING",
                   "valueBucket": {"valuesIndex": 0}}],
         "columns": [{"sourceColumnOffset": idx[t.cols], "showTotals": True, "sortOrder": "ASCENDING"}],
-        "values": [{"summarizeFunction": "COUNTA", "sourceColumnOffset": idx[t.value], "name": "Merchants"}],
+        "values": [{"summarizeFunction": "COUNTA", "sourceColumnOffset": idx[t.value], "name": t.label}],
     }
     reqs = [_put(sid, 0, [_row([_cell(t.title, bold=True, size=14)]), _row([_cell(t.note, color=MUTED, italic=True)])])]
     reqs.append({"updateCells": {"start": {"sheetId": sid, "rowIndex": 3, "columnIndex": 0}, "rows": [{"values": [{"pivotTable": pv}]}],

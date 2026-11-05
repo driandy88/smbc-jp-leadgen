@@ -158,7 +158,23 @@ def flatten(row) -> dict:
         "phone": p.get("nationalPhoneNumber") or p.get("internationalPhoneNumber"),
         "web": p.get("websiteUri"), "photos": len(p.get("photos") or []),
         "maps_uri": p.get("googleMapsUri"), "keywords": row.keywords, "hits": row.hits,
+        **review_langs(p.get("reviews")),
     }
+
+
+def review_lang(r: dict) -> str | None:
+    """The language a review was written in (before Google's translation); None for a rating with no text."""
+    t = r.get("originalText") or r.get("text") or {}
+    return (t.get("languageCode") or None) if t.get("text") else None
+
+
+def review_langs(reviews: list | None) -> dict:
+    """Languages of the (at most 5, "most relevant") reviews Google returns with a place."""
+    langs = [review_lang(r) for r in reviews or []]
+    codes = [c for c in langs if c]
+    return {"rv_sample": len(codes), "rv_ja": sum(c == "ja" for c in codes),
+            "rv_en": sum(c == "en" or c.startswith("en-") for c in codes),
+            "rv_codes": ",".join(codes)}
 
 
 @lru_cache(maxsize=8)

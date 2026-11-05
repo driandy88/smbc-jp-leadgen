@@ -18,6 +18,11 @@ const Bare = ({ children }: { title: string; meta?: string; children: React.Reac
 
 type Row = Record<string, any>;
 type Cls = { k: string; l: string; c: string };
+/** Who reviews a merchant, from the up-to-5 reviews Google returns: any English review wins over other languages. */
+export const reviewClass = (r: Row) => (!r.rv_sample ? "none" : r.rv_en ? "en" : r.rv_sample > r.rv_ja ? "other" : "ja");
+const REVIEW_CLASSES: Cls[] = [{ k: "ja", l: "Japanese only", c: "#1E1E1C" }, { k: "en", l: "English reviews", c: "#C8442B" },
+  { k: "other", l: "Other foreign only", c: "#B59A5B" }, { k: "none", l: "No review text", c: "#D8D3C7" }];
+const REVIEW_LABEL = Object.fromEntries(REVIEW_CLASSES.map((c) => [c.k, c.l]));
 const contactClass = (r: Row) => (r.phone && r.web ? "both" : r.phone ? "phone" : r.web ? "web" : "none");
 /** Columns of the slicer: how a merchant can be contacted, or what its website link is. */
 const VIEWS: Record<string, { l: string; of: (r: Row) => string; classes: Cls[] }> = {
@@ -27,6 +32,7 @@ const VIEWS: Record<string, { l: string; of: (r: Row) => string; classes: Cls[] 
               { k: "web", l: "Website only", c: "#A39B88" }, { k: "none", l: "No contact", c: "#C8442B" }],
   },
   web: { l: "Website type", of: webKind, classes: WEB_KINDS.map(([k, l, c]) => ({ k, l, c })) },
+  reviews: { l: "Reviews", of: reviewClass, classes: REVIEW_CLASSES },
 };
 const PAY: Record<string, string> = { cash: "Cash only", none: "No payment info", card: "Card", nfc: "Card + NFC / IC" };
 const rating = (r: Row) => (r.rating == null ? "Unrated" : r.rating >= 4.5 ? "★4.5+" : r.rating >= 4 ? "★4.0–4.4" : r.rating >= 3.5 ? "★3.5–3.9" : "Under ★3.5");
@@ -36,14 +42,17 @@ const DIMS: { k: string; l: string; f: (r: Row) => string }[] = [
   { k: "ward", l: "Area", f: (r) => r.ward_en ?? r.area_en },
   { k: "pay", l: "Payment", f: (r) => PAY[r.pay] || r.pay },
   { k: "rating", l: "Rating", f: rating },
+  { k: "rvlang", l: "Review language", f: (r) => REVIEW_LABEL[reviewClass(r)] },
   { k: "type", l: "Place type", f: (r) => r.type_label },
 ];
 /** Save merchants as a CSV call list (BOM so Excel reads the Japanese names). */
 export function downloadCsv(rows: Row[], filename: string) {
-  const head = ["name", "segment", "type", "neighbourhood", "area", "phone", "website", "website_type", "instagram", "address", "rating", "reviews", "payment", "google_maps"];
+  const head = ["name", "segment", "type", "neighbourhood", "area", "phone", "website", "website_type", "instagram", "address", "rating", "reviews", "payment", "google_maps",
+    "review_language", "sampled_reviews", "japanese_reviews", "english_reviews", "other_language_reviews"];
   const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = rows.map((r) => [r.name, r.segment, r.type_label, r.district, r.ward_en ?? r.area_en, r.phone, r.web, r.web ? WEB_LABEL[webKind(r)] : "",
-    isInstagram(r.web) ? r.web : "", r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri].map(q).join(","));
+    isInstagram(r.web) ? r.web : "", r.address, r.rating, r.reviews, PAY[r.pay] || r.pay, r.maps_uri,
+    REVIEW_LABEL[reviewClass(r)], r.rv_sample ?? "", r.rv_sample ? r.rv_ja : "", r.rv_sample ? r.rv_en : "", r.rv_sample ? r.rv_sample - r.rv_ja - r.rv_en : ""].map(q).join(","));
   const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -112,7 +121,7 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: view === "contact" ? 760 : 940 }}>
+        <div style={{ minWidth: view === "web" ? 940 : 760 }}>
           <div className={`m slice-grid${view === "web" ? " slice-grid-web" : ""}`} style={{ fontSize: 10, color: "#5E5A52", borderBottom: "1px solid #1E1E1C", padding: "4px 0" }}>
             <span>{d.l.toUpperCase()}</span><span>F&B MERCHANTS</span>
             {CLASSES.map((c) => <span key={c.k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><span style={{ width: 8, height: 8, background: c.c }} />{c.l.toUpperCase()}</span>)}
@@ -124,7 +133,7 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
               <div key={key + i} className={`slice-grid${view === "web" ? " slice-grid-web" : ""}`} style={{ fontSize: 12, padding: "3px 0", borderBottom: i === 0 ? "1px solid #1E1E1C" : "1px solid #E2DDD1", alignItems: "center", fontWeight: i === 0 ? 600 : 400 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={key}>{key}</span>
                 {cell(row, null, t.n, 0)}
-                {CLASSES.map((c) => <Fragment key={c.k}>{cell(row, c.k, t[c.k], t.n, c.k === "none" && t[c.k] ? "#A8371F" : undefined)}</Fragment>)}
+                {CLASSES.map((c) => <Fragment key={c.k}>{cell(row, c.k, t[c.k], t.n, c.k === "none" && view !== "reviews" && t[c.k] ? "#A8371F" : undefined)}</Fragment>)}
                 <span className="m" style={{ color: (100 * reach(t)) / Math.max(1, t.n) < 80 ? "#A8371F" : undefined }}>{pct((100 * reach(t)) / Math.max(1, t.n), 0)}</span>
                 <span style={{ display: "flex", height: 8, gap: 1 }}>{CLASSES.map((c) => <span key={c.k} style={{ width: `${(100 * t[c.k]) / Math.max(1, t.n)}%`, background: c.c }} />)}</span>
               </div>
@@ -143,7 +152,7 @@ export function ContactSlicer({ points, bare }: { points: Points | null; bare?: 
             <button className="btn2" onClick={() => setSel(null)}>Clear</button>
           </>
         ) : (
-          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, website type, Instagram, address and Google Maps link. <b>Website type</b> splits the links into the merchant's own site, a group / chain site, social media and booking / gourmet portals.</span>
+          <span style={{ fontSize: 12, color: "#5E5A52" }}>Select a number in the table, e.g. <b>Izakaya & bars × Phone only</b>, to get that call list with names, phone, website type, Instagram, address and Google Maps link. <b>Website type</b> splits the links into the merchant's own site, a group / chain site, social media and booking / gourmet portals. <b>Review language</b> sorts merchants by who reviews them on Google (from up to 5 sampled reviews): try <b>Payment × English reviews</b> for cash-only places visitors go to.</span>
         )}
       </div>
     </Wrap>

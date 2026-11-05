@@ -144,6 +144,26 @@ def _cell_places(cell: str, family: str) -> tuple:
                  for i in range(n))
 
 
+MOCK_REVIEW = {"ja": "美味しかったです。また来ます。", "en": "Great food, friendly staff.", "ko": "맛있어요.",
+               "zh-Hant": "很好吃。", "zh": "很好吃。", "fr": "Très bon."}
+
+
+def _mock_reviews(pid: str, n: int, rating: float, r: random.Random) -> list[dict]:
+    """Up to 5 reviews like Google's: mostly Japanese, a few by visitors, the odd rating with no text."""
+    tourist = r.random() < 0.25  # places visitors find write more in other languages
+    out = []
+    for k in range(n):
+        lang = r.choices(list(MOCK_REVIEW), [0.7, 0.18, 0.04, 0.04, 0.02, 0.02] if tourist else [0.96, 0.02, 0.005, 0.005, 0.005, 0.005])[0]
+        rv: dict = {"name": f"places/{pid}/reviews/{k}", "rating": max(1, min(5, round(r.gauss(rating, 0.8)))),
+                    "relativePublishTimeDescription": f"{r.randint(1, 11)} か月前", "publishTime": f"2026-{r.randint(1, 10):02d}-{r.randint(1, 28):02d}T12:00:00Z"}
+        if r.random() > 0.03:
+            body = {"text": MOCK_REVIEW[lang], "languageCode": lang}
+            rv["originalText"] = body
+            rv["text"] = body if lang == "ja" else {"text": MOCK_REVIEW["ja"], "languageCode": "ja"}
+        out.append(rv)
+    return out
+
+
 def _make_place(cell: str, family: str, i: int, lat: float, lng: float) -> dict:
     r = _rng(cell, family, i)
     pid = "mock_" + hashlib.sha1(f"{cell}{family}{i}".encode()).hexdigest()[:24]
@@ -171,6 +191,7 @@ def _make_place(cell: str, family: str, i: int, lat: float, lng: float) -> dict:
     if rating is not None:
         p["rating"] = rating
         p["userRatingCount"] = reviews
+        p["reviews"] = _mock_reviews(pid, min(5, reviews), rating, _rng(cell, family, i, "reviews"))
     if r.random() < 0.9:
         p["nationalPhoneNumber"] = f"06-{r.randint(6000, 6999)}-{r.randint(1000, 9999)}"
     if r.random() < 0.4 or chain:
