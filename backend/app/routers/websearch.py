@@ -2,6 +2,7 @@
 whose listing has no website."""
 
 import re
+import time
 from datetime import datetime
 from urllib.parse import quote
 
@@ -86,11 +87,27 @@ def _filename(name: str) -> str:
     return re.sub(r"-?_-?", "_", s).strip("-_") + ".xlsx"
 
 
+# Workbooks built for a sheet Google wouldn't hold, kept briefly so the .xlsx download that follows doesn't
+# build them again: {xlsx path: (time built, name, tabs)}
+_BUILT: dict[str, tuple[float, str, list]] = {}
+BUILT_TTL = 600
+
+
+def _cached(xlsx_path: str) -> tuple[str, list] | None:
+    """The workbook built for this download a moment ago, used once; None to build it fresh."""
+    now = time.time()
+    for k in [k for k, v in _BUILT.items() if now - v[0] > BUILT_TTL]:
+        _BUILT.pop(k, None)
+    hit = _BUILT.pop(xlsx_path, None)
+    return hit[1:] if hit else None
+
+
 def _deliver(name: str, tabs: list, xlsx_path: str) -> dict:
     """A Google Sheet when Drive will hold it; otherwise tell the page to download the same workbook as .xlsx."""
     try:
         return {"url": gsheets.create(name, tabs)}
     except gsheets.Unavailable as e:
+        _BUILT[xlsx_path] = (time.time(), name, tabs)
         return {"xlsx": xlsx_path, "filename": _filename(name), "reason": str(e)}
 
 
@@ -108,7 +125,7 @@ def web_sheet(vid: int, kind: str, db: Session = Depends(get_db)):
 
 @router.get("/versions/{vid}/sheets/web/{kind}.xlsx")
 def web_xlsx(vid: int, kind: str, db: Session = Depends(get_db)):
-    return _xlsx(*_web_tabs(db, vid, kind))
+    return _xlsx(*(_cached(f"/api/versions/{vid}/sheets/web/{kind}.xlsx") or _web_tabs(db, vid, kind)))
 
 
 def _web_tabs(db: Session, vid: int, kind: str) -> tuple[str, list]:
@@ -268,7 +285,7 @@ def websearch_sheet(vid: int, db: Session = Depends(get_db)):
 
 @router.get("/versions/{vid}/sheets/websearch.xlsx")
 def websearch_xlsx(vid: int, db: Session = Depends(get_db)):
-    return _xlsx(*_finder_tabs(db, vid))
+    return _xlsx(*(_cached(f"/api/versions/{vid}/sheets/websearch.xlsx") or _finder_tabs(db, vid)))
 
 
 def _finder_tabs(db: Session, vid: int) -> tuple[str, list]:
