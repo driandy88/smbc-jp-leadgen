@@ -563,3 +563,15 @@ def test_feature_list(client, auth, monkeypatch):
     monkeypatch.undo()
     x = client.get(f"/api/versions/{v['id']}/sheets/features.xlsx", headers=auth)
     assert x.status_code == 200 and len(x.content) > 1000
+
+
+def test_feature_list_saved(client, auth):
+    from app.db import SessionLocal
+    from app.models import Version
+    from app.routers import features as fr
+    v = _mock_version(client, auth, "features_saved")
+    first = client.get(f"/api/versions/{v['id']}/features", headers=auth).json()
+    fr._PROFILES.clear()  # another instance: reads the saved profile, no payloads
+    with SessionLocal() as db:
+        assert db.get(Version, v["id"]).features["features"] == first["features"]
+    assert client.get(f"/api/versions/{v['id']}/features", headers=auth).json() == first
