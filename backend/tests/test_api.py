@@ -560,6 +560,11 @@ def test_feature_list(client, auth, monkeypatch):
     assert client.post(f"/api/versions/{v['id']}/sheets/features", headers=auth).json()["url"] == "https://docs.google.com/f"
     rep, allf = made["tabs"]
     assert len(allf.rows) == len(s["rows"]) and len(rep.blocks[1].rows) == 20 and len(rep.blocks[2].rows) == s["features"] - 20
+    assert allf.header[:4] == ["Feature", "Level 2", "Level 3", "Level 4"]
+    row = next(r for r in allf.rows if "regularOpeningHours.periods[].close.hour" in r)
+    assert row[:4] == ["Regular opening hours", "Periods", "Close", "Hour"]
+    i = allf.rows.index(row)
+    assert allf.rows[i - 1][0] == "Regular opening hours"  # tree order: sub-fields sit under their feature
     monkeypatch.undo()
     x = client.get(f"/api/versions/{v['id']}/sheets/features.xlsx", headers=auth)
     assert x.status_code == 200 and len(x.content) > 1000

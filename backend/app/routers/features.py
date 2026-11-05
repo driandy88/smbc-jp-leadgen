@@ -79,10 +79,26 @@ def _range(r: dict) -> str | None:
     return None
 
 
+def chain(r: dict, by: dict) -> list[str]:
+    """The labels from the top-level feature down to this field: Regular opening hours, Periods, Open, Hour."""
+    out = [r["label"]]
+    while r["parent"]:
+        r = by[r["parent"]]
+        out.append(r["label"])
+    return out[::-1]
+
+
+def _root(r: dict, by: dict) -> str:
+    while r["parent"]:
+        r = by[r["parent"]]
+    return r["path"]
+
+
 def _tabs(db: Session, vid: int) -> tuple[str, list]:
     v = _v(db, vid)
     s = profile(db, vid)
     rows, n = s["rows"], s["merchants"]
+    by_path = {r["path"]: r for r in rows}
     top = [r for r in rows if not r["parent"]]
     names = {b["k"]: f"{b['l']} ({b['min']}%+)" if b["min"] else f"{b['l']} (under 10%)" for b in s["band_names"]}
     kpis = [(f"{s['features']:,}", "Features", f"top-level fields Google returns · {n:,} merchants"),
@@ -107,12 +123,20 @@ def _tabs(db: Session, vid: int) -> tuple[str, list]:
                             [["  " * (k["depth"] - 1) + k["label"], k["path"], k["kind"], k["pct"] / 100, k["pct_parent"] / 100,
                               k["places"], _top(k, 3)] for k in sorted(kids, key=lambda k: k["path"])], pct_cols=(3, 4)))
 
-    all_head = ["Field", "Feature", "Parent", "Level", "Type", "Completeness", "Of parent", "Merchants", "Band", "Sub-fields",
-                "Distinct values", "Top values", "Range (min – median – max)", "Example"]
-    all_rows = [[r["path"], r["label"], r["parent"], r["depth"] + 1 if r["parent"] else 1, r["kind"], r["pct"] / 100, r["pct_parent"] / 100,
-                 r["places"], names[features.band(r["pct"])], r["nested"] or None,
+    # Nested fields split into one column per level: Feature › Level 2 › Level 3 …
+    chains = {r["path"]: chain(r, by_path) for r in rows}
+    deep = max(len(c) for c in chains.values())
+    lv_head = ["Feature"] + [f"Level {i}" for i in range(2, deep + 1)]
+    all_head = lv_head + ["Field path", "Type", "Completeness", "Of parent", "Merchants", "Band", "Sub-fields",
+                          "Distinct values", "Top values", "Range (min – median – max)", "Example"]
+    all_rows = [chains[r["path"]] + [None] * (deep - len(chains[r["path"]])) +
+                [r["path"], r["kind"], r["pct"] / 100, r["pct_parent"] / 100, r["places"], names[features.band(r["pct"])], r["nested"] or None,
                  f"{r['distinct']:,}+" if r["distinct_capped"] else r["distinct"] or None, _top(r, 8), _range(r),
                  str(r["example"]) if r["example"] is not None else None] for r in rows]
-    table = Table("All fields", all_head, all_rows, [260, 200, 200, 50, 70, 100, 80, 80, 140, 80, 90, 420, 200, 260], pct_cols=(5, 6))
+    # Tree order: each feature, then everything inside it, so the level columns read top-down
+    order = {f["path"]: i for i, f in enumerate(r for r in rows if not r["parent"])}
+    all_rows = [x for _, x in sorted(zip(rows, all_rows), key=lambda t: (order[_root(t[0], by_path)], t[0]["path"]))]
+    table = Table("All fields", all_head, all_rows, [200] + [160] * (deep - 1) + [300, 70, 100, 80, 80, 140, 80, 90, 420, 200, 260],
+                  pct_cols=(deep + 2, deep + 3))
     return (f"Hexline · {v.name} · Feature list · {datetime.now():%Y-%m-%d %H:%M}",
             [Report(f"Feature list · {v.name}", ABOUT, blocks, kpis), table])
