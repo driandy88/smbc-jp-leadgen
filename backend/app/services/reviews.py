@@ -12,7 +12,12 @@ LANG = {"ja": "Japanese", "en": "English", "ko": "Korean", "zh": "Chinese (Simpl
         "zh-Hant": "Chinese (Traditional)", "zh-TW": "Chinese (Traditional)", "zh-HK": "Chinese (Traditional)",
         "th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ms": "Malay", "tl": "Filipino", "fil": "Filipino",
         "fr": "French", "de": "German", "es": "Spanish", "it": "Italian", "pt": "Portuguese", "ru": "Russian",
-        "nl": "Dutch", "sv": "Swedish", "pl": "Polish", "ar": "Arabic", "hi": "Hindi", "tr": "Turkish"}
+        "nl": "Dutch", "sv": "Swedish", "pl": "Polish", "ar": "Arabic", "hi": "Hindi", "tr": "Turkish",
+        "my": "Burmese", "iw": "Hebrew", "he": "Hebrew", "uk": "Ukrainian", "ca": "Catalan", "gn": "Guarani",
+        "no": "Norwegian", "nb": "Norwegian", "da": "Danish", "fi": "Finnish", "cs": "Czech", "el": "Greek",
+        "hu": "Hungarian", "ro": "Romanian", "fa": "Persian", "ur": "Urdu", "bn": "Bengali", "ne": "Nepali",
+        "km": "Khmer", "lo": "Lao", "mn": "Mongolian", "si": "Sinhala", "ta": "Tamil", "sk": "Slovak", "bg": "Bulgarian",
+        "hr": "Croatian", "sr": "Serbian", "lt": "Lithuanian", "lv": "Latvian", "et": "Estonian", "sl": "Slovenian"}
 
 
 def lang_name(code: str | None) -> str:
